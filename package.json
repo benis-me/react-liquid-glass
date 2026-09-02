@@ -1,0 +1,50 @@
+{
+  "name": "refractive-glass-react",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/library/index.cjs",
+  "module": "./dist/library/index.js",
+  "types": "./dist/library/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/library/index.d.ts",
+      "import": "./dist/library/index.js",
+      "require": "./dist/library/index.cjs"
+    },
+    "./style.css": "./dist/library/style.css"
+  },
+  "files": [
+    "dist/library"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "scripts": {
+    "dev": "vite --port 32472",
+    "build:demo": "vite build",
+    "build:lib": "vite build --config vite.lib.config.mjs && tsc -p tsconfig.lib.json",
+    "build": "npm run build:demo && npm run build:lib && node scripts/prepare-sites-build.mjs",
+    "check": "tsc --noEmit",
+    "test": "npm run build:lib && node --test tests/lens-map.test.mjs",
+    "preview": "vite preview",
+    "test:sites": "node --test tests/sites-worker.test.mjs"
+  },
+  "dependencies": {
+    "@fontsource-variable/manrope": "^5.3.0",
+    "@fontsource-variable/noto-sans-sc": "^5.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "lucide-react": "^1.39.0",
+    "motion": "13.1.1",
+    "qrcode": "^1.5.4",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "vite": "8.2.2"
+  },
+  "devDependencies": {
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
+    "typescript": "^7.0.2"
+  }
+}

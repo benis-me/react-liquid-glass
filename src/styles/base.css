@@ -1,0 +1,122 @@
+:root {
+  --font-body: "Noto Sans SC Variable", "PingFang SC", sans-serif;
+  --font-display: "Manrope Variable", "Noto Sans SC Variable", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --bg: #f5f5f3;
+  --bg-raised: #fff;
+  --surface: #ededeb;
+  --surface-strong: #dfdfdc;
+  --text: #111;
+  --muted: #626262;
+  --soft: #949494;
+  --border: #11111114;
+  --primary: #262626;
+  --primary-soft: #e7e7e4;
+  --action-glass-tint: #fff;
+  --demo-bg:
+    linear-gradient(rgb(0 0 0 / .05) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(0 0 0 / .05) 1px, transparent 1px),
+    #ebebe8;
+  --bg-max: var(--bg-raised);
+  --bg-1: #f3f3f1;
+  --bg-2: #ececea;
+  --bg-3: #e5e5e2;
+  --bg-4: #dcdcd8;
+  --bg-5: #cececa;
+  --bg-6: #bdbdb8;
+  --fg-1: var(--text);
+  --fg-2: #4d4d4d;
+  --fg-3: #707070;
+  --fg-4: #999;
+  --border-0: #11111108;
+  --border-1: #11111114;
+  --border-2: #11111138;
+  --shadow-strong: #0000001f;
+  --duration-snappy: .22s;
+  --ease-snappy: cubic-bezier(.175, .885, .32, 1.1);
+  --body-bg: var(--bg);
+  color: var(--text);
+  background: var(--bg);
+  font-family: var(--font-body);
+  font-synthesis: none;
+  font-feature-settings: "kern" on;
+  text-rendering: optimizeLegibility;
+}
+
+:root[data-theme="dark"] {
+  --bg: #111;
+  --bg-raised: #171717;
+  --surface: #1f1f1f;
+  --surface-strong: #292929;
+  --text: #f5f5f3;
+  --muted: #aaa;
+  --soft: #757575;
+  --border: #ffffff14;
+  --primary: #dededb;
+  --primary-soft: #30302e;
+  --action-glass-tint: #4a4a46;
+  --demo-bg:
+    linear-gradient(rgb(255 255 255 / .055) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / .055) 1px, transparent 1px),
+    #1a1a1a;
+  --bg-max: var(--bg-raised);
+  --bg-1: #171717;
+  --bg-2: #1e1e1e;
+  --bg-3: #242424;
+  --bg-4: #2c2c2c;
+  --bg-5: #373737;
+  --bg-6: #464646;
+  --fg-2: #c7c7c5;
+  --fg-3: #9b9b99;
+  --fg-4: #737371;
+  --border-0: #ffffff0b;
+  --border-1: #ffffff16;
+  --border-2: #ffffff3d;
+  --shadow-strong: #00000080;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  transition: color .2s ease, background-color .2s ease;
+}
+button, input { font: inherit; }
+button, a { -webkit-tap-highlight-color: transparent; }
+button { color: inherit; }
+a { color: inherit; text-decoration: none; }
+img { display: block; max-width: 100%; }
+figure { margin: 0; }
+::selection { color: var(--text); background: var(--primary-soft); }
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
+
+.skip-link {
+  z-index: 100;
+  padding: 10px 14px;
+  color: var(--bg);
+  background: var(--text);
+  border-radius: 8px;
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  transform: translateY(-160%);
+}
+.skip-link:focus { transform: translateY(0); }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
+}
