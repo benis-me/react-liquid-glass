@@ -1,4 +1,4 @@
-# Dezin Glass React
+# React Liquid Glass
 
 A reusable React library for real-time liquid-glass refraction on the web.
 
