@@ -52,3 +52,5 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 - The QR icon's 3D side wall stays vertically inset within the rounded front/back faces; never scale or translate it beyond the face bounds, which creates a bottom spike during rotation.
 - The Demo supports persisted Chinese/English locales across visible and ARIA copy and updates `html.lang`. Footer left contains a Sun/Moon icon-only theme button beside a compact `中`/`EN` language switch.
 - The footer language button displays the current locale (`中` for Chinese, `EN` for English); its ARIA label describes the target locale.
+- Core `Glass` and `GlassCanvas` ship without CSS. Optional Switch/Slider/Tabs styles live in the standalone `controls.css` export with self-contained fallback tokens; the Demo imports that file explicitly.
+- The Demo defaults to English when no locale has been saved; a persisted user choice still wins. Keep the browser title `React Liquid Glass`.

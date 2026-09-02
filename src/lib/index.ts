@@ -1,6 +1,5 @@
 import { Glass as GlassComponent, type GlassProps, type LensInstance } from "./glass";
 import { GlassProvider, RefractionGroup, RefractionTarget, useGlassContext, useSharedLens } from "./group";
-import "./style.css";
 
 export { erf, computeDomeConstants, domeGradient, type DomeConstants } from "./math";
 export {

@@ -1,9 +1,20 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { copyFileSync } from "node:fs";
 import { resolve } from "node:path";
 
+const libraryDir = resolve(import.meta.dirname, "dist/library");
+
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    {
+      name: "emit-control-styles",
+      closeBundle() {
+        copyFileSync(resolve(import.meta.dirname, "src/lib/controls.css"), resolve(libraryDir, "controls.css"));
+      },
+    },
+  ],
   build: {
     outDir: "dist/library",
     emptyOutDir: true,
@@ -12,7 +23,6 @@ export default defineConfig({
       entry: resolve(import.meta.dirname, "src/lib/index.ts"),
       formats: ["es", "cjs"],
       fileName: (format) => (format === "es" ? "index.js" : "index.cjs"),
-      cssFileName: "style",
     },
     rollupOptions: {
       external: ["react", "react/jsx-runtime", "motion/react"],

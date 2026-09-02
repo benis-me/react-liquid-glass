@@ -16,6 +16,10 @@ const filterSource = readFileSync(
 const displacementSource = readFileSync(new URL("../src/lib/displacement-map.ts", import.meta.url), "utf8");
 const appSource = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
 const mainSource = readFileSync(new URL("../src/main.tsx", import.meta.url), "utf8");
+const libraryIndexSource = readFileSync(new URL("../src/lib/index.ts", import.meta.url), "utf8");
+const libraryConfigSource = readFileSync(new URL("../vite.lib.config.mjs", import.meta.url), "utf8");
+const packageSource = readFileSync(new URL("../package.json", import.meta.url), "utf8");
+const readmeSource = readFileSync(new URL("../README.md", import.meta.url), "utf8");
 const controlGallerySource = readFileSync(new URL("../src/demos/ControlGallery.tsx", import.meta.url), "utf8");
 const playgroundSource = readFileSync(new URL("../src/demos/DisplacementPlayground.tsx", import.meta.url), "utf8");
 const additionalDemosSource = readFileSync(new URL("../src/demos/AdditionalGlassDemos.tsx", import.meta.url), "utf8");
@@ -25,7 +29,7 @@ const stylesSource = readFileSync(new URL("../src/styles.css", import.meta.url),
 const demoStylesSource = readFileSync(new URL("../src/styles/demos.css", import.meta.url), "utf8");
 const pageStylesSource = readFileSync(new URL("../src/styles/page.css", import.meta.url), "utf8");
 const baseStylesSource = readFileSync(new URL("../src/styles/base.css", import.meta.url), "utf8");
-const libraryStylesSource = readFileSync(new URL("../src/lib/style.css", import.meta.url), "utf8");
+const libraryStylesSource = readFileSync(new URL("../src/lib/controls.css", import.meta.url), "utf8");
 const regenSource = readFileSync(new URL("../src/lib/use-map-regen.ts", import.meta.url), "utf8");
 const contextSource = readFileSync(new URL("../src/lib/context.ts", import.meta.url), "utf8");
 const componentSource = readFileSync(new URL("../src/lib/components.tsx", import.meta.url), "utf8");
@@ -165,7 +169,7 @@ test("switch and slider expose a small size without changing default geometry", 
 
 test("dark switch uses its own neutral enabled color", () => {
   assert.match(libraryStylesSource, /html\[data-theme="dark"\] \.dg-switch\s*\{\s*--dg-switch-on:\s*#777773/);
-  assert.match(libraryStylesSource, /var\(--dg-switch-on, var\(--primary\)\)/);
+  assert.match(libraryStylesSource, /var\(--dg-switch-on, var\(--dg-control-accent\)\)/);
 });
 
 test("action glass stays icon-free and uses a neutral dark material", () => {
@@ -211,9 +215,11 @@ test("QR icon side wall stays inside the rounded face while rotating", () => {
 });
 
 test("demo copy supports persisted Chinese and English while branding stays neutral", () => {
-  assert.match(indexSource, /<html lang="zh-CN">/);
+  assert.match(indexSource, /<html lang="en">/);
+  assert.match(indexSource, /<title>React Liquid Glass<\/title>/);
   assert.match(appSource, /controls: "控件"/);
   assert.match(appSource, /controls: "Controls"/);
+  assert.match(appSource, /saved === "en" \|\| saved === "zh" \? saved : "en"/);
   assert.match(appSource, /localStorage\.setItem\("glass-locale", locale\)/);
   assert.match(appSource, /document\.documentElement\.lang = locale === "zh" \? "zh-CN" : "en"/);
   assert.match(appSource, /<ControlGallery locale=\{locale\} \/>/);
@@ -379,7 +385,7 @@ test("segmented final crossfade keeps content colors stable and compositor-only"
   assert.doesNotMatch(componentSource, /style\.setProperty\("--segmented-glass"/);
   assert.match(componentSource, /setAttribute\("data-crossfading", ""\)/);
   assert.match(componentSource, /removeAttribute\("data-crossfading"\)/);
-  assert.match(libraryStylesSource, /\.dg-tabs > \.dg-tabs__group > \.dg-tabs__item\[data-selected\][^}]*color:\s*var\(--fg-1\)/s);
+  assert.match(libraryStylesSource, /\.dg-tabs > \.dg-tabs__group > \.dg-tabs__item\[data-selected\][^}]*color:\s*var\(--dg-control-text\)/s);
   assert.match(libraryStylesSource, /\.dg-tabs\[data-crossfading\] \.dg-tabs__group--glass-base \.dg-tabs__item\[data-selected\]/);
 });
 
@@ -491,6 +497,18 @@ test("runtime styling uses the project-owned namespace and private references st
   assert.match(videoSource, /\.\.\/assets\/video\/pause\.svg\?raw/);
   assert.match(gitignoreSource, /^\.openai\/$/m);
   assert.match(gitignoreSource, /^\.dezin\/$/m);
+});
+
+test("core library stays CSS-free while optional controls ship standalone styles", () => {
+  assert.doesNotMatch(libraryIndexSource, /import ["']\.\/(?:style|controls)\.css["']/);
+  assert.match(stylesSource, /@import "\.\/lib\/controls\.css"/);
+  assert.match(packageSource, /"\.\/controls\.css": "\.\/dist\/library\/controls\.css"/);
+  assert.doesNotMatch(packageSource, /"\.\/style\.css"/);
+  assert.match(libraryConfigSource, /copyFileSync\(resolve\(import\.meta\.dirname, "src\/lib\/controls\.css"\), resolve\(libraryDir, "controls\.css"\)\)/);
+  assert.doesNotMatch(readmeSource, /refractive-glass-react\/style\.css/);
+  assert.match(readmeSource, /refractive-glass-react\/controls\.css/);
+  assert.match(libraryStylesSource, /--dg-control-accent: var\(--primary, #262626\)/);
+  assert.match(libraryStylesSource, /--dg-control-track: var\(--bg-4, #dcdcd8\)/);
 });
 
 test("minimal layout removes the two untracked circular decorations above the hero glass", () => {

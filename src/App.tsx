@@ -66,7 +66,7 @@ export function App() {
   });
   const [locale, setLocale] = useState<Locale>(() => {
     const saved = localStorage.getItem("glass-locale");
-    return saved === "en" || saved === "zh" ? saved : "zh";
+    return saved === "en" || saved === "zh" ? saved : "en";
   });
   const text = copy[locale];
 

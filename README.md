@@ -15,7 +15,6 @@ A reusable React library for real-time liquid-glass refraction on the web.
 
 ```tsx
 import { Glass } from "refractive-glass-react";
-import "refractive-glass-react/style.css";
 
 <Glass
   lens={{
@@ -33,6 +32,13 @@ import "refractive-glass-react/style.css";
 >
   <YourLiveContent />
 </Glass>
+```
+
+The core `Glass` and `GlassCanvas` components do not require a stylesheet. Import the separate control styles only when using `GlassSwitch`, `GlassSlider`, or `GlassSegmented`:
+
+```tsx
+import { GlassSlider } from "refractive-glass-react";
+import "refractive-glass-react/controls.css";
 ```
 
 `x` and `y` are normalized lens-center coordinates by default. Use `positionUnit="pixel"` for CSS-pixel coordinates. Moving the lens does not regenerate the map.

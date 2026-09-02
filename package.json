@@ -12,7 +12,7 @@
       "import": "./dist/library/index.js",
       "require": "./dist/library/index.cjs"
     },
-    "./style.css": "./dist/library/style.css"
+    "./controls.css": "./dist/library/controls.css"
   },
   "files": [
     "dist/library"
