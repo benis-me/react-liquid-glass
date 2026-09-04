@@ -104,7 +104,7 @@
 
 .dg-liquid-glass {
   --dg-liquid-menu-radius: 44px;
-  --dg-liquid-item-radius: 56px;
+  --dg-liquid-item-radius: 31px;
   --dg-liquid-grid:
     linear-gradient(rgb(0 0 0 / .075) 1px, transparent 1px),
     linear-gradient(90deg, rgb(0 0 0 / .075) 1px, transparent 1px),
@@ -137,8 +137,6 @@
 .dg-liquid-glass,
 .liquid-loading,
 .dg-liquid-menu__panel,
-.dg-liquid-menu__sort-row,
-.dg-liquid-menu__filter-row,
 .dg-liquid-menu__scroll::-webkit-scrollbar-thumb {
   corner-shape: squircle;
 }
@@ -185,7 +183,7 @@
   position: absolute;
   overflow: hidden;
   pointer-events: none;
-  will-change: opacity, clip-path;
+  will-change: opacity, transform, filter, clip-path;
 }
 .dg-liquid-menu__panel[data-open="true"] { pointer-events: auto; }
 .dg-liquid-menu__scroll {
@@ -222,7 +220,8 @@
   text-align: left;
   background: transparent;
   border: 0;
-  border-radius: var(--dg-liquid-item-radius) / 50%;
+  border-radius: var(--dg-liquid-item-radius);
+  corner-shape: round;
   cursor: pointer;
   font: inherit;
   transition: background-color .16s ease;
@@ -420,7 +419,7 @@ html[data-theme="dark"] .dg-liquid-glass {
   .liquid-loading { height: 800px; }
   .dg-liquid-glass {
     --dg-liquid-menu-radius: 40px;
-    --dg-liquid-item-radius: 52px;
+    --dg-liquid-item-radius: 30px;
   }
   .dg-liquid-menu__scroll { padding: 10px; }
   .dg-liquid-menu__heading { margin-left: 45px; }

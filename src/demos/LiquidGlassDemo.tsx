@@ -69,7 +69,7 @@ const CLOSE_CONTENT_DURATION = 0.24;
 const OPEN_MORPH_TIMES = [0, 0.1, 0.79, 1];
 const OPEN_MERGE_TIMES = [0, 0.14, 0.82, 1];
 const OPEN_MORPH_EASES = [
-  cubicBezier(0.42, 0, 0.64, 0.36),
+  cubicBezier(0.42, 0, 0.58, 1),
   cubicBezier(0.32, 0, 0.18, 1),
   cubicBezier(0.22, 0, 0.18, 1),
 ];
@@ -77,11 +77,11 @@ const CLOSE_FUSION_DURATION = 0.42;
 const CLOSE_IMPACT_DISTANCE = 8;
 const CLOSE_FUSION_TIMES = [0, 0.08, 0.41, 0.6, 0.75, 1];
 const CLOSE_FUSION_EASES = [
-  cubicBezier(0.42, 0, 0.58, 0.48),
-  cubicBezier(0.35, 0, 0.7, 0.45),
-  cubicBezier(0.24, 0.2, 0.65, 0.8),
-  cubicBezier(0.12, 0.72, 0.18, 1),
-  cubicBezier(0.16, 0.72, 0.18, 1),
+  cubicBezier(0.42, 0, 0.58, 1),
+  cubicBezier(0.35, 0, 0.7, 0.7),
+  cubicBezier(0.24, 0.2, 0.65, 0.72),
+  cubicBezier(0.12, 0.12, 0.18, 1),
+  cubicBezier(0.16, 0, 0.18, 1),
 ];
 const PRESS_EASE = cubicBezier(0.3, 0, 0.2, 1);
 const RELEASE_EASE = cubicBezier(0.16, 0.72, 0.18, 1);

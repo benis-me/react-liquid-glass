@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, type CSSProperties, type RefObject } from "react";
+import { cancelFrame, frame } from "motion";
 import { computeDomeConstants } from "./math";
 import { isMotionValue, readMotion, type MotionInput } from "./motion";
 
@@ -161,37 +162,29 @@ float erfApprox(float value) {
   return tanh(1.7724538509 * value);
 }
 
-vec3 sampleGlass(vec2 uv, vec2 displacement) {
-  vec2 sampleUv = uv;
-  vec2 refractedUv = sampleUv - displacement;
-  float red = texture(uSource, sampleUv - displacement * (1. + .2 * uChroma)).r;
-  float green = texture(uSource, sampleUv - displacement * (1. + .1 * uChroma)).g;
-  float blue = texture(uSource, refractedUv).b;
-  vec3 sharp = vec3(red, green, blue);
-  if (uBlur <= .001) return sharp;
-  // This nine-tap kernel has sigma ~= .75 * step, so 1.34 maps the
-  // CSS blur radius used by core Glass to the same effective deviation.
-  vec2 stepSize = vec2(uBlur * 1.34) / uSourceSize;
-  vec3 frosted = texture(uSource, refractedUv).rgb * .2;
-  frosted += texture(uSource, refractedUv + vec2(stepSize.x, 0.)).rgb * .12;
-  frosted += texture(uSource, refractedUv - vec2(stepSize.x, 0.)).rgb * .12;
-  frosted += texture(uSource, refractedUv + vec2(0., stepSize.y)).rgb * .12;
-  frosted += texture(uSource, refractedUv - vec2(0., stepSize.y)).rgb * .12;
-  frosted += texture(uSource, refractedUv + stepSize).rgb * .08;
-  frosted += texture(uSource, refractedUv - stepSize).rgb * .08;
-  frosted += texture(uSource, refractedUv + vec2(stepSize.x, -stepSize.y)).rgb * .08;
-  frosted += texture(uSource, refractedUv + vec2(-stepSize.x, stepSize.y)).rgb * .08;
-  return frosted;
+vec3 sampleChroma(vec2 uv, vec2 displacement) {
+  return vec3(
+    texture(uSource, uv - displacement * (1. + .2 * uChroma)).r,
+    texture(uSource, uv - displacement * (1. + .1 * uChroma)).g,
+    texture(uSource, uv - displacement).b
+  );
 }
 
-vec2 sceneNormal(vec2 point) {
-  vec2 step = vec2(1., 0.);
-  vec2 gradient = vec2(
-    sceneSdf(point + step.xy, 0.) - sceneSdf(point - step.xy, 0.),
-    sceneSdf(point + step.yx, 0.) - sceneSdf(point - step.yx, 0.)
-  );
-  float magnitude = length(gradient);
-  return magnitude > .0001 ? gradient / magnitude : vec2(0.);
+vec3 sampleGlass(vec2 uv, vec2 displacement) {
+  if (uBlur <= .001) return sampleChroma(uv, displacement);
+  // Keep core Glass's chroma offsets inside every sample of the frost
+  // instead of replacing them with one achromatic blur.
+  vec2 stepSize = vec2(uBlur * 1.34) / uSourceSize;
+  vec3 frosted = sampleChroma(uv, displacement) * .2;
+  frosted += sampleChroma(uv + vec2(stepSize.x, 0.), displacement) * .12;
+  frosted += sampleChroma(uv - vec2(stepSize.x, 0.), displacement) * .12;
+  frosted += sampleChroma(uv + vec2(0., stepSize.y), displacement) * .12;
+  frosted += sampleChroma(uv - vec2(0., stepSize.y), displacement) * .12;
+  frosted += sampleChroma(uv + stepSize, displacement) * .08;
+  frosted += sampleChroma(uv - stepSize, displacement) * .08;
+  frosted += sampleChroma(uv + vec2(stepSize.x, -stepSize.y), displacement) * .08;
+  frosted += sampleChroma(uv + vec2(-stepSize.x, stepSize.y), displacement) * .08;
+  return frosted;
 }
 
 void main() {
@@ -209,7 +202,7 @@ void main() {
     return;
   }
 
-  float aa = max(fwidth(distance), .55);
+  float aa = max(fwidth(distance), .0001);
   float coverage = 1. - smoothstep(-aa, aa, distance);
   // Blur the signed silhouette instead of leaving a solid offset umbra.
   float shadowFalloff = .5 * (1. - erfApprox(shadowDistance / (26. * 1.41421356237)));
@@ -261,13 +254,9 @@ void main() {
   displacement *= coverage * uZoom;
 
   vec3 refracted = sampleGlass(vUv, displacement);
-  float brightnessAmount = clamp(abs(uBrightness), 0., 1.);
-  vec3 brightnessTarget = uBrightness >= 0. ? vec3(1.) : vec3(0.);
-  refracted = mix(refracted, brightnessTarget, brightnessAmount);
   float theta = radians(uSpecularRotation);
   vec2 light = vec2(cos(theta), sin(theta));
   float align = abs(dot(materialUv, light));
-  refracted = mix(refracted, uTintColor, clamp(uTint, 0., 1.));
   float glowLo = (1. - uGlowSpread) * 1.41421356237;
   float glowSpan = max(uGlowSpread * 1.41421356237, .001);
   float glow = uGlowStrength
@@ -276,11 +265,18 @@ void main() {
   float rim = max(0., 1. - inside / max(uEdgeWidth, .001));
   float edge = uEdgeStrength * rim * pow(align, uEdgeExponent);
   float specular = min(1., glow + edge);
-  refracted = min(vec3(1.), refracted + vec3(specular * uSpecular * (127. / 255.)));
-  vec2 normal = sceneNormal(point);
-  float insetRim = (1. - smoothstep(0., 1.5, inside))
-    * (.08 + .12 * max(-normal.y, 0.));
-  refracted = mix(refracted, vec3(1.), insetRim);
+  // Video's highlight response preserves contrast on both bright and dark substrates.
+  float luminance = dot(refracted, vec3(.299, .587, .114));
+  float shine = specular * uSpecular * (127. / 255.);
+  refracted = mix(
+    refracted + vec3(shine),
+    refracted * (1. - shine),
+    smoothstep(.3, .7, luminance)
+  );
+  float brightnessAmount = clamp(abs(uBrightness), 0., 1.);
+  vec3 brightnessTarget = uBrightness >= 0. ? vec3(1.) : vec3(0.);
+  refracted = mix(refracted, brightnessTarget, brightnessAmount);
+  refracted = mix(refracted, uTintColor, clamp(uTint, 0., 1.));
   color = mix(raw.rgb, refracted, coverage);
   outputColor = vec4(color, raw.a);
 }`;
@@ -339,7 +335,6 @@ export function LiquidGlassCanvas({
 }: LiquidGlassCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawRef = useRef<() => void>(() => undefined);
-  const frameRef = useRef(0);
   const textureDirtyRef = useRef(true);
   const configRef = useRef({
     width,
@@ -397,18 +392,22 @@ export function LiquidGlassCanvas({
   const renderWidth = Math.max(1, Math.round(width * ratio));
   const renderHeight = Math.max(1, Math.round(height * ratio));
 
+  const drawFrame = useCallback(() => drawRef.current(), []);
+  // Flush with Motion's DOM render after derived values update, without an extra RAF of latency.
   const scheduleDraw = useCallback(() => {
-    if (frameRef.current) return;
-    frameRef.current = requestAnimationFrame(() => {
-      frameRef.current = 0;
-      drawRef.current();
-    });
-  }, []);
+    frame.render(drawFrame);
+  }, [drawFrame]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const gl = canvas.getContext("webgl2", { alpha: true, premultipliedAlpha: false });
+    // The SDF supplies coverage AA, as in Video; MSAA only multisamples the full-screen quad.
+    const gl = canvas.getContext("webgl2", {
+      alpha: true,
+      antialias: false,
+      depth: false,
+      premultipliedAlpha: false,
+    });
     if (!gl) return;
 
     const vertex = compile(gl, gl.VERTEX_SHADER, VERTEX_SHADER);
@@ -554,8 +553,7 @@ export function LiquidGlassCanvas({
     scheduleDraw();
 
     return () => {
-      if (frameRef.current) cancelAnimationFrame(frameRef.current);
-      frameRef.current = 0;
+      cancelFrame(drawFrame);
       drawRef.current = () => undefined;
       gl.deleteTexture(texture);
       gl.deleteBuffer(buffer);
@@ -563,7 +561,7 @@ export function LiquidGlassCanvas({
       gl.deleteShader(vertex);
       gl.deleteShader(fragment);
     };
-  }, [renderHeight, renderWidth, scheduleDraw, sourceRef]);
+  }, [drawFrame, renderHeight, renderWidth, scheduleDraw, sourceRef]);
 
   useEffect(() => {
     const unsubscribe: Array<() => void> = [];
