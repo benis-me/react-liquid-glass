@@ -28,34 +28,21 @@ import {
   useTransform,
 } from "motion/react";
 import type { Locale } from "../i18n";
-import { Glass, type LensParams } from "../lib";
+import type { LensParams } from "../lib";
 import { LiquidGlassCanvas } from "../lib/LiquidGlassCanvas";
 
 const TRIGGER_RADIUS = 34;
 const MIN_LENS_HALF = 1;
-const BUTTON_MAP_SIZE = 128;
 
 const BASE_MENU_LENS: Partial<LensParams> = {
-  mapSize: 512,
-  lensW: TRIGGER_RADIUS,
-  lensH: TRIGGER_RADIUS,
-  borderRadius: TRIGGER_RADIUS,
-  depth: 10,
   domeDepth: 58,
   scaleX: 0.11,
-  scaleY: 0.11,
   chromaAmount: 0.55,
-  blurAmount: 0.2,
-  sdfBoundary: true,
-  edgeFalloff: true,
   specularStrength: 0.72,
   glowSpread: 0.72,
   glowExponent: 1.4,
   edgeWidth: 3.5,
   edgeExponent: 1.2,
-  splayAmount: 1,
-  edgeShadow: "0 18px 52px rgb(0 0 0 / .22)",
-  edgeInsetShadow: "0 1px 0 rgb(255 255 255 / .2)",
 };
 
 const LIGHT_MENU_LENS: Partial<LensParams> = {
@@ -80,16 +67,13 @@ const OPEN_MORPH_DURATION = 0.38;
 const OPEN_CONTENT_DURATION = 0.34;
 const CLOSE_CONTENT_DURATION = 0.24;
 const OPEN_MORPH_TIMES = [0, 0.1, 0.79, 1];
-const OPEN_HANDOFF_TIMES = [0, 0.14, 0.82, 1];
+const OPEN_MERGE_TIMES = [0, 0.14, 0.82, 1];
 const OPEN_MORPH_EASES = [
   cubicBezier(0.42, 0, 0.64, 0.36),
   cubicBezier(0.32, 0, 0.18, 1),
   cubicBezier(0.22, 0, 0.18, 1),
 ];
 const CLOSE_FUSION_DURATION = 0.42;
-const SHADOW_SETTLE_DURATION = 0.14;
-const SHADOW_HANDOFF_OPACITY = 0.34;
-const HIGHLIGHT_SETTLE_DURATION = 0.18;
 const CLOSE_IMPACT_DISTANCE = 8;
 const CLOSE_FUSION_TIMES = [0, 0.08, 0.41, 0.6, 0.75, 1];
 const CLOSE_FUSION_EASES = [
@@ -247,6 +231,11 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
+function blendMaterialValue(values: unknown[]) {
+  const [progress, menuValue, buttonValue] = values as number[];
+  return buttonValue + (menuValue - buttonValue) * progress;
+}
+
 function menuLayout(width: number, height: number): MenuLayout {
   const safeWidth = Math.max(1, width);
   const safeHeight = Math.max(1, height);
@@ -386,7 +375,6 @@ export function LiquidGlassDemo({
 }) {
   const text = copy[locale];
   const menuLens = theme === "dark" ? DARK_MENU_LENS : LIGHT_MENU_LENS;
-  const buttonLens: Partial<LensParams> = { ...menuLens, mapSize: BUTTON_MAP_SIZE };
   const menuId = useId();
   const stageRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -412,8 +400,6 @@ export function LiquidGlassDemo({
   const centerY = useMotionValue(0.5);
   const depth = useMotionValue(10);
   const tintOpacity = useMotionValue(0.16);
-  const tintBlur = useMotionValue(0.5);
-  const shadowOpacity = useMotionValue(0.42);
   const zoom = useMotionValue(1.35);
   const reveal = useMotionValue(0);
   const triggerOpacity = useMotionValue(1);
@@ -425,24 +411,27 @@ export function LiquidGlassDemo({
   const buttonHalf = useMotionValue(TRIGGER_RADIUS);
   const buttonDepth = useMotionValue(10);
   const buttonTintOpacity = useMotionValue(0.16);
-  const buttonTintBlur = useMotionValue(0.5);
-  const buttonShadowOpacity = useMotionValue(0.42);
   const buttonZoom = useMotionValue(1.35);
   const menuVelocityX = useMotionValue(0);
   const menuVelocityY = useMotionValue(0);
   const buttonVelocityX = useMotionValue(0);
   const buttonVelocityY = useMotionValue(0);
-  const coreOpacity = useMotionValue(1);
-  const fusionOpacity = useMotionValue(0);
   const mergeDistance = useMotionValue(0);
-  const menuSpecularOpacity = useMotionValue(1);
-  const buttonSpecularOpacity = useMotionValue(1);
-
-  const edgeBias = useTransform(tintOpacity, (opacity) => Math.max(0.1, opacity * 0.42));
-  const buttonEdgeBias = useTransform(
-    buttonTintOpacity,
-    (opacity) => Math.max(0.1, opacity * 0.42),
+  const materialProgress = useTransform(halfWidth, (value) => {
+    const target = menuLayout(stageSizeRef.current.width, stageSizeRef.current.height).panelWidth / 2;
+    return clamp(
+      (value - MIN_LENS_HALF) / Math.max(1, target - MIN_LENS_HALF),
+      0,
+      1,
+    );
+  });
+  const materialBlur = useTransform(materialProgress, (progress) => 0.5 + progress * 1.1);
+  const materialDepth = useTransform([materialProgress, depth, buttonDepth], blendMaterialValue);
+  const materialTintOpacity = useTransform(
+    [materialProgress, tintOpacity, buttonTintOpacity],
+    blendMaterialValue,
   );
+  const materialZoom = useTransform([materialProgress, zoom, buttonZoom], blendMaterialValue);
   const contentScale = useTransform(reveal, [0, 1], [0.985, 1]);
   const contentFilter = useTransform(reveal, (opacity) => `blur(${(1 - opacity) * 2}px)`);
   const fusionBlobs = useMemo(
@@ -630,8 +619,6 @@ export function LiquidGlassDemo({
           radius: layout.panelRadius,
           depth: 26,
           tint: 0.035,
-          blur: 1.6,
-          shadow: 0.56,
           zoom: 1.38,
         }
       : {
@@ -642,30 +629,18 @@ export function LiquidGlassDemo({
           radius: MIN_LENS_HALF,
           depth: 10,
           tint: 0.16,
-          blur: 0.5,
-          shadow: 0.42,
           zoom: 1.35,
         };
     const buttonTarget = nextOpen
-      ? { half: MIN_LENS_HALF, depth: 10, tint: 0, blur: 0, shadow: 0, zoom: 1 }
+      ? { half: MIN_LENS_HALF, depth: 10, tint: 0, zoom: 1 }
       : {
           half: TRIGGER_RADIUS,
           depth: 10,
           tint: 0.16,
-          blur: 0.5,
-          shadow: 0.42,
           zoom: 1.35,
         };
 
-    const beginHandoff = () => {
-      coreOpacity.jump(0);
-      fusionOpacity.jump(1);
-      shadowOpacity.jump(0);
-      buttonShadowOpacity.jump(0);
-      menuSpecularOpacity.jump(0);
-      buttonSpecularOpacity.jump(0);
-    };
-    const finishHandoff = () => {
+    const finishTransition = () => {
       if (openRef.current !== nextOpen) return;
       transitioningRef.current = false;
       menuVelocityX.jump(0);
@@ -673,23 +648,7 @@ export function LiquidGlassDemo({
       buttonVelocityX.jump(0);
       buttonVelocityY.jump(0);
       mergeDistance.jump(0);
-      const stableShadow = nextOpen ? shadowOpacity : buttonShadowOpacity;
-      stableShadow.jump(SHADOW_HANDOFF_OPACITY);
-      const stableSpecular = nextOpen ? menuSpecularOpacity : buttonSpecularOpacity;
-      stableSpecular.jump(0);
-      coreOpacity.jump(1);
-      fusionOpacity.jump(0);
-      animations.current = [
-        animate(
-          stableShadow,
-          nextOpen ? target.shadow : buttonTarget.shadow,
-          { duration: SHADOW_SETTLE_DURATION, ease: RELEASE_EASE },
-        ),
-        animate(stableSpecular, 1, {
-          duration: HIGHLIGHT_SETTLE_DURATION,
-          ease: RELEASE_EASE,
-        }),
-      ];
+      animations.current = [];
     };
 
     if (reduceMotion) {
@@ -701,8 +660,6 @@ export function LiquidGlassDemo({
       cornerRadius.jump(target.radius);
       depth.jump(target.depth);
       tintOpacity.jump(target.tint);
-      tintBlur.jump(target.blur);
-      shadowOpacity.jump(target.shadow);
       zoom.jump(target.zoom);
       reveal.jump(nextOpen ? 1 : 0);
       triggerOpacity.jump(nextOpen ? 0 : 1);
@@ -714,18 +671,12 @@ export function LiquidGlassDemo({
       buttonHalf.jump(buttonTarget.half);
       buttonDepth.jump(buttonTarget.depth);
       buttonTintOpacity.jump(buttonTarget.tint);
-      buttonTintBlur.jump(buttonTarget.blur);
-      buttonShadowOpacity.jump(buttonTarget.shadow);
       buttonZoom.jump(buttonTarget.zoom);
       menuVelocityX.jump(0);
       menuVelocityY.jump(0);
       buttonVelocityX.jump(0);
       buttonVelocityY.jump(0);
-      coreOpacity.jump(1);
-      fusionOpacity.jump(0);
       mergeDistance.jump(0);
-      menuSpecularOpacity.jump(1);
-      buttonSpecularOpacity.jump(1);
     } else if (nextOpen) {
       transitioningRef.current = true;
       const widthStart = halfWidth.get();
@@ -734,7 +685,6 @@ export function LiquidGlassDemo({
       const widthFrames = openWidthFrames(widthStart, target.halfWidth);
       const heightFrames = openHeightFrames(heightStart, target.halfHeight);
       reveal.jump(0);
-      beginHandoff();
       menuVelocityX.jump(0);
       menuVelocityY.jump(0);
       buttonVelocityX.jump(0);
@@ -785,11 +735,6 @@ export function LiquidGlassDemo({
           times: OPEN_MORPH_TIMES,
           ease: OPEN_MORPH_EASES,
         }),
-        animate(tintBlur, [tintBlur.get(), 4.5, 6, target.blur], {
-          duration: OPEN_MORPH_DURATION,
-          times: OPEN_MORPH_TIMES,
-          ease: OPEN_MORPH_EASES,
-        }),
         animate(zoom, [zoom.get(), 1.68, 1.4, target.zoom], {
           duration: OPEN_MORPH_DURATION,
           times: OPEN_MORPH_TIMES,
@@ -829,13 +774,12 @@ export function LiquidGlassDemo({
         animate(buttonHalf, buttonTarget.half, { duration: 0.1, ease: PRESS_EASE }),
         animate(buttonDepth, buttonTarget.depth, { duration: 0.1, ease: PRESS_EASE }),
         animate(buttonTintOpacity, buttonTarget.tint, { duration: 0.1, ease: PRESS_EASE }),
-        animate(buttonTintBlur, buttonTarget.blur, { duration: 0.1, ease: PRESS_EASE }),
         animate(buttonZoom, buttonTarget.zoom, { duration: 0.1, ease: PRESS_EASE }),
         animate(mergeDistance, [mergeDistance.get(), 12, 8, 0], {
           duration: OPEN_MORPH_DURATION,
-          times: OPEN_HANDOFF_TIMES,
+          times: OPEN_MERGE_TIMES,
           ease: OPEN_MORPH_EASES,
-          onComplete: finishHandoff,
+          onComplete: finishTransition,
         }),
       ];
     } else {
@@ -863,7 +807,6 @@ export function LiquidGlassDemo({
       );
       const buttonBaseX = layout.triggerCenterX / size.width;
       const buttonBaseY = layout.triggerCenterY / size.height;
-      beginHandoff();
       animations.current = [
         animate(rightEdge, [
           rightEdge.get(),
@@ -910,11 +853,6 @@ export function LiquidGlassDemo({
           ease: CLOSE_FUSION_EASES,
         }),
         animate(tintOpacity, [tintOpacity.get(), 0.02, 0.055, 0.1, 0.04, target.tint], {
-          duration: CLOSE_FUSION_DURATION,
-          times: CLOSE_FUSION_TIMES,
-          ease: CLOSE_FUSION_EASES,
-        }),
-        animate(tintBlur, [tintBlur.get(), 5.5, 6, 5, 3, target.blur], {
           duration: CLOSE_FUSION_DURATION,
           times: CLOSE_FUSION_TIMES,
           ease: CLOSE_FUSION_EASES,
@@ -988,11 +926,6 @@ export function LiquidGlassDemo({
           times: CLOSE_FUSION_TIMES,
           ease: CLOSE_FUSION_EASES,
         }),
-        animate(buttonTintBlur, [buttonTintBlur.get(), 0, 0.2, 0.4, 0.7, buttonTarget.blur], {
-          duration: CLOSE_FUSION_DURATION,
-          times: CLOSE_FUSION_TIMES,
-          ease: CLOSE_FUSION_EASES,
-        }),
         animate(buttonZoom, [buttonZoom.get(), 1, 1.35, 1.55, 1.48, buttonTarget.zoom], {
           duration: CLOSE_FUSION_DURATION,
           times: CLOSE_FUSION_TIMES,
@@ -1002,7 +935,7 @@ export function LiquidGlassDemo({
           duration: CLOSE_FUSION_DURATION,
           times: CLOSE_FUSION_TIMES,
           ease: CLOSE_FUSION_EASES,
-          onComplete: finishHandoff,
+          onComplete: finishTransition,
         }),
         animate(menuVelocityX, [
           menuVelocityX.get(),
@@ -1058,7 +991,7 @@ export function LiquidGlassDemo({
     if (restoreFocus) {
       const focusDelay = reduceMotion
         ? 0
-        : (CLOSE_FUSION_DURATION + HIGHLIGHT_SETTLE_DURATION) * 1000 + 32;
+        : CLOSE_FUSION_DURATION * 1000 + 32;
       focusTimer.current = window.setTimeout(() => {
         focusTimer.current = null;
         if (!openRef.current) triggerRef.current?.focus({ preventScroll: true });
@@ -1070,30 +1003,22 @@ export function LiquidGlassDemo({
     buttonCenterY,
     buttonDepth,
     buttonHalf,
-    buttonShadowOpacity,
-    buttonSpecularOpacity,
-    buttonTintBlur,
     buttonTintOpacity,
     buttonVelocityX,
     buttonVelocityY,
     buttonZoom,
     clearFocusTimer,
-    coreOpacity,
     cornerRadius,
     depth,
-    fusionOpacity,
     halfHeight,
     halfWidth,
     mergeDistance,
-    menuSpecularOpacity,
     menuVelocityX,
     menuVelocityY,
     reduceMotion,
     reveal,
     rightEdge,
-    shadowOpacity,
     stopAnimations,
-    tintBlur,
     tintOpacity,
     triggerOpacity,
     triggerOffsetX,
@@ -1123,10 +1048,7 @@ export function LiquidGlassDemo({
       animate(buttonHalf, pressHalf, { duration, ease }),
       animate(buttonDepth, pressed ? 16 : 10, { duration, ease }),
       animate(buttonTintOpacity, pressed ? 0.025 : 0.16, { duration, ease }),
-      animate(buttonTintBlur, pressed ? 0.15 : 0.5, { duration, ease }),
-      animate(buttonShadowOpacity, pressed ? 0.78 : 0.42, { duration, ease }),
       animate(buttonZoom, pressed ? 1.82 : 1.35, { duration, ease }),
-      animate(buttonSpecularOpacity, 1, { duration, ease }),
       animate(triggerScale, pressed ? 0.86 : 1, {
         duration,
         ease,
@@ -1135,11 +1057,8 @@ export function LiquidGlassDemo({
   }, [
     buttonDepth,
     buttonHalf,
-    buttonShadowOpacity,
-    buttonTintBlur,
     buttonTintOpacity,
     buttonZoom,
-    buttonSpecularOpacity,
     stopAnimations,
     triggerScale,
   ]);
@@ -1157,79 +1076,23 @@ export function LiquidGlassDemo({
 
   return (
     <div ref={stageRef} className="dg-liquid-glass" data-liquid-theme={theme}>
-      <motion.div
-        className="dg-liquid-menu__core-layer"
-        style={{ opacity: coreOpacity }}
-        aria-hidden="true"
-      >
-        <Glass
-          className="dg-liquid-menu__glass"
-          lens={menuLens}
-          specularOpacity={menuSpecularOpacity}
-          x={centerX}
-          y={centerY}
-          lensW={halfWidth}
-          lensH={halfHeight}
-          borderRadius={cornerRadius}
-          depth={depth}
-          tintColor="var(--action-glass-tint)"
-          tintOpacity={tintOpacity}
-          tintBlur={tintBlur}
-          shadowOpacity={shadowOpacity}
-          edgeBias={edgeBias}
-          zoom={zoom}
-          filterResolution={1.5}
-          regenSettle={16}
-          pauseOffscreen
-          style={{ position: "absolute", inset: 0, height: "100%" }}
-          refractionTarget={<div className="dg-liquid-menu__grid" />}
-        />
-
-        <Glass
-          className="dg-liquid-menu__button-glass"
-          lens={buttonLens}
-          specularOpacity={buttonSpecularOpacity}
-          x={buttonCenterX}
-          y={buttonCenterY}
-          lensW={buttonHalf}
-          lensH={buttonHalf}
-          borderRadius={buttonHalf}
-          depth={buttonDepth}
-          tintColor="var(--action-glass-tint)"
-          tintOpacity={buttonTintOpacity}
-          tintBlur={buttonTintBlur}
-          shadowOpacity={buttonShadowOpacity}
-          edgeBias={buttonEdgeBias}
-          zoom={buttonZoom}
-          filterResolution={1}
-          regenSettle={12}
-          pauseOffscreen
-          style={{ position: "absolute", inset: 0, height: "100%" }}
-          refractionTarget={<div className="dg-liquid-menu__grid" />}
-        />
-      </motion.div>
-
       <canvas
         ref={fusionSourceRef}
         className="dg-liquid-menu__fusion-source"
         aria-hidden="true"
       />
-      <motion.div
-        className="dg-liquid-menu__fusion-layer"
-        style={{ opacity: fusionOpacity }}
-        aria-hidden="true"
-      >
+      <div className="dg-liquid-menu__fusion-layer" aria-hidden="true">
         <LiquidGlassCanvas
           sourceRef={fusionSourceRef}
           width={stageSize.width}
           height={stageSize.height}
           blobs={fusionBlobs}
           mergeDistance={mergeDistance}
-          refractionStrength={18}
+          refractionStrength={menuLens.scaleX}
           chromaAmount={menuLens.chromaAmount}
           specularStrength={menuLens.specularStrength}
-          blurStrength={tintBlur}
-          edgeDepth={depth}
+          blurStrength={materialBlur}
+          edgeDepth={materialDepth}
           domeDepth={menuLens.domeDepth}
           brightness={menuLens.brightness}
           specularRotation={menuLens.specularRotation}
@@ -1239,16 +1102,16 @@ export function LiquidGlassDemo({
           edgeStrength={menuLens.edgeStrength}
           edgeWidth={menuLens.edgeWidth}
           edgeExponent={menuLens.edgeExponent}
-          tintColor={theme === "dark" ? [0.14, 0.14, 0.14] : [1, 1, 1]}
-          tintStrength={tintOpacity}
-          magnification={zoom}
-          shadowStrength={0.075}
+          tintColor={theme === "dark" ? [74 / 255, 74 / 255, 70 / 255] : [1, 1, 1]}
+          tintStrength={materialTintOpacity}
+          magnification={materialZoom}
+          shadowStrength={0.11}
           sourceRevision={fusionSourceRevision}
-          pixelRatio={1.5}
+          pixelRatio={2}
           className="dg-liquid-menu__fusion-canvas"
           ariaLabel={text.menu}
         />
-      </motion.div>
+      </div>
 
       <div
         className="dg-liquid-menu__dismiss"

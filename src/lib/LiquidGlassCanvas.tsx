@@ -27,7 +27,7 @@ export interface LiquidGlassCanvasProps {
   blobs: readonly LiquidGlassBlob[];
   /** Smooth-union width in CSS pixels. Two surfaces bridge across roughly half this value. */
   mergeDistance?: MotionInput;
-  /** Refraction displacement in CSS pixels. */
+  /** Core Glass-compatible normalized refraction scale. */
   refractionStrength?: MotionInput;
   chromaAmount?: number;
   specularStrength?: MotionInput;
@@ -168,9 +168,10 @@ vec3 sampleGlass(vec2 uv, vec2 displacement) {
   float green = texture(uSource, sampleUv - displacement * (1. + .1 * uChroma)).g;
   float blue = texture(uSource, refractedUv).b;
   vec3 sharp = vec3(red, green, blue);
-  float blurMix = clamp(uBlur / 2., 0., 1.);
-  if (blurMix <= .001) return sharp;
-  vec2 stepSize = vec2(uBlur * .55) / uSourceSize;
+  if (uBlur <= .001) return sharp;
+  // This nine-tap kernel has sigma ~= .75 * step, so 1.34 maps the
+  // CSS blur radius used by core Glass to the same effective deviation.
+  vec2 stepSize = vec2(uBlur * 1.34) / uSourceSize;
   vec3 frosted = texture(uSource, refractedUv).rgb * .2;
   frosted += texture(uSource, refractedUv + vec2(stepSize.x, 0.)).rgb * .12;
   frosted += texture(uSource, refractedUv - vec2(stepSize.x, 0.)).rgb * .12;
@@ -180,7 +181,7 @@ vec3 sampleGlass(vec2 uv, vec2 displacement) {
   frosted += texture(uSource, refractedUv - stepSize).rgb * .08;
   frosted += texture(uSource, refractedUv + vec2(stepSize.x, -stepSize.y)).rgb * .08;
   frosted += texture(uSource, refractedUv + vec2(-stepSize.x, stepSize.y)).rgb * .08;
-  return mix(sharp, frosted, blurMix);
+  return frosted;
 }
 
 vec2 sceneNormal(vec2 point) {
@@ -202,16 +203,17 @@ void main() {
 
   vec2 point = vUv * uSourceSize;
   float distance = sceneSdf(point, 0.);
-  float shadowDistance = sceneSdf(point - vec2(0., 10.), 0.);
-  if (distance > 18. && shadowDistance > 60.) {
+  float shadowDistance = sceneSdf(point - vec2(0., 18.), 0.);
+  if (distance > 18. && shadowDistance > 78.) {
     outputColor = raw;
     return;
   }
 
   float aa = max(fwidth(distance), .55);
   float coverage = 1. - smoothstep(-aa, aa, distance);
-  float outsideShadow = (1. - coverage)
-    * exp(-max(shadowDistance, 0.) / 26.) * uShadow * .55;
+  // Blur the signed silhouette instead of leaving a solid offset umbra.
+  float shadowFalloff = .5 * (1. - erfApprox(shadowDistance / (26. * 1.41421356237)));
+  float outsideShadow = (1. - coverage) * shadowFalloff * uShadow;
   vec3 color = raw.rgb * (1. - outsideShadow);
   if (coverage <= .001) {
     outputColor = vec4(color, raw.a);
@@ -254,7 +256,8 @@ void main() {
   }
   glassGradient /= max(materialWeight, .001);
   materialUv /= max(materialWeight, .001);
-  vec2 displacement = glassGradient * (uRefraction * falloff) / uSourceSize;
+  // Core Glass uses objectBoundingBox primitive units: channel delta is half the scale.
+  vec2 displacement = glassGradient * (uRefraction * .5 * falloff);
   displacement *= coverage * uZoom;
 
   vec3 refracted = sampleGlass(vUv, displacement);
@@ -263,23 +266,21 @@ void main() {
   refracted = mix(refracted, brightnessTarget, brightnessAmount);
   float theta = radians(uSpecularRotation);
   vec2 light = vec2(cos(theta), sin(theta));
-  float align = max(dot(materialUv, light), 0.);
-  float fresnel = exp(-inside / max(uDepth, 1.));
-  float glassTint = uTint * (.62 + .38 * fresnel);
-  refracted = mix(refracted, uTintColor, clamp(glassTint, 0., 1.));
+  float align = abs(dot(materialUv, light));
+  refracted = mix(refracted, uTintColor, clamp(uTint, 0., 1.));
   float glowLo = (1. - uGlowSpread) * 1.41421356237;
   float glowSpan = max(uGlowSpread * 1.41421356237, .001);
   float glow = uGlowStrength
     * pow(clamp((align - glowLo) / glowSpan, 0., 1.), uGlowExponent)
     * falloff;
-  float highlightInterior = smoothstep(4., 14., inside);
-  glow *= highlightInterior;
   float rim = max(0., 1. - inside / max(uEdgeWidth, .001));
   float edge = uEdgeStrength * rim * pow(align, uEdgeExponent);
-  float glowShine = glow * uSpecular;
-  float edgeShine = edge * uSpecular;
-  refracted = min(vec3(1.), refracted + vec3(glowShine * .65));
-  refracted = mix(refracted, vec3(1.), edgeShine * .35);
+  float specular = min(1., glow + edge);
+  refracted = min(vec3(1.), refracted + vec3(specular * uSpecular * (127. / 255.)));
+  vec2 normal = sceneNormal(point);
+  float insetRim = (1. - smoothstep(0., 1.5, inside))
+    * (.08 + .12 * max(-normal.y, 0.));
+  refracted = mix(refracted, vec3(1.), insetRim);
   color = mix(raw.rgb, refracted, coverage);
   outputColor = vec4(color, raw.a);
 }`;
@@ -312,7 +313,7 @@ export function LiquidGlassCanvas({
   height,
   blobs,
   mergeDistance = 40,
-  refractionStrength = 14,
+  refractionStrength = 0.11,
   chromaAmount = 0.24,
   specularStrength = 0.56,
   blurStrength = 0,
