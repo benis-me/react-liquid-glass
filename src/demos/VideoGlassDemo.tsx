@@ -214,20 +214,20 @@ const copy = {
   zh: {
     poster: "花田视频画面",
     canvas: "经过玻璃控件折射的视频",
-    rewind: "后退 5 秒",
+    rewind: "后退 15 秒",
     pause: "暂停",
     play: "播放",
-    forward: "前进 5 秒",
+    forward: "前进 15 秒",
     progress: "播放进度",
     caption: "玻璃效果同样可以应用在视频播放器等复杂交互内容上。",
   },
   en: {
     poster: "Flower field video frame",
     canvas: "Video refracted through glass controls",
-    rewind: "Rewind 5 seconds",
+    rewind: "Rewind 15 seconds",
     pause: "Pause",
     play: "Play",
-    forward: "Forward 5 seconds",
+    forward: "Forward 15 seconds",
     progress: "Playback progress",
     caption: "Glass also works with complex interactive media such as video players.",
   },
@@ -493,6 +493,12 @@ export function VideoGlassDemo({ locale }: { locale: Locale }) {
       }
     };
 
+    const resizeObserver = new ResizeObserver(() => {
+      previousDrawTime = performance.now();
+      ensureDraw();
+    });
+    resizeObserver.observe(player);
+
     ensureDrawRef.current = ensureDraw;
     const onPlay = () => ensureDraw();
     const onPause = () => {
@@ -526,6 +532,7 @@ export function VideoGlassDemo({ locale }: { locale: Locale }) {
     ensureDraw();
 
     return () => {
+      resizeObserver.disconnect();
       visibilityObserver.disconnect();
       video.removeEventListener("play", onPlay);
       video.removeEventListener("pause", onPause);
@@ -643,9 +650,9 @@ export function VideoGlassDemo({ locale }: { locale: Locale }) {
           />
           <canvas ref={canvasRef} className="dg-video-player__canvas" style={{ opacity: ready ? 1 : 0 }} aria-label={text.canvas} role="img" />
           <div className="dg-video-player__controls" data-visible={controlsVisible && ready}>
-            <button ref={(element) => { buttonRefs.current[0] = element; }} type="button" aria-label={text.rewind} className="dg-video-player__button dg-video-player__button--small" onClick={() => skip(-5)} onMouseEnter={() => hover(0, true)} onMouseLeave={() => { hover(0, false); press(0, 1); }} onPointerDown={() => press(0, 0.8)} onPointerUp={() => press(0, 1)} onPointerCancel={() => press(0, 1)}><SourceVideoIcon source={rewindSvg} /></button>
+            <button ref={(element) => { buttonRefs.current[0] = element; }} type="button" aria-label={text.rewind} className="dg-video-player__button dg-video-player__button--small" onClick={() => skip(-15)} onMouseEnter={() => hover(0, true)} onMouseLeave={() => { hover(0, false); press(0, 1); }} onPointerDown={() => press(0, 0.8)} onPointerUp={() => press(0, 1)} onPointerCancel={() => press(0, 1)}><SourceVideoIcon source={rewindSvg} /></button>
             <button ref={(element) => { buttonRefs.current[1] = element; }} type="button" aria-label={playing ? text.pause : text.play} className="dg-video-player__button dg-video-player__button--large" onClick={togglePlayback} onMouseEnter={() => hover(1, true)} onMouseLeave={() => { hover(1, false); press(1, 1); }} onPointerDown={() => press(1, 0.8)} onPointerUp={() => press(1, 1)} onPointerCancel={() => press(1, 1)}><SourceVideoIcon source={playing ? pauseSvg : playSvg} /></button>
-            <button ref={(element) => { buttonRefs.current[2] = element; }} type="button" aria-label={text.forward} className="dg-video-player__button dg-video-player__button--small" onClick={() => skip(5)} onMouseEnter={() => hover(2, true)} onMouseLeave={() => { hover(2, false); press(2, 1); }} onPointerDown={() => press(2, 0.8)} onPointerUp={() => press(2, 1)} onPointerCancel={() => press(2, 1)}><SourceVideoIcon source={forwardSvg} /></button>
+            <button ref={(element) => { buttonRefs.current[2] = element; }} type="button" aria-label={text.forward} className="dg-video-player__button dg-video-player__button--small" onClick={() => skip(15)} onMouseEnter={() => hover(2, true)} onMouseLeave={() => { hover(2, false); press(2, 1); }} onPointerDown={() => press(2, 0.8)} onPointerUp={() => press(2, 1)} onPointerCancel={() => press(2, 1)}><SourceVideoIcon source={forwardSvg} /></button>
             <div ref={barRef} className="dg-video-player__bar" role="slider" aria-label={text.progress} aria-valuemin={0} aria-valuemax={videoRef.current?.duration || 0} onPointerDown={startSeek} onPointerMove={moveSeek} onPointerUp={endSeek} onPointerCancel={endSeek} onLostPointerCapture={endSeek}>
               <div className="dg-video-player__track"><div ref={progressRef} className="dg-video-player__progress" /></div>
             </div>

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 import {
   DEFAULT_LENS_PARAMS,
@@ -23,6 +23,9 @@ const readmeSource = readFileSync(new URL("../README.md", import.meta.url), "utf
 const controlGallerySource = readFileSync(new URL("../src/demos/ControlGallery.tsx", import.meta.url), "utf8");
 const playgroundSource = readFileSync(new URL("../src/demos/DisplacementPlayground.tsx", import.meta.url), "utf8");
 const additionalDemosSource = readFileSync(new URL("../src/demos/AdditionalGlassDemos.tsx", import.meta.url), "utf8");
+const liquidDemoSource = readFileSync(new URL("../src/demos/LiquidGlassDemo.tsx", import.meta.url), "utf8");
+const liquidCanvasUrl = new URL("../src/lib/LiquidGlassCanvas.tsx", import.meta.url);
+const liquidCanvasSource = existsSync(liquidCanvasUrl) ? readFileSync(liquidCanvasUrl, "utf8") : "";
 const indexSource = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const heroSource = readFileSync(new URL("../src/HeroGlassDemo.tsx", import.meta.url), "utf8");
 const stylesSource = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
@@ -44,6 +47,10 @@ const gitignoreSource = readFileSync(new URL("../.gitignore", import.meta.url), 
 const sha256 = (value) => createHash("sha256").update(value).digest("hex");
 
 test("single-lens filter clips blur and refraction to the rounded map alpha", () => {
+  assert.match(filterSource, /specularOpacity\?: MotionInput/);
+  assert.match(filterSource, /const mainSpecularRef = useRef<SVGFECompositeElement \| null>\(null\)/);
+  assert.match(filterSource, /merged\.specularStrength \* readMotion\(specularOpacity \?\? 1\)/);
+  assert.match(filterSource, /mainSpecularRef\.current\?\.setAttribute\("k2", String\(strength\)\)/);
   assert.match(filterSource, /const units = isPool \|\| isIOS \? "userSpaceOnUse" : "objectBoundingBox"/);
   assert.match(filterSource, /<feComposite in="lensResult" in2="rawMap" operator="in" result="clippedLensResult"/);
   assert.match(filterSource, /<feComposite in="SourceGraphic" in2="rawMap" operator="out" result="holedSG"/);
@@ -125,6 +132,23 @@ test("video buttons use source-resolution AA and source-matched elastic springs"
   assert.doesNotMatch(videoSource, /current \+ \(target - current\) \* 0\.2/);
 });
 
+test("video DOM chrome and WebGL geometry share the source responsive breakpoint", () => {
+  assert.match(videoSource, /window\.matchMedia\("\(max-width: 767px\)"\)\.matches/);
+  assert.match(
+    demoStylesSource,
+    /@media \(max-width: 767px\) \{[\s\S]*\.dg-video-demo \{ padding: 0 12px 18px; \}[\s\S]*\.dg-video-player__button--large \{ width: 83\.25px; height: 83\.25px; \}[\s\S]*\.dg-video-player__button--small \{ width: 48\.75px; height: 48\.75px; \}[\s\S]*\.dg-video-player__bar \{ left: 12px; right: 12px; bottom: 12px; \}/s,
+  );
+  assert.doesNotMatch(
+    demoStylesSource,
+    /@media \(max-width: 640px\) \{[\s\S]*\.dg-video-player__button--large/s,
+  );
+  assert.match(videoSource, /const resizeObserver = new ResizeObserver\(\(\) => \{[\s\S]*ensureDraw\(\)/s);
+  assert.match(videoSource, /rewind: "后退 15 秒"/);
+  assert.match(videoSource, /forward: "前进 15 秒"/);
+  assert.match(videoSource, /onClick=\{\(\) => skip\(-15\)\}/);
+  assert.match(videoSource, /onClick=\{\(\) => skip\(15\)\}/);
+});
+
 test("paused seeking refreshes the video texture and the seek bar springs", () => {
   assert.match(videoSource, /const textureDirtyRef = useRef\(true\)/);
   assert.match(videoSource, /video\.addEventListener\("seeked", onSeeked\)/);
@@ -152,6 +176,227 @@ test("accepted switch, slider, and toggle stay mounted through the exact reusabl
   assert.match(controlGallerySource, /<GlassSegmented value=\{segment\}/);
   assert.match(controlGallerySource, /<ControlPanel title=\{text\.button\} wide>[\s\S]*<GlassActionDemo label=\{text\.hold\} \/>/s);
   assert.doesNotMatch(appSource, /id="interactions"|title="交互"|<GlassActionDemo/);
+});
+
+test("liquid work keeps core Glass and uses an internal smooth-union compositor during handoffs", () => {
+  assert.doesNotMatch(packageSource, /liquid-gooey/);
+  assert.match(appSource, /lazy\(\(\) =>\s*import\("\.\/demos\/LiquidGlassDemo"\)/s);
+  assert.match(appSource, /<LiquidGlassDemo locale=\{locale\} theme=\{theme\} \/>/);
+  assert.doesNotMatch(liquidDemoSource, /from "liquid-gooey"/);
+  assert.equal(existsSync(liquidCanvasUrl), true);
+  assert.match(liquidCanvasSource, /float smoothMin\(/);
+  assert.match(liquidCanvasSource, /float movingBlobSdf\(/);
+  assert.match(liquidCanvasSource, /float sceneSdf\(/);
+  assert.match(liquidCanvasSource, /uniform vec2 uHalfSize\[4\]/);
+  assert.match(liquidCanvasSource, /uniform float uCornerRadius\[4\]/);
+  assert.match(liquidCanvasSource, /uniform float uDepth/);
+  assert.match(liquidCanvasSource, /uniform vec4 uDome\[4\]/);
+  assert.match(liquidCanvasSource, /uniform float uDomeDepth/);
+  assert.match(liquidCanvasSource, /uniform float uBrightness/);
+  assert.match(liquidCanvasSource, /uniform float uGlowStrength/);
+  assert.match(liquidCanvasSource, /uniform float uEdgeStrength/);
+  assert.match(liquidCanvasSource, /float erfApprox\(/);
+  assert.match(liquidCanvasSource, /return tanh\(1\.7724538509 \* value\)/);
+  assert.match(liquidCanvasSource, /float sceneSdf\(vec2 point, float inset\)/);
+  assert.match(liquidCanvasSource, /float innerDistance = sceneSdf\(point, max\(uDepth, 0\.\)\)/);
+  assert.match(liquidCanvasSource, /float falloff = \.5 \* \(1\. \+ erfApprox/);
+  assert.match(liquidCanvasSource, /float shadowDistance = sceneSdf\(point - vec2\(0\., 10\.\), 0\.\)/);
+  assert.match(liquidCanvasSource, /exp\(-max\(shadowDistance, 0\.\) \/ 26\.\) \* uShadow \* \.55/);
+  assert.match(liquidCanvasSource, /float highlightInterior = smoothstep\(4\., 14\., inside\)/);
+  assert.match(liquidCanvasSource, /float align = max\(dot\(materialUv, light\), 0\.\)/);
+  assert.match(liquidCanvasSource, /float glowShine = glow \* uSpecular/);
+  assert.match(liquidCanvasSource, /float edgeShine = edge \* uSpecular/);
+  assert.match(liquidCanvasSource, /refracted = min\(vec3\(1\.\), refracted \+ vec3\(glowShine \* \.65\)\)/);
+  assert.match(liquidCanvasSource, /refracted = mix\(refracted, vec3\(1\.\), edgeShine \* \.35\)/);
+  assert.match(liquidCanvasSource, /vec2 glassGradient = vec2\(0\.\)/);
+  assert.match(liquidCanvasSource, /vec2 materialUv = vec2\(0\.\)/);
+  assert.match(liquidCanvasSource, /displacement \*= coverage \* uZoom/);
+  assert.doesNotMatch(liquidCanvasSource, /centerUv \+ \(uv - centerUv\) \/ max\(uZoom/);
+  assert.match(liquidCanvasSource, /computeDomeConstants/);
+  assert.match(liquidCanvasSource, /vec3 sampleGlass\(/);
+  assert.match(liquidCanvasSource, /uRefraction/);
+  assert.match(liquidCanvasSource, /uChroma/);
+  assert.match(liquidCanvasSource, /uSpecular/);
+  assert.match(liquidCanvasSource, /uBlur/);
+  assert.match(liquidCanvasSource, /uTint/);
+  assert.match(liquidCanvasSource, /uZoom/);
+  assert.match(liquidCanvasSource, /uShadow/);
+  assert.match(liquidCanvasSource, /mergeDistance\?: MotionInput/);
+  assert.match(liquidCanvasSource, /edgeDepth\?: MotionInput/);
+  assert.match(liquidCanvasSource, /blurStrength\?: MotionInput/);
+  assert.match(liquidCanvasSource, /tintStrength\?: MotionInput/);
+  assert.match(liquidCanvasSource, /magnification\?: MotionInput/);
+  assert.match(liquidCanvasSource, /domeDepth\?: number/);
+  assert.match(liquidCanvasSource, /brightness\?: number/);
+  assert.match(liquidCanvasSource, /vec2 deformed = direction \* along \+ tangent \* across/);
+  assert.doesNotMatch(liquidCanvasSource, /vec2 deformed = vec2\(\s*dot\(delta, direction\)/s);
+  assert.doesNotMatch(liquidCanvasSource, /uTrail|movingTrail|tailBlob/i);
+  assert.doesNotMatch(libraryIndexSource, /LiquidGlassCanvas|LiquidGlassBlob/);
+});
+
+test("liquid menu composes the core Glass material over the QR grid", () => {
+  assert.doesNotMatch(liquidDemoSource, /buildQrGeometry|QR_SIZE|QR_GEOMETRY|occupancy|MENU_ACTIONS/);
+  assert.match(liquidDemoSource, /import \{ Glass, type LensParams \} from "\.\.\/lib"/);
+  assert.match(liquidDemoSource, /import \{ LiquidGlassCanvas \} from "\.\.\/lib\/LiquidGlassCanvas"/);
+  assert.match(liquidDemoSource, /const BASE_MENU_LENS: Partial<LensParams> = \{/);
+  assert.match(liquidDemoSource, /const LIGHT_MENU_LENS: Partial<LensParams>/);
+  assert.match(liquidDemoSource, /const DARK_MENU_LENS: Partial<LensParams>/);
+  assert.equal((liquidDemoSource.match(/chromaAmount: 0\.55/g) ?? []).length, 1);
+  assert.match(liquidDemoSource, /scaleX: 0\.11/);
+  assert.match(liquidDemoSource, /specularStrength: 0\.72/);
+  assert.match(liquidDemoSource, /glowSpread: 0\.72/);
+  assert.match(liquidDemoSource, /glowStrength: 0\.3/);
+  assert.equal((liquidDemoSource.match(/edgeStrength: 0,/g) ?? []).length, 2);
+  assert.match(liquidDemoSource, /const MIN_LENS_HALF = 1/);
+  assert.match(liquidDemoSource, /const BUTTON_MAP_SIZE = 128/);
+  assert.match(liquidDemoSource, /const halfWidth = useMotionValue\(MIN_LENS_HALF\)/);
+  assert.match(liquidDemoSource, /const halfHeight = useMotionValue\(MIN_LENS_HALF\)/);
+  assert.match(liquidDemoSource, /const cornerRadius = useMotionValue\(MIN_LENS_HALF\)/);
+  assert.match(liquidDemoSource, /const buttonHalf = useMotionValue\(TRIGGER_RADIUS\)/);
+  assert.match(liquidDemoSource, /const buttonCenterX = useMotionValue\(0\.5\)/);
+  assert.match(liquidDemoSource, /const buttonCenterY = useMotionValue\(0\.5\)/);
+  assert.match(liquidDemoSource, /const triggerCenterX = clamp\(panelRight - 38/);
+  assert.match(liquidDemoSource, /const triggerCenterY = clamp\(panelBottom - 38/);
+  assert.match(liquidDemoSource, /const OPEN_MORPH_DURATION = 0\.38/);
+  assert.match(liquidDemoSource, /const OPEN_CONTENT_DURATION = 0\.34/);
+  assert.match(liquidDemoSource, /const CLOSE_CONTENT_DURATION = 0\.24/);
+  assert.match(liquidDemoSource, /const OPEN_MORPH_TIMES = \[0, 0\.1, 0\.79, 1\]/);
+  assert.match(liquidDemoSource, /const OPEN_HANDOFF_TIMES = \[0, 0\.14, 0\.82, 1\]/);
+  assert.match(liquidDemoSource, /const OPEN_MORPH_EASES = \[[\s\S]*cubicBezier/s);
+  assert.match(liquidDemoSource, /const CLOSE_FUSION_DURATION = 0\.42/);
+  assert.match(liquidDemoSource, /const SHADOW_SETTLE_DURATION = 0\.14/);
+  assert.match(liquidDemoSource, /const SHADOW_HANDOFF_OPACITY = 0\.34/);
+  assert.match(liquidDemoSource, /const HIGHLIGHT_SETTLE_DURATION = 0\.18/);
+  assert.match(liquidDemoSource, /const CLOSE_IMPACT_DISTANCE = 8/);
+  assert.match(liquidDemoSource, /function closeImpactVector\(layout: MenuLayout\)/);
+  assert.match(liquidDemoSource, /Math\.hypot\(dx, dy\)/);
+  assert.match(liquidDemoSource, /const CLOSE_FUSION_TIMES = \[0, 0\.08, 0\.41, 0\.6, 0\.75, 1\]/);
+  assert.match(liquidDemoSource, /const CLOSE_FUSION_EASES = \[[\s\S]*cubicBezier/s);
+  assert.match(liquidDemoSource, /cubicBezier\(0\.32, 0, 0\.18, 1\)/);
+  assert.match(liquidDemoSource, /cubicBezier\(0\.35, 0, 0\.7, 0\.45\)/);
+  assert.match(liquidDemoSource, /function openWidthFrames\(start: number, target: number\)/);
+  assert.match(liquidDemoSource, /function openHeightFrames\(start: number, target: number\)/);
+  assert.match(liquidDemoSource, /function openRadiusFrames\(start: number, target: number\)/);
+  assert.match(liquidDemoSource, /Math\.min\(28, start \* 0\.82\),[\s\S]*target \* 1\.016,[\s\S]*target,/s);
+  assert.match(liquidDemoSource, /Math\.min\(28, start \* 0\.82\),[\s\S]*target \* 1\.012,[\s\S]*target,/s);
+  assert.doesNotMatch(liquidDemoSource, /target \* 0\.99[24]/);
+  assert.match(liquidDemoSource, /function closeMenuWidthFrames[\s\S]*start \* 1\.006[\s\S]*112[\s\S]*48[\s\S]*8[\s\S]*MIN_LENS_HALF/s);
+  assert.match(liquidDemoSource, /function closeMenuHeightFrames[\s\S]*start \* 1\.004[\s\S]*180[\s\S]*72[\s\S]*10[\s\S]*MIN_LENS_HALF/s);
+  assert.match(liquidDemoSource, /function closeButtonFrames[\s\S]*start[\s\S]*MIN_LENS_HALF[\s\S]*12[\s\S]*24[\s\S]*37[\s\S]*TRIGGER_RADIUS/s);
+  assert.match(liquidDemoSource, /function closeContactCenter\(/);
+  assert.match(liquidDemoSource, /animate\(halfWidth, widthFrames, \{/);
+  assert.match(liquidDemoSource, /animate\(halfHeight, heightFrames, \{/);
+  assert.match(liquidDemoSource, /animate\(cornerRadius, openRadiusFrames\(radiusStart, target\.radius\), \{/);
+  assert.match(liquidDemoSource, /animate\(triggerOpacity, \[triggerOpacity\.get\(\), 0, 0\.18, 0\.64, 1, 1\]/);
+  assert.match(liquidDemoSource, /const impact = closeImpactVector\(layout\)/);
+  assert.match(liquidDemoSource, /const approachCenter = closeContactCenter\(\s*layout,\s*widthFrames\[2\],\s*heightFrames\[2\],\s*buttonFrames\[2\],\s*18,/s);
+  assert.match(liquidDemoSource, /const contactCenter = closeContactCenter\(\s*layout,\s*widthFrames\[3\],\s*heightFrames\[3\],\s*buttonFrames\[3\],/s);
+  assert.match(liquidDemoSource, /const triggerOffsetX = useMotionValue\(0\)/);
+  assert.match(liquidDemoSource, /const triggerOffsetY = useMotionValue\(0\)/);
+  assert.match(liquidDemoSource, /const coreOpacity = useMotionValue\(1\)/);
+  assert.match(liquidDemoSource, /const fusionOpacity = useMotionValue\(0\)/);
+  assert.match(liquidDemoSource, /const mergeDistance = useMotionValue\(0\)/);
+  assert.match(liquidDemoSource, /const menuSpecularOpacity = useMotionValue\(1\)/);
+  assert.match(liquidDemoSource, /const buttonSpecularOpacity = useMotionValue\(1\)/);
+  assert.match(liquidDemoSource, /const transitioningRef = useRef\(false\)/);
+  assert.match(liquidDemoSource, /const fusionBlobs = useMemo\(/);
+  assert.match(liquidDemoSource, /animate\(triggerOffsetX, \[triggerOffsetX\.get\(\), 0, 0, 0, impact\.x, 0\]/);
+  assert.match(liquidDemoSource, /animate\(triggerOffsetY, \[triggerOffsetY\.get\(\), 0, 0, 0, impact\.y, 0\]/);
+  assert.match(liquidDemoSource, /coreOpacity\.jump\(0\);\s*fusionOpacity\.jump\(1\)/s);
+  assert.match(liquidDemoSource, /shadowOpacity\.jump\(0\);\s*buttonShadowOpacity\.jump\(0\)/s);
+  assert.match(liquidDemoSource, /const finishHandoff = \(\) => \{/);
+  assert.match(liquidDemoSource, /transitioningRef\.current = false/);
+  assert.match(liquidDemoSource, /const stableShadow = nextOpen \? shadowOpacity : buttonShadowOpacity;\s*stableShadow\.jump\(SHADOW_HANDOFF_OPACITY\)/s);
+  assert.match(liquidDemoSource, /const stableSpecular = nextOpen \? menuSpecularOpacity : buttonSpecularOpacity;\s*stableSpecular\.jump\(0\)/s);
+  assert.match(liquidDemoSource, /onComplete: finishHandoff/);
+  assert.match(liquidDemoSource, /animate\(\s*stableShadow,[\s\S]*duration: SHADOW_SETTLE_DURATION/s);
+  assert.match(liquidDemoSource, /animate\(stableSpecular, 1, \{[\s\S]*duration: HIGHLIGHT_SETTLE_DURATION/s);
+  assert.doesNotMatch(liquidDemoSource, /animate\(coreOpacity|animate\(fusionOpacity/);
+  assert.match(liquidDemoSource, /animate\(mergeDistance, \[mergeDistance\.get\(\), 12, 8, 0\]/);
+  assert.match(liquidDemoSource, /animate\(mergeDistance, \[mergeDistance\.get\(\), 0, 16, 40, 4, 0\]/);
+  assert.match(liquidDemoSource, /animate\(tintBlur, \[tintBlur\.get\(\), 4\.5, 6, target\.blur\]/);
+  assert.match(liquidDemoSource, /animate\(tintBlur, \[tintBlur\.get\(\), 5\.5, 6, 5, 3, target\.blur\]/);
+  assert.match(liquidDemoSource, /animate\(menuVelocityX,/);
+  assert.match(liquidDemoSource, /animate\(buttonVelocityX,/);
+  assert.doesNotMatch(liquidDemoSource, /direction\.[xy] \* 780/);
+  assert.match(liquidDemoSource, /x: triggerOffsetX,[\s\S]*y: triggerOffsetY,/s);
+  assert.match(liquidDemoSource, /const pressHalf = pressed \? 29 : TRIGGER_RADIUS/);
+  assert.match(liquidDemoSource, /if \(openRef\.current \|\| transitioningRef\.current\) return/);
+  assert.match(liquidDemoSource, /animate\(buttonHalf, pressHalf/);
+  assert.match(liquidDemoSource, /if \(nextOpen\) triggerRef\.current\?\.blur\(\)/);
+  assert.match(liquidDemoSource, /focusDelay = reduceMotion[\s\S]*\(CLOSE_FUSION_DURATION \+ HIGHLIGHT_SETTLE_DURATION\) \* 1000 \+ 32/s);
+  assert.match(liquidDemoSource, /if \(reduceMotion\)[\s\S]*halfWidth\.jump\(target\.halfWidth\)/s);
+  assert.match(liquidDemoSource, /<Glass[\s\S]*className="dg-liquid-menu__glass"[\s\S]*lens=\{menuLens\}[\s\S]*lensW=\{halfWidth\}[\s\S]*lensH=\{halfHeight\}[\s\S]*borderRadius=\{cornerRadius\}/s);
+  assert.match(liquidDemoSource, /className="dg-liquid-menu__glass"[\s\S]*specularOpacity=\{menuSpecularOpacity\}/s);
+  assert.match(liquidDemoSource, /<Glass[\s\S]*className="dg-liquid-menu__button-glass"[\s\S]*lens=\{buttonLens\}[\s\S]*lensW=\{buttonHalf\}[\s\S]*lensH=\{buttonHalf\}[\s\S]*borderRadius=\{buttonHalf\}/s);
+  assert.match(liquidDemoSource, /className="dg-liquid-menu__button-glass"[\s\S]*specularOpacity=\{buttonSpecularOpacity\}/s);
+  assert.equal((liquidDemoSource.match(/refractionTarget=\{<div className="dg-liquid-menu__grid" \/>\}/g) ?? []).length, 2);
+  assert.match(liquidDemoSource, /className="dg-liquid-menu__core-layer"[\s\S]*opacity: coreOpacity/s);
+  assert.match(liquidDemoSource, /<LiquidGlassCanvas[\s\S]*sourceRef=\{fusionSourceRef\}[\s\S]*blobs=\{fusionBlobs\}[\s\S]*mergeDistance=\{mergeDistance\}/s);
+  assert.match(liquidDemoSource, /edgeDepth=\{depth\}/);
+  assert.match(liquidDemoSource, /blurStrength=\{tintBlur\}/);
+  assert.match(liquidDemoSource, /tintStrength=\{tintOpacity\}/);
+  assert.match(liquidDemoSource, /magnification=\{zoom\}/);
+  assert.match(liquidDemoSource, /specularRotation=\{menuLens\.specularRotation\}/);
+  assert.match(liquidDemoSource, /glowStrength=\{menuLens\.glowStrength\}/);
+  assert.match(liquidDemoSource, /edgeStrength=\{menuLens\.edgeStrength\}/);
+  assert.match(liquidDemoSource, /specularStrength=\{menuLens\.specularStrength\}/);
+  assert.match(liquidDemoSource, /domeDepth=\{menuLens\.domeDepth\}/);
+  assert.match(liquidDemoSource, /brightness=\{menuLens\.brightness\}/);
+  assert.match(liquidDemoSource, /refractionStrength=\{18\}/);
+  assert.match(liquidDemoSource, /chromaAmount=\{menuLens\.chromaAmount\}/);
+  assert.match(liquidDemoSource, /shadowStrength=\{0\.075\}/);
+  assert.match(liquidDemoSource, /className="dg-liquid-menu__fusion-layer"[\s\S]*opacity: fusionOpacity/s);
+  assert.match(liquidDemoSource, /className="dg-liquid-menu__fusion-source"/);
+  assert.doesNotMatch(liquidDemoSource, /overlay=|opticalOpacity|dg-liquid-menu__optical/);
+  assert.match(liquidDemoSource, /const contentScale = useTransform\(reveal/);
+  assert.match(liquidDemoSource, /const contentFilter = useTransform\(reveal/);
+  assert.match(liquidDemoSource, /const contentClip = useTransform\(/);
+  assert.match(liquidDemoSource, /clipPath: contentClip/);
+  assert.match(liquidDemoSource, /animate\(reveal, \[0, 0, 0\.94, 1\]/);
+  assert.match(liquidDemoSource, /duration: OPEN_CONTENT_DURATION,[\s\S]*times: \[0, 0\.58, 0\.84, 1\]/s);
+  assert.match(liquidDemoSource, /animate\(reveal, \[reveal\.get\(\), 0\.92, 0\.46, 0\], \{[\s\S]*duration: CLOSE_CONTENT_DURATION,[\s\S]*times: \[0, 0\.25, 0\.72, 1\]/s);
+  assert.doesNotMatch(liquidDemoSource, /ease:\s*"linear"|type:\s*"spring"/);
+  assert.match(liquidDemoSource, /tintColor="var\(--action-glass-tint\)"/);
+  assert.match(liquidDemoSource, /tintOpacity=\{tintOpacity\}/);
+  assert.match(liquidDemoSource, /tintBlur=\{tintBlur\}/);
+  assert.match(liquidDemoSource, /shadowOpacity=\{shadowOpacity\}/);
+  assert.match(liquidDemoSource, /halfHeight: layout\.panelHeight \/ 2,[\s\S]*?shadow: 0\.56,/s);
+  assert.doesNotMatch(liquidDemoSource, /animate\(shadowOpacity, \[/);
+  assert.doesNotMatch(liquidDemoSource, /animate\(buttonShadowOpacity, \[/);
+  assert.match(liquidDemoSource, /tint: 0\.035/);
+  assert.match(liquidDemoSource, /blur: 1\.6/);
+  assert.match(liquidDemoSource, /zoom: 1\.38/);
+  assert.match(liquidDemoSource, /aria-expanded=\{open\}/);
+  assert.match(liquidDemoSource, /pointerEvents: open \? "none" : "auto"/);
+  assert.match(liquidDemoSource, /role="menu"/);
+  assert.match(liquidDemoSource, /role="menuitemradio"/);
+  assert.match(liquidDemoSource, /role="menuitemcheckbox"/);
+  assert.match(liquidDemoSource, /event\.key !== "Escape"/);
+  assert.match(liquidDemoSource, /window\.addEventListener\("keydown", closeOnEscape\)/);
+  assert.match(liquidDemoSource, /最近玩过的游戏/);
+  assert.match(liquidDemoSource, /筛选/);
+  assert.match(demoStylesSource, /\.dg-liquid-glass \{[\s\S]*?background-size:\s*72px 72px, 72px 72px, auto;[\s\S]*?background-position:\s*center;/s);
+  assert.match(demoStylesSource, /\.dg-liquid-menu__grid \{[\s\S]*?background-size:\s*72px 72px, 72px 72px, auto;[\s\S]*?background-position:\s*center;/s);
+  assert.match(demoStylesSource, /\.dg-liquid-menu__core-layer,[\s\S]*?\.dg-liquid-menu__fusion-layer \{[\s\S]*?position:\s*absolute;[\s\S]*?inset:\s*0;/s);
+  assert.match(demoStylesSource, /\.dg-liquid-menu__fusion-canvas \{[\s\S]*?width:\s*100%;[\s\S]*?height:\s*100%;/s);
+  assert.match(demoStylesSource, /\.dg-liquid-menu__fusion-source \{ display: none; \}/);
+  assert.doesNotMatch(demoStylesSource, /dg-liquid-menu__optical/);
+  assert.match(demoStylesSource, /\.dg-liquid-menu__panel[^}]*overflow:\s*hidden/s);
+  assert.match(demoStylesSource, /\.dg-liquid-menu__scroll[^}]*overflow-y:\s*auto/s);
+  assert.match(demoStylesSource, /\.dg-liquid-menu__scroll \{[\s\S]*?padding:\s*14px;/s);
+  assert.match(demoStylesSource, /\.dg-liquid-glass \{[\s\S]*?--dg-liquid-menu-radius:\s*44px;[\s\S]*?--dg-liquid-item-radius:\s*56px;/s);
+  assert.match(demoStylesSource, /\.dg-liquid-menu__sort-row,[\s\S]*?\.dg-liquid-menu__filter-row \{[\s\S]*?border-radius:\s*var\(--dg-liquid-item-radius\) \/ 50%;/s);
+  assert.match(demoStylesSource, /\.dg-liquid-glass,[\s\S]*?\.dg-liquid-menu__panel,[\s\S]*?\.dg-liquid-menu__sort-row,[\s\S]*?corner-shape:\s*squircle;/s);
+  assert.doesNotMatch(demoStylesSource, /\.dg-liquid-menu__glass \*/);
+  assert.match(demoStylesSource, /\.dg-liquid-menu__trigger \{[\s\S]*?border-radius:\s*50%;[\s\S]*?corner-shape:\s*round;/s);
+  assert.match(demoStylesSource, /\.dg-liquid-menu__sort-row \{[\s\S]*?height:\s*64px;[\s\S]*?min-height:\s*64px;/s);
+  assert.doesNotMatch(demoStylesSource, /\.dg-liquid-menu__sort-row\[data-selected="true"\][^{]*\{[^}]*height/s);
+  assert.match(demoStylesSource, /@media \(max-width: 640px\)[\s\S]*?\.dg-liquid-menu__scroll \{ padding: 10px; \}/s);
+  assert.match(demoStylesSource, /@media \(max-width: 640px\)[\s\S]*?\.dg-liquid-glass \{[\s\S]*?--dg-liquid-menu-radius: 40px;[\s\S]*?--dg-liquid-item-radius: 52px;[\s\S]*?\}/s);
+  assert.doesNotMatch(demoStylesSource, /\.dg-liquid-menu__panel::after/);
+  assert.doesNotMatch(liquidDemoSource, /OPEN_WIDTH_SPRING|OPEN_HEIGHT_SPRING|deformation|renderedHalf/);
+  assert.doesNotMatch(liquidDemoSource, /dragConstraints|dragMomentum|onDragStart|onDragEnd|movingTrail/);
 });
 
 test("switch and slider expose a small size without changing default geometry", () => {
@@ -490,7 +735,7 @@ test("demo architecture, Fontsource typography, and new interactions stay mounte
 });
 
 test("runtime styling uses the project-owned namespace and private references stay ignored", () => {
-  const runtimeSource = [componentSource, heroSource, qrSource, videoSource, libraryStylesSource, demoStylesSource].join("\n");
+  const runtimeSource = [componentSource, heroSource, qrSource, videoSource, liquidDemoSource, liquidCanvasSource, libraryStylesSource, demoStylesSource].join("\n");
   assert.match(runtimeSource, /dg-(?:control|switch|slider|tabs|hero|qr|video)/);
   assert.match(filterSource, /data-dg-glass-surface=""/);
   assert.match(contextSource, /\[data-dg-glass-surface\]/);
@@ -547,7 +792,7 @@ test("segmented glass adds dispersion without changing its motion physics", () =
 test("approved controls and media stay locked after the performance pass", () => {
   assert.equal(sha256(componentSource), "a9bc7e5013a1eed9a1ce8f1126ada035d3e4ce2e6f0cc3fdad6da083fa8cca68");
   assert.equal(sha256(qrSource), "c541d7c3a7d58dbef77593077fd5ac0a4cdbbf55875da60fef0f91d8ca7435b7");
-  assert.equal(sha256(videoSource), "42cd7cf94a51d7ee48a027b3b120e621f52f740f03774997ebf2f3d22a1b2cbc");
+  assert.equal(sha256(videoSource), "8010ff15ad786584045d32a3c2b5ae4fbef07758f6b10222bd8c183e719c04ae");
   assert.equal(sha256(qrRendererSource), "31fa7f5b060752843d9e99c37c51066c80af0bbb3db19fb48788052836a71322");
   assert.equal(sha256(qrMapSource), "2ba106207efe3a14b8bab03d25863c29756da5fe0d30807817445e27ceb01c0c");
 });

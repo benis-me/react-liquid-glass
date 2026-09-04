@@ -74,6 +74,8 @@ export interface GlassProps
   tintBlur?: MotionInput;
   shadowOpacity?: MotionInput;
   restShadowOpacity?: MotionInput;
+  /** Multiplies the lens specular response without regenerating its map. */
+  specularOpacity?: MotionInput;
   /** Inset (px) of the filter subregion relative to the lens rect. Default 0.5. */
   edgeBias?: MotionInput;
   onGenerationTime?: (stats: GenerationStats) => void;
@@ -212,6 +214,9 @@ const releaseMultiPool = (p: MultiPool) => {
   p.lastFilterH = "";
 };
 
+const darkSpecularMatrix = (strength: number) =>
+  `0 0 ${-strength} 0 ${1 + (128 * strength) / 255}  0 0 ${-strength} 0 ${1 + (128 * strength) / 255}  0 0 ${-strength} 0 ${1 + (128 * strength) / 255}  0 0 0 0 1`;
+
 function useOffscreenPause(
   ref: React.RefObject<HTMLElement | null>,
   margin: string,
@@ -250,6 +255,7 @@ export function Glass({
   tintBlur,
   shadowOpacity,
   restShadowOpacity,
+  specularOpacity,
   edgeBias,
   onGenerationTime,
   regenSettle,
@@ -327,6 +333,8 @@ export function Glass({
   const mainDispEls = useRef<SVGFEDisplacementMapElement[]>([]);
   const mainFeImageRef = useRef<SVGFEImageElement | null>(null);
   const mainMatrixRef = useRef<SVGFEColorMatrixElement | null>(null);
+  const mainSpecularRef = useRef<SVGFECompositeElement | null>(null);
+  const mainDarkSpecularRef = useRef<SVGFEColorMatrixElement | null>(null);
   const currentMapRef = useRef<string | null>(null);
   const overlayWrapRef = useRef<HTMLDivElement | null>(null);
   const outlineRef = useRef<HTMLDivElement | null>(null);
@@ -1420,6 +1428,7 @@ export function Glass({
   const hasChroma = merged.chromaAmount > 0;
   const hasSpec = merged.glowStrength > 0 || merged.edgeStrength > 0;
   const unityRatios = ratioX === 1 && ratioY === 1;
+  const specularGain = merged.specularStrength * readMotion(specularOpacity ?? 1);
 
   // --- re-query imperative elements whenever the filter JSX shape changes ---
   useLayoutEffect(() => {
@@ -1482,6 +1491,17 @@ export function Glass({
     multiLens,
     isIOS,
   ]);
+
+  useLayoutEffect(() => {
+    const applySpecularOpacity = (opacity: number) => {
+      const strength = merged.specularStrength * opacity;
+      mainSpecularRef.current?.setAttribute("k2", String(strength));
+      mainDarkSpecularRef.current?.setAttribute("values", darkSpecularMatrix(strength));
+    };
+    applySpecularOpacity(readMotion(specularOpacity ?? 1));
+    if (!isMotionValue(specularOpacity)) return;
+    return specularOpacity.on("change", applySpecularOpacity);
+  }, [merged.specularDark, merged.specularStrength, specularOpacity]);
 
   const filterActive = filterEnabled && (hasExternalMap
     ? displacementMapUrl != null && cw > 0 && ch > 0
@@ -1601,9 +1621,10 @@ export function Glass({
               (merged.specularDark ? (
                 <Fragment>
                   <feColorMatrix
+                    ref={mainDarkSpecularRef}
                     in="map"
                     type="matrix"
-                    values={`0 0 ${-merged.specularStrength} 0 ${1 + (128 * merged.specularStrength) / 255}  0 0 ${-merged.specularStrength} 0 ${1 + (128 * merged.specularStrength) / 255}  0 0 ${-merged.specularStrength} 0 ${1 + (128 * merged.specularStrength) / 255}  0 0 0 0 1`}
+                    values={darkSpecularMatrix(specularGain)}
                     result="specMask"
                   />
                   <feComposite
@@ -1626,11 +1647,12 @@ export function Glass({
                     result="specMask"
                   />
                   <feComposite
+                    ref={mainSpecularRef}
                     in="specMask"
                     in2="lensResult"
                     operator="arithmetic"
                     k1="0"
-                    k2={merged.specularStrength}
+                    k2={specularGain}
                     k3="1"
                     k4="0"
                     result="lensResult"

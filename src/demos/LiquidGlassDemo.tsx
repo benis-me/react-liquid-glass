@@ -1,0 +1,1315 @@
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  Check,
+  ChevronRight,
+  Clock3,
+  Ellipsis,
+  Gamepad2,
+  Grid2X2,
+  Layers3,
+  Network,
+  Smartphone,
+  UsersRound,
+  WifiOff,
+} from "lucide-react";
+import {
+  animate,
+  cubicBezier,
+  motion,
+  useMotionValue,
+  useReducedMotion,
+  useTransform,
+} from "motion/react";
+import type { Locale } from "../i18n";
+import { Glass, type LensParams } from "../lib";
+import { LiquidGlassCanvas } from "../lib/LiquidGlassCanvas";
+
+const TRIGGER_RADIUS = 34;
+const MIN_LENS_HALF = 1;
+const BUTTON_MAP_SIZE = 128;
+
+const BASE_MENU_LENS: Partial<LensParams> = {
+  mapSize: 512,
+  lensW: TRIGGER_RADIUS,
+  lensH: TRIGGER_RADIUS,
+  borderRadius: TRIGGER_RADIUS,
+  depth: 10,
+  domeDepth: 58,
+  scaleX: 0.11,
+  scaleY: 0.11,
+  chromaAmount: 0.55,
+  blurAmount: 0.2,
+  sdfBoundary: true,
+  edgeFalloff: true,
+  specularStrength: 0.72,
+  glowSpread: 0.72,
+  glowExponent: 1.4,
+  edgeWidth: 3.5,
+  edgeExponent: 1.2,
+  splayAmount: 1,
+  edgeShadow: "0 18px 52px rgb(0 0 0 / .22)",
+  edgeInsetShadow: "0 1px 0 rgb(255 255 255 / .2)",
+};
+
+const LIGHT_MENU_LENS: Partial<LensParams> = {
+  ...BASE_MENU_LENS,
+  brightness: 0.015,
+  specularRotation: 36,
+  glowStrength: 0.3,
+  edgeStrength: 0,
+  specularDark: false,
+};
+
+const DARK_MENU_LENS: Partial<LensParams> = {
+  ...BASE_MENU_LENS,
+  brightness: 0.035,
+  specularRotation: 45,
+  glowStrength: 0.38,
+  edgeStrength: 0,
+  specularDark: false,
+};
+
+const OPEN_MORPH_DURATION = 0.38;
+const OPEN_CONTENT_DURATION = 0.34;
+const CLOSE_CONTENT_DURATION = 0.24;
+const OPEN_MORPH_TIMES = [0, 0.1, 0.79, 1];
+const OPEN_HANDOFF_TIMES = [0, 0.14, 0.82, 1];
+const OPEN_MORPH_EASES = [
+  cubicBezier(0.42, 0, 0.64, 0.36),
+  cubicBezier(0.32, 0, 0.18, 1),
+  cubicBezier(0.22, 0, 0.18, 1),
+];
+const CLOSE_FUSION_DURATION = 0.42;
+const SHADOW_SETTLE_DURATION = 0.14;
+const SHADOW_HANDOFF_OPACITY = 0.34;
+const HIGHLIGHT_SETTLE_DURATION = 0.18;
+const CLOSE_IMPACT_DISTANCE = 8;
+const CLOSE_FUSION_TIMES = [0, 0.08, 0.41, 0.6, 0.75, 1];
+const CLOSE_FUSION_EASES = [
+  cubicBezier(0.42, 0, 0.58, 0.48),
+  cubicBezier(0.35, 0, 0.7, 0.45),
+  cubicBezier(0.24, 0.2, 0.65, 0.8),
+  cubicBezier(0.12, 0.72, 0.18, 1),
+  cubicBezier(0.16, 0.72, 0.18, 1),
+];
+const PRESS_EASE = cubicBezier(0.3, 0, 0.2, 1);
+const RELEASE_EASE = cubicBezier(0.16, 0.72, 0.18, 1);
+
+function openWidthFrames(start: number, target: number): [number, number, number, number] {
+  return [
+    start,
+    Math.min(28, start * 0.82),
+    target * 1.016,
+    target,
+  ];
+}
+
+function openHeightFrames(start: number, target: number): [number, number, number, number] {
+  return [
+    start,
+    Math.min(28, start * 0.82),
+    target * 1.012,
+    target,
+  ];
+}
+
+function openRadiusFrames(start: number, target: number): [number, number, number, number] {
+  return [
+    start,
+    Math.min(28, start * 0.82),
+    target * 1.055,
+    target,
+  ];
+}
+
+function closeMenuWidthFrames(start: number): [number, number, number, number, number, number] {
+  return [start, start * 1.006, 112, 48, 8, MIN_LENS_HALF];
+}
+
+function closeMenuHeightFrames(start: number): [number, number, number, number, number, number] {
+  return [start, start * 1.004, 180, 72, 10, MIN_LENS_HALF];
+}
+
+function closeMenuRadiusFrames(start: number): [number, number, number, number, number, number] {
+  return [start, start * 1.02, 58, 42, 8, MIN_LENS_HALF];
+}
+
+function closeButtonFrames(start: number): [number, number, number, number, number, number] {
+  return [start, MIN_LENS_HALF, 12, 24, 37, TRIGGER_RADIUS];
+}
+
+const copy = {
+  zh: {
+    menu: "游戏排序与筛选菜单",
+    open: "打开菜单",
+    sortHeading: "排序",
+    filterHeading: "筛选",
+    recentDetail: "按日期降序",
+    sorts: {
+      recent: "最近玩过的游戏",
+      name: "游戏名",
+      size: "大小",
+      updated: "上次更新",
+    },
+    filters: {
+      device: "本机",
+      unplayed: "从未玩过",
+      friends: "在玩的朋友",
+      controller: "控制器支持",
+      subscription: "游戏订阅",
+      category: "类别",
+      offline: "离线可用",
+      multiplayer: "多人游戏",
+    },
+  },
+  en: {
+    menu: "Game sorting and filter menu",
+    open: "Open menu",
+    sortHeading: "Sort",
+    filterHeading: "Filter",
+    recentDetail: "Newest first",
+    sorts: {
+      recent: "Recently played",
+      name: "Game name",
+      size: "Size",
+      updated: "Last updated",
+    },
+    filters: {
+      device: "On this device",
+      unplayed: "Never played",
+      friends: "Friends playing",
+      controller: "Controller support",
+      subscription: "Game subscription",
+      category: "Categories",
+      offline: "Available offline",
+      multiplayer: "Multiplayer",
+    },
+  },
+} as const;
+
+type MenuCopy = (typeof copy)[Locale];
+const SORT_OPTIONS = ["recent", "name", "size", "updated"] as const;
+type SortId = (typeof SORT_OPTIONS)[number];
+
+const FILTER_OPTIONS = [
+  { id: "device", icon: Smartphone },
+  { id: "unplayed", icon: Clock3 },
+  { id: "friends", icon: UsersRound },
+  { id: "controller", icon: Gamepad2 },
+  { id: "subscription", icon: Layers3 },
+  { id: "category", icon: Grid2X2, trailing: true },
+  { id: "offline", icon: WifiOff },
+  { id: "multiplayer", icon: Network },
+] as const;
+
+type FilterId = (typeof FILTER_OPTIONS)[number]["id"];
+
+interface StageSize {
+  width: number;
+  height: number;
+}
+
+interface MenuLayout {
+  panelLeft: number;
+  panelTop: number;
+  panelRight: number;
+  panelBottom: number;
+  panelWidth: number;
+  panelHeight: number;
+  panelRadius: number;
+  triggerCenterX: number;
+  triggerCenterY: number;
+  triggerLeft: number;
+  triggerTop: number;
+}
+
+interface AnimationControl {
+  stop: () => void;
+}
+
+interface MenuContentsProps {
+  text: MenuCopy;
+  open: boolean;
+  sort: SortId;
+  filters: Set<FilterId>;
+  onSort?: (id: SortId) => void;
+  onFilter?: (id: FilterId) => void;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function menuLayout(width: number, height: number): MenuLayout {
+  const safeWidth = Math.max(1, width);
+  const safeHeight = Math.max(1, height);
+  const compact = safeWidth < 560;
+  const insetX = compact ? 12 : 30;
+  const insetY = compact ? 18 : 25;
+  const panelWidth = Math.max(1, Math.min(404, safeWidth - insetX * 2));
+  const panelHeight = Math.max(1, Math.min(compact ? 690 : 748, safeHeight - insetY * 2));
+  const panelLeft = (safeWidth - panelWidth) / 2;
+  const panelTop = (safeHeight - panelHeight) / 2;
+  const panelRight = panelLeft + panelWidth;
+  const panelBottom = panelTop + panelHeight;
+  const panelRadius = Math.min(compact ? 40 : 44, panelWidth / 2, panelHeight / 2);
+  const triggerCenterX = clamp(panelRight - 38, TRIGGER_RADIUS, safeWidth - TRIGGER_RADIUS);
+  const triggerCenterY = clamp(panelBottom - 38, TRIGGER_RADIUS, safeHeight - TRIGGER_RADIUS);
+
+  return {
+    panelLeft,
+    panelTop,
+    panelRight,
+    panelBottom,
+    panelWidth,
+    panelHeight,
+    panelRadius,
+    triggerCenterX,
+    triggerCenterY,
+    triggerLeft: triggerCenterX - TRIGGER_RADIUS,
+    triggerTop: triggerCenterY - TRIGGER_RADIUS,
+  };
+}
+
+function directionToButton(layout: MenuLayout) {
+  const dx = layout.triggerCenterX - (layout.panelLeft + layout.panelWidth / 2);
+  const dy = layout.triggerCenterY - (layout.panelTop + layout.panelHeight / 2);
+  const magnitude = Math.hypot(dx, dy) || 1;
+  return { x: dx / magnitude, y: dy / magnitude };
+}
+
+function closeImpactVector(layout: MenuLayout) {
+  const direction = directionToButton(layout);
+  return {
+    x: direction.x * CLOSE_IMPACT_DISTANCE,
+    y: direction.y * CLOSE_IMPACT_DISTANCE,
+  };
+}
+
+function closeContactCenter(
+  layout: MenuLayout,
+  menuHalfWidth: number,
+  menuHalfHeight: number,
+  buttonHalf: number,
+  gap = 0,
+) {
+  const direction = directionToButton(layout);
+  const menuReach = Math.sqrt(
+    (menuHalfWidth * direction.x) ** 2 + (menuHalfHeight * direction.y) ** 2,
+  );
+  const distance = menuReach + buttonHalf + gap;
+  return {
+    x: layout.triggerCenterX - direction.x * distance,
+    y: layout.triggerCenterY - direction.y * distance,
+  };
+}
+
+function MenuContents({
+  text,
+  open,
+  sort,
+  filters,
+  onSort,
+  onFilter,
+}: MenuContentsProps) {
+  return (
+    <div className="dg-liquid-menu__scroll">
+      <p className="dg-liquid-menu__heading">{text.sortHeading}</p>
+      <div className="dg-liquid-menu__section" role="group" aria-label={text.sortHeading}>
+        {SORT_OPTIONS.map((id) => {
+          const selected = sort === id;
+          return (
+            <button
+              key={id}
+              className="dg-liquid-menu__sort-row"
+              type="button"
+              role="menuitemradio"
+              aria-checked={selected}
+              tabIndex={open ? 0 : -1}
+              data-selected={selected ? "true" : "false"}
+              onClick={() => onSort?.(id)}
+            >
+              <span className="dg-liquid-menu__check" aria-hidden="true">
+                {selected ? <Check /> : null}
+              </span>
+              <span className="dg-liquid-menu__label-block">
+                <span>{text.sorts[id]}</span>
+                {id === "recent" ? <small>{text.recentDetail}</small> : null}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="dg-liquid-menu__divider" />
+      <p className="dg-liquid-menu__heading">{text.filterHeading}</p>
+      <div className="dg-liquid-menu__section" role="group" aria-label={text.filterHeading}>
+        {FILTER_OPTIONS.map(({ id, icon: Icon, ...option }) => {
+          const active = filters.has(id);
+          return (
+            <button
+              key={id}
+              className="dg-liquid-menu__filter-row"
+              type="button"
+              role="menuitemcheckbox"
+              aria-checked={active}
+              tabIndex={open ? 0 : -1}
+              data-active={active ? "true" : "false"}
+              onClick={() => onFilter?.(id)}
+            >
+              <Icon aria-hidden="true" />
+              <span>{text.filters[id]}</span>
+              {"trailing" in option
+                ? <ChevronRight className="dg-liquid-menu__chevron" aria-hidden="true" />
+                : null}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export function LiquidGlassDemo({
+  locale,
+  theme,
+}: {
+  locale: Locale;
+  theme: "light" | "dark";
+}) {
+  const text = copy[locale];
+  const menuLens = theme === "dark" ? DARK_MENU_LENS : LIGHT_MENU_LENS;
+  const buttonLens: Partial<LensParams> = { ...menuLens, mapSize: BUTTON_MAP_SIZE };
+  const menuId = useId();
+  const stageRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const fusionSourceRef = useRef<HTMLCanvasElement>(null);
+  const stageSizeRef = useRef<StageSize>({ width: 1, height: 1 });
+  const animations = useRef<AnimationControl[]>([]);
+  const focusTimer = useRef<number | null>(null);
+  const openRef = useRef(false);
+  const transitioningRef = useRef(false);
+  const reduceMotion = useReducedMotion();
+  const [open, setOpen] = useState(false);
+  const [stageSize, setStageSize] = useState<StageSize>({ width: 1, height: 1 });
+  const [fusionSourceRevision, setFusionSourceRevision] = useState(0);
+  const [sort, setSort] = useState<SortId>("recent");
+  const [filters, setFilters] = useState<Set<FilterId>>(() => new Set(["device"]));
+
+  const rightEdge = useMotionValue(MIN_LENS_HALF * 2);
+  const bottomEdge = useMotionValue(MIN_LENS_HALF * 2);
+  const halfWidth = useMotionValue(MIN_LENS_HALF);
+  const halfHeight = useMotionValue(MIN_LENS_HALF);
+  const cornerRadius = useMotionValue(MIN_LENS_HALF);
+  const centerX = useMotionValue(0.5);
+  const centerY = useMotionValue(0.5);
+  const depth = useMotionValue(10);
+  const tintOpacity = useMotionValue(0.16);
+  const tintBlur = useMotionValue(0.5);
+  const shadowOpacity = useMotionValue(0.42);
+  const zoom = useMotionValue(1.35);
+  const reveal = useMotionValue(0);
+  const triggerOpacity = useMotionValue(1);
+  const triggerScale = useMotionValue(1);
+  const triggerOffsetX = useMotionValue(0);
+  const triggerOffsetY = useMotionValue(0);
+  const buttonCenterX = useMotionValue(0.5);
+  const buttonCenterY = useMotionValue(0.5);
+  const buttonHalf = useMotionValue(TRIGGER_RADIUS);
+  const buttonDepth = useMotionValue(10);
+  const buttonTintOpacity = useMotionValue(0.16);
+  const buttonTintBlur = useMotionValue(0.5);
+  const buttonShadowOpacity = useMotionValue(0.42);
+  const buttonZoom = useMotionValue(1.35);
+  const menuVelocityX = useMotionValue(0);
+  const menuVelocityY = useMotionValue(0);
+  const buttonVelocityX = useMotionValue(0);
+  const buttonVelocityY = useMotionValue(0);
+  const coreOpacity = useMotionValue(1);
+  const fusionOpacity = useMotionValue(0);
+  const mergeDistance = useMotionValue(0);
+  const menuSpecularOpacity = useMotionValue(1);
+  const buttonSpecularOpacity = useMotionValue(1);
+
+  const edgeBias = useTransform(tintOpacity, (opacity) => Math.max(0.1, opacity * 0.42));
+  const buttonEdgeBias = useTransform(
+    buttonTintOpacity,
+    (opacity) => Math.max(0.1, opacity * 0.42),
+  );
+  const contentScale = useTransform(reveal, [0, 1], [0.985, 1]);
+  const contentFilter = useTransform(reveal, (opacity) => `blur(${(1 - opacity) * 2}px)`);
+  const fusionBlobs = useMemo(
+    () => [
+      {
+        x: centerX,
+        y: centerY,
+        radius: cornerRadius,
+        halfWidth,
+        halfHeight,
+        cornerRadius,
+        velocityX: menuVelocityX,
+        velocityY: menuVelocityY,
+      },
+      {
+        x: buttonCenterX,
+        y: buttonCenterY,
+        radius: buttonHalf,
+        halfWidth: buttonHalf,
+        halfHeight: buttonHalf,
+        cornerRadius: buttonHalf,
+        velocityX: buttonVelocityX,
+        velocityY: buttonVelocityY,
+      },
+    ],
+    [
+      buttonCenterX,
+      buttonCenterY,
+      buttonHalf,
+      buttonVelocityX,
+      buttonVelocityY,
+      centerX,
+      centerY,
+      cornerRadius,
+      halfHeight,
+      halfWidth,
+      menuVelocityX,
+      menuVelocityY,
+    ],
+  );
+  const contentClip = useTransform(
+    [rightEdge, bottomEdge, halfWidth, halfHeight, cornerRadius],
+    (values) => {
+      const [currentRight, currentBottom, currentHalfWidth, currentHalfHeight, currentRadius] =
+        values as number[];
+      const size = stageSizeRef.current;
+      const layout = menuLayout(size.width, size.height);
+      const left = clamp(
+        currentRight - currentHalfWidth * 2 - layout.panelLeft,
+        0,
+        layout.panelWidth,
+      );
+      const top = clamp(
+        currentBottom - currentHalfHeight * 2 - layout.panelTop,
+        0,
+        layout.panelHeight,
+      );
+      const right = clamp(layout.panelRight - currentRight, 0, layout.panelWidth);
+      const bottom = clamp(layout.panelBottom - currentBottom, 0, layout.panelHeight);
+      return `inset(${top}px ${right}px ${bottom}px ${left}px round ${currentRadius}px)`;
+    },
+  );
+
+  useEffect(() => {
+    const canvas = fusionSourceRef.current;
+    if (!canvas) return;
+
+    const width = Math.max(1, stageSize.width);
+    const height = Math.max(1, stageSize.height);
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    const dark = theme === "dark";
+    const spacing = 72;
+    const phaseX = ((width / 2 - spacing / 2) % spacing + spacing) % spacing;
+    const phaseY = ((height / 2 - spacing / 2) % spacing + spacing) % spacing;
+    context.fillStyle = dark ? "#1a1a1a" : "#ebebe8";
+    context.fillRect(0, 0, width, height);
+    context.fillStyle = dark ? "rgb(255 255 255 / 8.5%)" : "rgb(0 0 0 / 7.5%)";
+    for (let x = phaseX; x < width; x += spacing) context.fillRect(x, 0, 1, height);
+    for (let y = phaseY; y < height; y += spacing) context.fillRect(0, y, width, 1);
+    setFusionSourceRevision((revision) => revision + 1);
+  }, [stageSize.height, stageSize.width, theme]);
+
+  const stopAnimations = useCallback(() => {
+    animations.current.forEach((control) => control.stop());
+    animations.current = [];
+  }, []);
+
+  const clearFocusTimer = useCallback(() => {
+    if (focusTimer.current === null) return;
+    window.clearTimeout(focusTimer.current);
+    focusTimer.current = null;
+  }, []);
+
+  useEffect(() => () => {
+    stopAnimations();
+    clearFocusTimer();
+  }, [clearFocusTimer, stopAnimations]);
+
+  const syncCenters = useCallback(() => {
+    const { width, height } = stageSizeRef.current;
+    centerX.set((rightEdge.get() - halfWidth.get()) / Math.max(1, width));
+    centerY.set((bottomEdge.get() - halfHeight.get()) / Math.max(1, height));
+  }, [bottomEdge, centerX, centerY, halfHeight, halfWidth, rightEdge]);
+
+  useEffect(() => {
+    const unsubscribe = [
+      rightEdge.on("change", syncCenters),
+      bottomEdge.on("change", syncCenters),
+      halfWidth.on("change", syncCenters),
+      halfHeight.on("change", syncCenters),
+    ];
+    syncCenters();
+    return () => unsubscribe.forEach((stop) => stop());
+  }, [bottomEdge, halfHeight, halfWidth, rightEdge, syncCenters]);
+
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const measure = () => {
+      const rect = stage.getBoundingClientRect();
+      const next = {
+        width: Math.max(1, Math.round(rect.width)),
+        height: Math.max(1, Math.round(rect.height)),
+      };
+      stageSizeRef.current = next;
+      setStageSize((current) => current.width === next.width && current.height === next.height
+        ? current
+        : next);
+      const layout = menuLayout(next.width, next.height);
+      const expanded = openRef.current;
+      const nextHalfWidth = expanded ? layout.panelWidth / 2 : MIN_LENS_HALF;
+      const nextHalfHeight = expanded ? layout.panelHeight / 2 : MIN_LENS_HALF;
+      const nextRight = expanded ? layout.panelRight : layout.triggerCenterX + MIN_LENS_HALF;
+      const nextBottom = expanded ? layout.panelBottom : layout.triggerCenterY + MIN_LENS_HALF;
+      halfWidth.jump(nextHalfWidth);
+      halfHeight.jump(nextHalfHeight);
+      cornerRadius.jump(expanded ? layout.panelRadius : MIN_LENS_HALF);
+      rightEdge.jump(nextRight);
+      bottomEdge.jump(nextBottom);
+      centerX.jump((nextRight - nextHalfWidth) / next.width);
+      centerY.jump((nextBottom - nextHalfHeight) / next.height);
+      buttonCenterX.jump(layout.triggerCenterX / next.width);
+      buttonCenterY.jump(layout.triggerCenterY / next.height);
+      buttonHalf.jump(expanded ? MIN_LENS_HALF : TRIGGER_RADIUS);
+    };
+
+    const observer = new ResizeObserver(measure);
+    measure();
+    observer.observe(stage);
+    return () => observer.disconnect();
+  }, [
+    bottomEdge,
+    buttonCenterX,
+    buttonCenterY,
+    buttonHalf,
+    centerX,
+    centerY,
+    cornerRadius,
+    halfHeight,
+    halfWidth,
+    rightEdge,
+  ]);
+
+  const setExpanded = useCallback((nextOpen: boolean, restoreFocus = false) => {
+    if (openRef.current === nextOpen) return;
+    clearFocusTimer();
+    stopAnimations();
+    openRef.current = nextOpen;
+    setOpen(nextOpen);
+    if (nextOpen) triggerRef.current?.blur();
+
+    const size = stageSizeRef.current;
+    const layout = menuLayout(size.width, size.height);
+    const target = nextOpen
+      ? {
+          right: layout.panelRight,
+          bottom: layout.panelBottom,
+          halfWidth: layout.panelWidth / 2,
+          halfHeight: layout.panelHeight / 2,
+          radius: layout.panelRadius,
+          depth: 26,
+          tint: 0.035,
+          blur: 1.6,
+          shadow: 0.56,
+          zoom: 1.38,
+        }
+      : {
+          right: layout.triggerCenterX + MIN_LENS_HALF,
+          bottom: layout.triggerCenterY + MIN_LENS_HALF,
+          halfWidth: MIN_LENS_HALF,
+          halfHeight: MIN_LENS_HALF,
+          radius: MIN_LENS_HALF,
+          depth: 10,
+          tint: 0.16,
+          blur: 0.5,
+          shadow: 0.42,
+          zoom: 1.35,
+        };
+    const buttonTarget = nextOpen
+      ? { half: MIN_LENS_HALF, depth: 10, tint: 0, blur: 0, shadow: 0, zoom: 1 }
+      : {
+          half: TRIGGER_RADIUS,
+          depth: 10,
+          tint: 0.16,
+          blur: 0.5,
+          shadow: 0.42,
+          zoom: 1.35,
+        };
+
+    const beginHandoff = () => {
+      coreOpacity.jump(0);
+      fusionOpacity.jump(1);
+      shadowOpacity.jump(0);
+      buttonShadowOpacity.jump(0);
+      menuSpecularOpacity.jump(0);
+      buttonSpecularOpacity.jump(0);
+    };
+    const finishHandoff = () => {
+      if (openRef.current !== nextOpen) return;
+      transitioningRef.current = false;
+      menuVelocityX.jump(0);
+      menuVelocityY.jump(0);
+      buttonVelocityX.jump(0);
+      buttonVelocityY.jump(0);
+      mergeDistance.jump(0);
+      const stableShadow = nextOpen ? shadowOpacity : buttonShadowOpacity;
+      stableShadow.jump(SHADOW_HANDOFF_OPACITY);
+      const stableSpecular = nextOpen ? menuSpecularOpacity : buttonSpecularOpacity;
+      stableSpecular.jump(0);
+      coreOpacity.jump(1);
+      fusionOpacity.jump(0);
+      animations.current = [
+        animate(
+          stableShadow,
+          nextOpen ? target.shadow : buttonTarget.shadow,
+          { duration: SHADOW_SETTLE_DURATION, ease: RELEASE_EASE },
+        ),
+        animate(stableSpecular, 1, {
+          duration: HIGHLIGHT_SETTLE_DURATION,
+          ease: RELEASE_EASE,
+        }),
+      ];
+    };
+
+    if (reduceMotion) {
+      transitioningRef.current = false;
+      rightEdge.jump(target.right);
+      bottomEdge.jump(target.bottom);
+      halfWidth.jump(target.halfWidth);
+      halfHeight.jump(target.halfHeight);
+      cornerRadius.jump(target.radius);
+      depth.jump(target.depth);
+      tintOpacity.jump(target.tint);
+      tintBlur.jump(target.blur);
+      shadowOpacity.jump(target.shadow);
+      zoom.jump(target.zoom);
+      reveal.jump(nextOpen ? 1 : 0);
+      triggerOpacity.jump(nextOpen ? 0 : 1);
+      triggerScale.jump(nextOpen ? 0.78 : 1);
+      triggerOffsetX.jump(0);
+      triggerOffsetY.jump(0);
+      buttonCenterX.jump(layout.triggerCenterX / size.width);
+      buttonCenterY.jump(layout.triggerCenterY / size.height);
+      buttonHalf.jump(buttonTarget.half);
+      buttonDepth.jump(buttonTarget.depth);
+      buttonTintOpacity.jump(buttonTarget.tint);
+      buttonTintBlur.jump(buttonTarget.blur);
+      buttonShadowOpacity.jump(buttonTarget.shadow);
+      buttonZoom.jump(buttonTarget.zoom);
+      menuVelocityX.jump(0);
+      menuVelocityY.jump(0);
+      buttonVelocityX.jump(0);
+      buttonVelocityY.jump(0);
+      coreOpacity.jump(1);
+      fusionOpacity.jump(0);
+      mergeDistance.jump(0);
+      menuSpecularOpacity.jump(1);
+      buttonSpecularOpacity.jump(1);
+    } else if (nextOpen) {
+      transitioningRef.current = true;
+      const widthStart = halfWidth.get();
+      const heightStart = halfHeight.get();
+      const radiusStart = cornerRadius.get();
+      const widthFrames = openWidthFrames(widthStart, target.halfWidth);
+      const heightFrames = openHeightFrames(heightStart, target.halfHeight);
+      reveal.jump(0);
+      beginHandoff();
+      menuVelocityX.jump(0);
+      menuVelocityY.jump(0);
+      buttonVelocityX.jump(0);
+      buttonVelocityY.jump(0);
+      animations.current = [
+        animate(rightEdge, [
+          rightEdge.get(),
+          layout.triggerCenterX + widthFrames[1],
+          target.right + 1.5,
+          target.right,
+        ], {
+          duration: OPEN_MORPH_DURATION,
+          times: OPEN_MORPH_TIMES,
+          ease: OPEN_MORPH_EASES,
+        }),
+        animate(bottomEdge, [
+          bottomEdge.get(),
+          layout.triggerCenterY + heightFrames[1],
+          target.bottom + 1.5,
+          target.bottom,
+        ], {
+          duration: OPEN_MORPH_DURATION,
+          times: OPEN_MORPH_TIMES,
+          ease: OPEN_MORPH_EASES,
+        }),
+        animate(halfWidth, widthFrames, {
+          duration: OPEN_MORPH_DURATION,
+          times: OPEN_MORPH_TIMES,
+          ease: OPEN_MORPH_EASES,
+        }),
+        animate(halfHeight, heightFrames, {
+          duration: OPEN_MORPH_DURATION,
+          times: OPEN_MORPH_TIMES,
+          ease: OPEN_MORPH_EASES,
+        }),
+        animate(cornerRadius, openRadiusFrames(radiusStart, target.radius), {
+          duration: OPEN_MORPH_DURATION,
+          times: OPEN_MORPH_TIMES,
+          ease: OPEN_MORPH_EASES,
+        }),
+        animate(depth, [depth.get(), 14, 27, target.depth], {
+          duration: OPEN_MORPH_DURATION,
+          times: OPEN_MORPH_TIMES,
+          ease: OPEN_MORPH_EASES,
+        }),
+        animate(tintOpacity, [tintOpacity.get(), 0.1, 0.055, target.tint], {
+          duration: OPEN_MORPH_DURATION,
+          times: OPEN_MORPH_TIMES,
+          ease: OPEN_MORPH_EASES,
+        }),
+        animate(tintBlur, [tintBlur.get(), 4.5, 6, target.blur], {
+          duration: OPEN_MORPH_DURATION,
+          times: OPEN_MORPH_TIMES,
+          ease: OPEN_MORPH_EASES,
+        }),
+        animate(zoom, [zoom.get(), 1.68, 1.4, target.zoom], {
+          duration: OPEN_MORPH_DURATION,
+          times: OPEN_MORPH_TIMES,
+          ease: OPEN_MORPH_EASES,
+        }),
+        animate(reveal, [0, 0, 0.94, 1], {
+          duration: OPEN_CONTENT_DURATION,
+          times: [0, 0.58, 0.84, 1],
+          ease: OPEN_MORPH_EASES,
+        }),
+        animate(triggerOpacity, [triggerOpacity.get(), 1, 0, 0], {
+          duration: OPEN_MORPH_DURATION,
+          times: OPEN_MORPH_TIMES,
+          ease: OPEN_MORPH_EASES,
+        }),
+        animate(triggerScale, [triggerScale.get(), 0.82, 0.74, 0.76], {
+          duration: OPEN_MORPH_DURATION,
+          times: OPEN_MORPH_TIMES,
+          ease: OPEN_MORPH_EASES,
+        }),
+        animate(triggerOffsetX, [triggerOffsetX.get(), 0], {
+          duration: 0.08,
+          ease: RELEASE_EASE,
+        }),
+        animate(triggerOffsetY, [triggerOffsetY.get(), 0], {
+          duration: 0.08,
+          ease: RELEASE_EASE,
+        }),
+        animate(buttonCenterX, layout.triggerCenterX / size.width, {
+          duration: 0.08,
+          ease: RELEASE_EASE,
+        }),
+        animate(buttonCenterY, layout.triggerCenterY / size.height, {
+          duration: 0.08,
+          ease: RELEASE_EASE,
+        }),
+        animate(buttonHalf, buttonTarget.half, { duration: 0.1, ease: PRESS_EASE }),
+        animate(buttonDepth, buttonTarget.depth, { duration: 0.1, ease: PRESS_EASE }),
+        animate(buttonTintOpacity, buttonTarget.tint, { duration: 0.1, ease: PRESS_EASE }),
+        animate(buttonTintBlur, buttonTarget.blur, { duration: 0.1, ease: PRESS_EASE }),
+        animate(buttonZoom, buttonTarget.zoom, { duration: 0.1, ease: PRESS_EASE }),
+        animate(mergeDistance, [mergeDistance.get(), 12, 8, 0], {
+          duration: OPEN_MORPH_DURATION,
+          times: OPEN_HANDOFF_TIMES,
+          ease: OPEN_MORPH_EASES,
+          onComplete: finishHandoff,
+        }),
+      ];
+    } else {
+      transitioningRef.current = true;
+      const widthStart = halfWidth.get();
+      const heightStart = halfHeight.get();
+      const radiusStart = cornerRadius.get();
+      const widthFrames = closeMenuWidthFrames(widthStart);
+      const heightFrames = closeMenuHeightFrames(heightStart);
+      const buttonFrames = closeButtonFrames(buttonHalf.get());
+      const direction = directionToButton(layout);
+      const impact = closeImpactVector(layout);
+      const approachCenter = closeContactCenter(
+        layout,
+        widthFrames[2],
+        heightFrames[2],
+        buttonFrames[2],
+        18,
+      );
+      const contactCenter = closeContactCenter(
+        layout,
+        widthFrames[3],
+        heightFrames[3],
+        buttonFrames[3],
+      );
+      const buttonBaseX = layout.triggerCenterX / size.width;
+      const buttonBaseY = layout.triggerCenterY / size.height;
+      beginHandoff();
+      animations.current = [
+        animate(rightEdge, [
+          rightEdge.get(),
+          rightEdge.get() + 1.5,
+          approachCenter.x + widthFrames[2],
+          contactCenter.x + widthFrames[3],
+          layout.triggerCenterX + widthFrames[4] + impact.x,
+          target.right,
+        ], {
+          duration: CLOSE_FUSION_DURATION,
+          times: CLOSE_FUSION_TIMES,
+          ease: CLOSE_FUSION_EASES,
+        }),
+        animate(bottomEdge, [
+          bottomEdge.get(),
+          bottomEdge.get() + 1.5,
+          approachCenter.y + heightFrames[2],
+          contactCenter.y + heightFrames[3],
+          layout.triggerCenterY + heightFrames[4] + impact.y,
+          target.bottom,
+        ], {
+          duration: CLOSE_FUSION_DURATION,
+          times: CLOSE_FUSION_TIMES,
+          ease: CLOSE_FUSION_EASES,
+        }),
+        animate(halfWidth, widthFrames, {
+          duration: CLOSE_FUSION_DURATION,
+          times: CLOSE_FUSION_TIMES,
+          ease: CLOSE_FUSION_EASES,
+        }),
+        animate(halfHeight, heightFrames, {
+          duration: CLOSE_FUSION_DURATION,
+          times: CLOSE_FUSION_TIMES,
+          ease: CLOSE_FUSION_EASES,
+        }),
+        animate(cornerRadius, closeMenuRadiusFrames(radiusStart), {
+          duration: CLOSE_FUSION_DURATION,
+          times: CLOSE_FUSION_TIMES,
+          ease: CLOSE_FUSION_EASES,
+        }),
+        animate(depth, [depth.get(), 29, 22, 16, 10, target.depth], {
+          duration: CLOSE_FUSION_DURATION,
+          times: CLOSE_FUSION_TIMES,
+          ease: CLOSE_FUSION_EASES,
+        }),
+        animate(tintOpacity, [tintOpacity.get(), 0.02, 0.055, 0.1, 0.04, target.tint], {
+          duration: CLOSE_FUSION_DURATION,
+          times: CLOSE_FUSION_TIMES,
+          ease: CLOSE_FUSION_EASES,
+        }),
+        animate(tintBlur, [tintBlur.get(), 5.5, 6, 5, 3, target.blur], {
+          duration: CLOSE_FUSION_DURATION,
+          times: CLOSE_FUSION_TIMES,
+          ease: CLOSE_FUSION_EASES,
+        }),
+        animate(zoom, [zoom.get(), 1.46, 1.52, 1.45, 1.2, target.zoom], {
+          duration: CLOSE_FUSION_DURATION,
+          times: CLOSE_FUSION_TIMES,
+          ease: CLOSE_FUSION_EASES,
+        }),
+        animate(reveal, [reveal.get(), 0.92, 0.46, 0], {
+          duration: CLOSE_CONTENT_DURATION,
+          times: [0, 0.25, 0.72, 1],
+          ease: [PRESS_EASE, cubicBezier(0.3, 0, 0.45, 0.7), RELEASE_EASE],
+        }),
+        animate(triggerOpacity, [triggerOpacity.get(), 0, 0.18, 0.64, 1, 1], {
+          duration: CLOSE_FUSION_DURATION,
+          times: CLOSE_FUSION_TIMES,
+          ease: CLOSE_FUSION_EASES,
+        }),
+        animate(triggerScale, [triggerScale.get(), 0.25, 0.48, 0.74, 1.07, 1], {
+          duration: CLOSE_FUSION_DURATION,
+          times: CLOSE_FUSION_TIMES,
+          ease: CLOSE_FUSION_EASES,
+        }),
+        animate(triggerOffsetX, [triggerOffsetX.get(), 0, 0, 0, impact.x, 0], {
+          duration: CLOSE_FUSION_DURATION,
+          times: CLOSE_FUSION_TIMES,
+          ease: CLOSE_FUSION_EASES,
+        }),
+        animate(triggerOffsetY, [triggerOffsetY.get(), 0, 0, 0, impact.y, 0], {
+          duration: CLOSE_FUSION_DURATION,
+          times: CLOSE_FUSION_TIMES,
+          ease: CLOSE_FUSION_EASES,
+        }),
+        animate(buttonCenterX, [
+          buttonCenterX.get(),
+          buttonBaseX,
+          buttonBaseX,
+          buttonBaseX,
+          (layout.triggerCenterX + impact.x) / size.width,
+          buttonBaseX,
+        ], {
+          duration: CLOSE_FUSION_DURATION,
+          times: CLOSE_FUSION_TIMES,
+          ease: CLOSE_FUSION_EASES,
+        }),
+        animate(buttonCenterY, [
+          buttonCenterY.get(),
+          buttonBaseY,
+          buttonBaseY,
+          buttonBaseY,
+          (layout.triggerCenterY + impact.y) / size.height,
+          buttonBaseY,
+        ], {
+          duration: CLOSE_FUSION_DURATION,
+          times: CLOSE_FUSION_TIMES,
+          ease: CLOSE_FUSION_EASES,
+        }),
+        animate(buttonHalf, buttonFrames, {
+          duration: CLOSE_FUSION_DURATION,
+          times: CLOSE_FUSION_TIMES,
+          ease: CLOSE_FUSION_EASES,
+        }),
+        animate(buttonDepth, [buttonDepth.get(), 10, 14, 18, 22, buttonTarget.depth], {
+          duration: CLOSE_FUSION_DURATION,
+          times: CLOSE_FUSION_TIMES,
+          ease: CLOSE_FUSION_EASES,
+        }),
+        animate(buttonTintOpacity, [buttonTintOpacity.get(), 0, 0.03, 0.075, 0.12, buttonTarget.tint], {
+          duration: CLOSE_FUSION_DURATION,
+          times: CLOSE_FUSION_TIMES,
+          ease: CLOSE_FUSION_EASES,
+        }),
+        animate(buttonTintBlur, [buttonTintBlur.get(), 0, 0.2, 0.4, 0.7, buttonTarget.blur], {
+          duration: CLOSE_FUSION_DURATION,
+          times: CLOSE_FUSION_TIMES,
+          ease: CLOSE_FUSION_EASES,
+        }),
+        animate(buttonZoom, [buttonZoom.get(), 1, 1.35, 1.55, 1.48, buttonTarget.zoom], {
+          duration: CLOSE_FUSION_DURATION,
+          times: CLOSE_FUSION_TIMES,
+          ease: CLOSE_FUSION_EASES,
+        }),
+        animate(mergeDistance, [mergeDistance.get(), 0, 16, 40, 4, 0], {
+          duration: CLOSE_FUSION_DURATION,
+          times: CLOSE_FUSION_TIMES,
+          ease: CLOSE_FUSION_EASES,
+          onComplete: finishHandoff,
+        }),
+        animate(menuVelocityX, [
+          menuVelocityX.get(),
+          0,
+          direction.x * 160,
+          direction.x * 320,
+          direction.x * 120,
+          0,
+        ], {
+          duration: CLOSE_FUSION_DURATION,
+          times: CLOSE_FUSION_TIMES,
+          ease: CLOSE_FUSION_EASES,
+        }),
+        animate(menuVelocityY, [
+          menuVelocityY.get(),
+          0,
+          direction.y * 160,
+          direction.y * 320,
+          direction.y * 120,
+          0,
+        ], {
+          duration: CLOSE_FUSION_DURATION,
+          times: CLOSE_FUSION_TIMES,
+          ease: CLOSE_FUSION_EASES,
+        }),
+        animate(buttonVelocityX, [
+          buttonVelocityX.get(),
+          0,
+          0,
+          direction.x * 100,
+          direction.x * 220,
+          0,
+        ], {
+          duration: CLOSE_FUSION_DURATION,
+          times: CLOSE_FUSION_TIMES,
+          ease: CLOSE_FUSION_EASES,
+        }),
+        animate(buttonVelocityY, [
+          buttonVelocityY.get(),
+          0,
+          0,
+          direction.y * 100,
+          direction.y * 220,
+          0,
+        ], {
+          duration: CLOSE_FUSION_DURATION,
+          times: CLOSE_FUSION_TIMES,
+          ease: CLOSE_FUSION_EASES,
+        }),
+      ];
+    }
+
+    if (restoreFocus) {
+      const focusDelay = reduceMotion
+        ? 0
+        : (CLOSE_FUSION_DURATION + HIGHLIGHT_SETTLE_DURATION) * 1000 + 32;
+      focusTimer.current = window.setTimeout(() => {
+        focusTimer.current = null;
+        if (!openRef.current) triggerRef.current?.focus({ preventScroll: true });
+      }, focusDelay);
+    }
+  }, [
+    bottomEdge,
+    buttonCenterX,
+    buttonCenterY,
+    buttonDepth,
+    buttonHalf,
+    buttonShadowOpacity,
+    buttonSpecularOpacity,
+    buttonTintBlur,
+    buttonTintOpacity,
+    buttonVelocityX,
+    buttonVelocityY,
+    buttonZoom,
+    clearFocusTimer,
+    coreOpacity,
+    cornerRadius,
+    depth,
+    fusionOpacity,
+    halfHeight,
+    halfWidth,
+    mergeDistance,
+    menuSpecularOpacity,
+    menuVelocityX,
+    menuVelocityY,
+    reduceMotion,
+    reveal,
+    rightEdge,
+    shadowOpacity,
+    stopAnimations,
+    tintBlur,
+    tintOpacity,
+    triggerOpacity,
+    triggerOffsetX,
+    triggerOffsetY,
+    triggerScale,
+    zoom,
+  ]);
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setExpanded(false, true);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [open, setExpanded]);
+
+  const pressTrigger = useCallback((pressed: boolean) => {
+    if (openRef.current || transitioningRef.current) return;
+    stopAnimations();
+    const duration = pressed ? 0.08 : 0.16;
+    const ease = pressed ? PRESS_EASE : RELEASE_EASE;
+    const pressHalf = pressed ? 29 : TRIGGER_RADIUS;
+    animations.current = [
+      animate(buttonHalf, pressHalf, { duration, ease }),
+      animate(buttonDepth, pressed ? 16 : 10, { duration, ease }),
+      animate(buttonTintOpacity, pressed ? 0.025 : 0.16, { duration, ease }),
+      animate(buttonTintBlur, pressed ? 0.15 : 0.5, { duration, ease }),
+      animate(buttonShadowOpacity, pressed ? 0.78 : 0.42, { duration, ease }),
+      animate(buttonZoom, pressed ? 1.82 : 1.35, { duration, ease }),
+      animate(buttonSpecularOpacity, 1, { duration, ease }),
+      animate(triggerScale, pressed ? 0.86 : 1, {
+        duration,
+        ease,
+      }),
+    ];
+  }, [
+    buttonDepth,
+    buttonHalf,
+    buttonShadowOpacity,
+    buttonTintBlur,
+    buttonTintOpacity,
+    buttonZoom,
+    buttonSpecularOpacity,
+    stopAnimations,
+    triggerScale,
+  ]);
+
+  const toggleFilter = useCallback((id: FilterId) => {
+    setFilters((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const layout = menuLayout(stageSize.width, stageSize.height);
+
+  return (
+    <div ref={stageRef} className="dg-liquid-glass" data-liquid-theme={theme}>
+      <motion.div
+        className="dg-liquid-menu__core-layer"
+        style={{ opacity: coreOpacity }}
+        aria-hidden="true"
+      >
+        <Glass
+          className="dg-liquid-menu__glass"
+          lens={menuLens}
+          specularOpacity={menuSpecularOpacity}
+          x={centerX}
+          y={centerY}
+          lensW={halfWidth}
+          lensH={halfHeight}
+          borderRadius={cornerRadius}
+          depth={depth}
+          tintColor="var(--action-glass-tint)"
+          tintOpacity={tintOpacity}
+          tintBlur={tintBlur}
+          shadowOpacity={shadowOpacity}
+          edgeBias={edgeBias}
+          zoom={zoom}
+          filterResolution={1.5}
+          regenSettle={16}
+          pauseOffscreen
+          style={{ position: "absolute", inset: 0, height: "100%" }}
+          refractionTarget={<div className="dg-liquid-menu__grid" />}
+        />
+
+        <Glass
+          className="dg-liquid-menu__button-glass"
+          lens={buttonLens}
+          specularOpacity={buttonSpecularOpacity}
+          x={buttonCenterX}
+          y={buttonCenterY}
+          lensW={buttonHalf}
+          lensH={buttonHalf}
+          borderRadius={buttonHalf}
+          depth={buttonDepth}
+          tintColor="var(--action-glass-tint)"
+          tintOpacity={buttonTintOpacity}
+          tintBlur={buttonTintBlur}
+          shadowOpacity={buttonShadowOpacity}
+          edgeBias={buttonEdgeBias}
+          zoom={buttonZoom}
+          filterResolution={1}
+          regenSettle={12}
+          pauseOffscreen
+          style={{ position: "absolute", inset: 0, height: "100%" }}
+          refractionTarget={<div className="dg-liquid-menu__grid" />}
+        />
+      </motion.div>
+
+      <canvas
+        ref={fusionSourceRef}
+        className="dg-liquid-menu__fusion-source"
+        aria-hidden="true"
+      />
+      <motion.div
+        className="dg-liquid-menu__fusion-layer"
+        style={{ opacity: fusionOpacity }}
+        aria-hidden="true"
+      >
+        <LiquidGlassCanvas
+          sourceRef={fusionSourceRef}
+          width={stageSize.width}
+          height={stageSize.height}
+          blobs={fusionBlobs}
+          mergeDistance={mergeDistance}
+          refractionStrength={18}
+          chromaAmount={menuLens.chromaAmount}
+          specularStrength={menuLens.specularStrength}
+          blurStrength={tintBlur}
+          edgeDepth={depth}
+          domeDepth={menuLens.domeDepth}
+          brightness={menuLens.brightness}
+          specularRotation={menuLens.specularRotation}
+          glowStrength={menuLens.glowStrength}
+          glowSpread={menuLens.glowSpread}
+          glowExponent={menuLens.glowExponent}
+          edgeStrength={menuLens.edgeStrength}
+          edgeWidth={menuLens.edgeWidth}
+          edgeExponent={menuLens.edgeExponent}
+          tintColor={theme === "dark" ? [0.14, 0.14, 0.14] : [1, 1, 1]}
+          tintStrength={tintOpacity}
+          magnification={zoom}
+          shadowStrength={0.075}
+          sourceRevision={fusionSourceRevision}
+          pixelRatio={1.5}
+          className="dg-liquid-menu__fusion-canvas"
+          ariaLabel={text.menu}
+        />
+      </motion.div>
+
+      <div
+        className="dg-liquid-menu__dismiss"
+        data-open={open ? "true" : "false"}
+        onPointerDown={() => setExpanded(false, true)}
+      />
+
+      <motion.button
+        ref={triggerRef}
+        className="dg-liquid-menu__trigger"
+        type="button"
+        aria-label={text.open}
+        aria-expanded={open}
+        aria-controls={menuId}
+        tabIndex={open ? -1 : 0}
+        style={{
+          left: layout.triggerLeft,
+          top: layout.triggerTop,
+          opacity: triggerOpacity,
+          scale: triggerScale,
+          x: triggerOffsetX,
+          y: triggerOffsetY,
+          pointerEvents: open ? "none" : "auto",
+        }}
+        onPointerDown={() => pressTrigger(true)}
+        onPointerUp={() => pressTrigger(false)}
+        onPointerCancel={() => pressTrigger(false)}
+        onPointerLeave={() => pressTrigger(false)}
+        onClick={() => setExpanded(true)}
+      >
+        <Ellipsis aria-hidden="true" />
+      </motion.button>
+
+      <motion.div
+        id={menuId}
+        className="dg-liquid-menu__panel"
+        role="menu"
+        aria-label={text.menu}
+        aria-hidden={!open}
+        data-open={open ? "true" : "false"}
+        style={{
+          left: layout.panelLeft,
+          top: layout.panelTop,
+          width: layout.panelWidth,
+          height: layout.panelHeight,
+          borderRadius: layout.panelRadius,
+          opacity: reveal,
+          scale: contentScale,
+          filter: contentFilter,
+          clipPath: contentClip,
+        }}
+      >
+        <MenuContents
+          text={text}
+          open={open}
+          sort={sort}
+          filters={filters}
+          onSort={setSort}
+          onFilter={toggleFilter}
+        />
+      </motion.div>
+    </div>
+  );
+}

@@ -12,6 +12,9 @@ const QrGlassDemo = lazy(() =>
 const VideoGlassDemo = lazy(() =>
   import("./demos/VideoGlassDemo").then((module) => ({ default: module.VideoGlassDemo })),
 );
+const LiquidGlassDemo = lazy(() =>
+  import("./demos/LiquidGlassDemo").then((module) => ({ default: module.LiquidGlassDemo })),
+);
 
 const HERO_PHOTO_URL =
   "https://images.unsplash.com/photo-1683318854587-3722ba210558?auto=format&fit=crop&w=1800&q=85";
@@ -31,12 +34,14 @@ const copy = {
   zh: {
     skip: "跳到主要内容",
     controls: "控件",
+    liquid: "流体",
     media: "媒体",
     qr: "二维码",
     video: "视频",
     experiment: "实验",
     qrLoading: "正在准备二维码纹理",
     videoLoading: "正在准备视频纹理",
+    liquidLoading: "正在准备流体玻璃",
     lightMode: "切换到浅色模式",
     darkMode: "切换到深色模式",
     english: "切换到英文",
@@ -45,12 +50,14 @@ const copy = {
   en: {
     skip: "Skip to main content",
     controls: "Controls",
+    liquid: "Liquid",
     media: "Media",
     qr: "QR code",
     video: "Video",
     experiment: "Experiment",
     qrLoading: "Preparing QR texture",
     videoLoading: "Preparing video texture",
+    liquidLoading: "Preparing liquid glass",
     lightMode: "Switch to light mode",
     darkMode: "Switch to dark mode",
     english: "切换到中文",
@@ -98,6 +105,13 @@ export function App() {
         <section className="page-section" id="controls">
           <SectionHeading title={text.controls} />
           <ControlGallery locale={locale} />
+        </section>
+
+        <section className="page-section" id="liquid">
+          <SectionHeading title={text.liquid} />
+          <Suspense fallback={<div className="liquid-loading" aria-label={text.liquidLoading} />}>
+            <LiquidGlassDemo locale={locale} theme={theme} />
+          </Suspense>
         </section>
 
         <section className="page-section" id="media">
