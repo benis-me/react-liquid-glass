@@ -402,7 +402,7 @@ export function GlassSwitch({
         tintOpacity={tintOpacity}
         tintBlur={tintBlur}
         shadowOpacity={shadowOpacity}
-        filterResolution={compact ? 1 : 2}
+        filterResolution={2}
         style={{ width: filterWidth, height: filterHeight, overflow: "visible", margin: -padding }}
         refractionTarget={
           <div className="dg-control__padded-target" style={{ padding, height }}>
@@ -714,7 +714,7 @@ export function GlassSlider({
         tintOpacity={tintOpacity}
         tintBlur={tintBlur}
         shadowOpacity={shadowOpacity}
-        filterResolution={compact ? 1 : 2}
+        filterResolution={2}
         style={{ width: filterWidth, height: filterHeight, overflow: "visible", margin: -padding }}
         refractionTarget={
           <div className="dg-control__padded-target" style={{ padding, height: thumbHeight }}>

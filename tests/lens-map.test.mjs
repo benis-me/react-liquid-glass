@@ -104,7 +104,7 @@ test("offscreen glass invalidates cached geometry before restoring its filter", 
   );
 });
 
-test("small controls retain one Liquid material and only draw when dirty", () => {
+test("small controls retain sharp 2x Liquid surfaces and only draw when dirty", () => {
   assert.match(filterSource, /filterEnabled\?: boolean/);
   assert.match(filterSource, /const filterActive = filterEnabled &&/);
   assert.match(filterSource, /filterEnabled \|\| animatedGeneratedRef\.current/);
@@ -112,7 +112,7 @@ test("small controls retain one Liquid material and only draw when dirty", () =>
   assert.match(liquidCanvasSource, /frame\.render\(drawFrame\)/);
   assert.match(liquidCanvasSource, /if \(!visible \|\| document\.hidden \|\| !source\) return/);
   assert.doesNotMatch(liquidAdapterSource, /requestAnimationFrame|toDataURL/);
-  assert.equal((componentSource.match(/filterResolution=\{compact \? 1 : 2\}/g) ?? []).length, 2);
+  assert.equal((componentSource.match(/filterResolution=\{2\}/g) ?? []).length, 2, "small thumbs must not upscale 1x coverage on Retina screens");
   assert.equal((componentSource.match(/const restTintBlur = compact \? 0 : 4/g) ?? []).length, 2);
 });
 
@@ -612,7 +612,6 @@ test("switch, slider, and toggle retain their source motion contracts", () => {
   assert.match(componentSource, /rubberBand\(-next, overshoot/);
   assert.match(componentSource, /inputRef\.current\?\.focus/);
   assert.doesNotMatch(componentSource, /dg-slider__value/);
-  assert.match(componentSource, /filterResolution=\{compact \? 1 : 2\}/);
   assert.match(componentSource, /duration: 0\.6/);
   assert.match(componentSource, /return Math\.min\(0\.46, speed \*\* 0\.62 \* 0\.0095\)/);
   assert.match(componentSource, /zoom=\{zoom\}/);
