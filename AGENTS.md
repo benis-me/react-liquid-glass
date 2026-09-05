@@ -6,7 +6,14 @@ Before making substantial visual changes, use the Product Design plugin's `get-c
 
 When implementing from a selected generated mock, treat that image as the source of truth for layout, component anatomy, density, spacing, color, typography, visible content, and hierarchy.
 
-Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts/prepare-sites-build.mjs`, and `tests/sites-worker.test.mjs` intact so the same local prototype can be handed to Sites. Before a Sites handoff, run `npm run build` and `npm run test:sites`; the build must leave `dist/client/index.html`, `dist/server/index.js`, and `dist/.openai/hosting.json`.
+Build the library in `packages/react-liquid-glass/src/` and the documentation/demo app in `apps/docs/src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts/prepare-sites-build.mjs`, and `tests/sites-worker.test.mjs` intact. Sites handoff uses `npm run build:sites` and `npm run test:sites`; the build must leave `dist/client/index.html`, `dist/server/index.js`, and `dist/.openai/hosting.json`.
+
+## Component library and documentation site
+
+- The user requested an npm-workspace monorepo with independently owned library and documentation builds. The docs app consumes only public package APIs; no relative imports into library implementation and no demo imports in the library.
+- The docs site has a home, searchable component catalog, individual preview/usage/API pages, a material Playground that affects every component, and several working creative mini-apps. This supersedes the former single-page/no-header composition constraints, but preserves the restrained monochrome style, Fontsource typography and approved material/gesture implementations.
+- Common components must compose the project-owned liquid-glass and apple-motion cores. Preserve accessible native semantics and real controlled state. Playground changes must reach the renderer; never substitute CSS blur or decorative replicas.
+- Keep Git-push deployment working for the existing Vercel project after the workspace migration. Do not reintroduce the deleted architecture document or QR specimen.
 
 ## Core refactor
 

@@ -1,0 +1,23 @@
+{
+  "name": "@liquid-glass/docs",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 32472",
+    "build": "vite build",
+    "check": "tsc --noEmit",
+    "preview": "vite preview --port 32472",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "@fontsource-variable/jetbrains-mono": "^5.3.0",
+    "@fontsource-variable/manrope": "^5.3.0",
+    "@fontsource-variable/noto-sans-sc": "^5.3.0",
+    "lucide-react": "^1.39.0",
+    "motion": "13.1.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "refractive-glass-react": "0.1.0"
+  }
+}

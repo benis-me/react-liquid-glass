@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "paths": {
+      "refractive-glass-react": [
+        "../../packages/react-liquid-glass/src/index.ts"
+      ],
+      "refractive-glass-react/*": [
+        "../../packages/react-liquid-glass/src/*"
+      ]
+    }
+  },
+  "include": [
+    "src"
+  ]
+}

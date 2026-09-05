@@ -1,75 +1,30 @@
 {
-  "name": "refractive-glass-react",
-  "version": "0.1.0",
+  "name": "react-liquid-glass-workspace",
   "private": true,
   "type": "module",
-  "main": "./dist/library/index.cjs",
-  "module": "./dist/library/index.js",
-  "types": "./dist/library/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/library/index.d.ts",
-      "import": "./dist/library/index.js",
-      "require": "./dist/library/index.cjs"
-    },
-    "./controls.css": "./dist/library/controls.css",
-    "./liquid-glass": {
-      "types": "./dist/library/liquid-glass/index.d.ts",
-      "import": "./dist/library/liquid-glass.js",
-      "require": "./dist/library/liquid-glass.cjs"
-    },
-    "./liquid-glass/renderer": {
-      "types": "./dist/library/liquid-glass/renderer.d.ts",
-      "import": "./dist/library/liquid-glass-renderer.js",
-      "require": "./dist/library/liquid-glass-renderer.cjs"
-    },
-    "./apple-motion": {
-      "types": "./dist/library/apple-motion/index.d.ts",
-      "import": "./dist/library/apple-motion.js",
-      "require": "./dist/library/apple-motion.cjs"
-    },
-    "./apple-motion/react": {
-      "types": "./dist/library/apple-motion/react.d.ts",
-      "import": "./dist/library/apple-motion-react.js",
-      "require": "./dist/library/apple-motion-react.cjs"
-    },
-    "./controls": {
-      "types": "./dist/library/controls/index.d.ts",
-      "import": "./dist/library/controls.js",
-      "require": "./dist/library/controls.cjs"
-    }
-  },
-  "files": [
-    "dist/library"
-  ],
-  "sideEffects": [
-    "**/*.css"
+  "workspaces": [
+    "packages/*",
+    "apps/*"
   ],
   "scripts": {
-    "dev": "vite --port 32472",
-    "build:demo": "vite build",
-    "build:lib": "vite build --config vite.lib.config.mjs && tsc -p tsconfig.lib.json",
-    "build": "npm run build:demo && npm run build:lib && node scripts/prepare-sites-build.mjs",
-    "check": "tsc --noEmit",
-    "test": "npm run build:lib && node --test tests/lens-map.test.mjs tests/liquid-renderer.test.mjs tests/core.test.mjs",
-    "preview": "vite preview",
-    "test:sites": "node --test tests/sites-worker.test.mjs"
-  },
-  "dependencies": {
-    "@fontsource-variable/manrope": "^5.3.0",
-    "@fontsource-variable/noto-sans-sc": "^5.3.0",
-    "@vitejs/plugin-react": "6.1.1",
-    "lucide-react": "^1.39.0",
-    "motion": "13.1.1",
-    "qrcode": "^1.5.4",
-    "react": "19.2.8",
-    "react-dom": "19.2.8",
-    "vite": "8.2.2"
+    "dev": "npm run dev --workspace @liquid-glass/docs",
+    "build:lib": "npm run build --workspace refractive-glass-react",
+    "build:demo": "npm run build:lib && npm run build --workspace @liquid-glass/docs",
+    "build": "npm run build:demo",
+    "build:sites": "npm run build && node scripts/prepare-sites-build.mjs",
+    "check": "npm run check --workspaces --if-present",
+    "test": "npm run build:lib && npm run test --workspaces --if-present && node --test tests/lens-map.test.mjs",
+    "test:sites": "node --test tests/sites-worker.test.mjs",
+    "preview": "npm run preview --workspace @liquid-glass/docs"
   },
   "devDependencies": {
-    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vite": "8.2.2",
+    "@vitejs/plugin-react": "6.1.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "motion": "13.1.1"
   }
 }

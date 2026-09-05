@@ -1,0 +1,62 @@
+{
+  "name": "refractive-glass-react",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./controls.css": {
+      "types": "./dist/controls.css.d.ts",
+      "default": "./dist/controls.css"
+    },
+    "./liquid-glass": {
+      "types": "./dist/liquid-glass/index.d.ts",
+      "import": "./dist/liquid-glass.js",
+      "require": "./dist/liquid-glass.cjs"
+    },
+    "./liquid-glass/renderer": {
+      "types": "./dist/liquid-glass/renderer.d.ts",
+      "import": "./dist/liquid-glass-renderer.js",
+      "require": "./dist/liquid-glass-renderer.cjs"
+    },
+    "./apple-motion": {
+      "types": "./dist/apple-motion/index.d.ts",
+      "import": "./dist/apple-motion.js",
+      "require": "./dist/apple-motion.cjs"
+    },
+    "./apple-motion/react": {
+      "types": "./dist/apple-motion/react.d.ts",
+      "import": "./dist/apple-motion-react.js",
+      "require": "./dist/apple-motion-react.cjs"
+    },
+    "./controls": {
+      "types": "./dist/controls/index.d.ts",
+      "import": "./dist/controls.js",
+      "require": "./dist/controls.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "description": "Liquid glass optics, physical motion and accessible React components.",
+  "scripts": {
+    "build": "vite build --config vite.config.mjs && tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.check.json",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "motion": "^13.1.1"
+  }
+}

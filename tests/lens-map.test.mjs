@@ -1,4 +1,4 @@
-import { liquidContentPose, liquidContentOptics } from "../dist/library/liquid-glass.js";
+import { liquidContentPose, liquidContentOptics } from "../packages/react-liquid-glass/dist/liquid-glass.js";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
@@ -16,57 +16,50 @@ import {
   closeMenuRadiusFrames,
   closeButtonFrames,
   retargetLiquidFrames,
-} from "../dist/library/apple-motion.js";
+} from "../packages/react-liquid-glass/dist/apple-motion.js";
 import {
   DEFAULT_LENS_PARAMS,
   PLAYGROUND_DEFAULTS,
   axisScaleMatrix,
   motionValue,
   LIQUID_GLASS_MATERIAL,
-} from "../dist/library/index.js";
+} from "../packages/react-liquid-glass/dist/index.js";
 
 const filterSource = readFileSync(
-  process.env.FILTER_SOURCE ?? new URL("../src/lib/glass.tsx", import.meta.url),
+  process.env.FILTER_SOURCE ?? new URL("../packages/react-liquid-glass/src/glass.tsx", import.meta.url),
   "utf8",
 );
-const displacementSource = readFileSync(new URL("../src/lib/displacement-map.ts", import.meta.url), "utf8");
-const appSource = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
-const mainSource = readFileSync(new URL("../src/main.tsx", import.meta.url), "utf8");
-const libraryIndexSource = readFileSync(new URL("../src/lib/index.ts", import.meta.url), "utf8");
-const libraryConfigSource = readFileSync(new URL("../vite.lib.config.mjs", import.meta.url), "utf8");
-const packageSource = readFileSync(new URL("../package.json", import.meta.url), "utf8");
+const displacementSource = readFileSync(new URL("../packages/react-liquid-glass/src/displacement-map.ts", import.meta.url), "utf8");
+const appSource = readFileSync(new URL("../apps/docs/src/App.tsx", import.meta.url), "utf8");
+const mainSource = readFileSync(new URL("../apps/docs/src/main.tsx", import.meta.url), "utf8");
+const libraryIndexSource = readFileSync(new URL("../packages/react-liquid-glass/src/index.ts", import.meta.url), "utf8");
+const libraryConfigSource = readFileSync(new URL("../packages/react-liquid-glass/vite.config.mjs", import.meta.url), "utf8");
+const packageSource = readFileSync(new URL("../packages/react-liquid-glass/package.json", import.meta.url), "utf8");
 const readmeSource = readFileSync(new URL("../README.md", import.meta.url), "utf8");
-const controlGallerySource = readFileSync(new URL("../src/demos/ControlGallery.tsx", import.meta.url), "utf8");
-const playgroundSource = readFileSync(new URL("../src/demos/DisplacementPlayground.tsx", import.meta.url), "utf8");
-const additionalDemosSource = readFileSync(new URL("../src/demos/AdditionalGlassDemos.tsx", import.meta.url), "utf8");
+const additionalDemosSource = readFileSync(new URL("../packages/react-liquid-glass/src/controls/GlassActionButton.tsx", import.meta.url), "utf8");
 const liquidDemoSource = [
   "demos/LiquidGlassDemo.tsx", "lib/controls/LiquidMenu.tsx", "lib/apple-motion/use-menu-motion.ts",
   "lib/controls/use-menu-material.ts", "lib/apple-motion/menu.ts",
-].map(path => readFileSync(new URL(`../src/${path}`, import.meta.url), "utf8")).join("\n");
-const liquidCanvasUrl = new URL("../src/lib/liquid-glass/LiquidGlassCanvas.tsx", import.meta.url);
-const liquidRendererSource = readFileSync(new URL("../src/lib/liquid-glass/renderer.ts", import.meta.url), "utf8");
-const liquidAdapterSource = readFileSync(new URL("../src/lib/liquid-glass/LiquidGlass.tsx", import.meta.url), "utf8");
+].map(path => readFileSync(new URL(`../${path.startsWith("lib/") ? "packages/react-liquid-glass/src/" + path.slice(4) : "apps/docs/src/" + path}`, import.meta.url), "utf8")).join("\n");
+const liquidCanvasUrl = new URL("../packages/react-liquid-glass/src/liquid-glass/LiquidGlassCanvas.tsx", import.meta.url);
+const liquidRendererSource = readFileSync(new URL("../packages/react-liquid-glass/src/liquid-glass/renderer.ts", import.meta.url), "utf8");
+const liquidAdapterSource = readFileSync(new URL("../packages/react-liquid-glass/src/liquid-glass/LiquidGlass.tsx", import.meta.url), "utf8");
 const liquidCanvasSource = readFileSync(liquidCanvasUrl, "utf8") + liquidRendererSource;
-const indexSource = readFileSync(new URL("../index.html", import.meta.url), "utf8");
-const heroSource = readFileSync(new URL("../src/HeroGlassDemo.tsx", import.meta.url), "utf8") + readFileSync(new URL("../src/lib/apple-motion/tween.ts", import.meta.url), "utf8");
-const stylesSource = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
-const demoStylesSource = readFileSync(new URL("../src/styles/demos.css", import.meta.url), "utf8") + readFileSync(new URL("../src/lib/controls.css", import.meta.url), "utf8");
-const pageStylesSource = readFileSync(new URL("../src/styles/page.css", import.meta.url), "utf8");
-const baseStylesSource = readFileSync(new URL("../src/styles/base.css", import.meta.url), "utf8");
-const libraryStylesSource = readFileSync(new URL("../src/lib/controls.css", import.meta.url), "utf8");
-const regenSource = readFileSync(new URL("../src/lib/use-map-regen.ts", import.meta.url), "utf8");
-const contextSource = readFileSync(new URL("../src/lib/context.ts", import.meta.url), "utf8");
+const indexSource = readFileSync(new URL("../apps/docs/index.html", import.meta.url), "utf8");
+const heroSource = readFileSync(new URL("../packages/react-liquid-glass/src/controls/GlassSpotlight.tsx", import.meta.url), "utf8") + readFileSync(new URL("../packages/react-liquid-glass/src/apple-motion/tween.ts", import.meta.url), "utf8");
+const stylesSource = readFileSync(new URL("../apps/docs/src/styles.css", import.meta.url), "utf8");
+const demoStylesSource = readFileSync(new URL("../apps/docs/src/styles/demos.css", import.meta.url), "utf8") + readFileSync(new URL("../packages/react-liquid-glass/src/controls.css", import.meta.url), "utf8");
+const pageStylesSource = readFileSync(new URL("../apps/docs/src/styles/page.css", import.meta.url), "utf8");
+const baseStylesSource = readFileSync(new URL("../apps/docs/src/styles/base.css", import.meta.url), "utf8");
+const libraryStylesSource = readFileSync(new URL("../packages/react-liquid-glass/src/controls.css", import.meta.url), "utf8");
+const regenSource = readFileSync(new URL("../packages/react-liquid-glass/src/use-map-regen.ts", import.meta.url), "utf8");
+const contextSource = readFileSync(new URL("../packages/react-liquid-glass/src/context.ts", import.meta.url), "utf8");
 const componentSource = [
   "apple-motion/react.ts", "controls/use-thumb-motion.ts", "controls/GlassSwitch.tsx",
   "apple-motion/presets.ts", "controls/GlassSlider.tsx", "controls/GlassSegmented.tsx",
-].map(path => readFileSync(new URL(`../src/lib/${path}`, import.meta.url), "utf8")).join("\n");
-const pointerFallbackSource = readFileSync(new URL("../src/lib/apple-motion/use-pointer-release-fallback.ts", import.meta.url), "utf8");
-const qrSource = readFileSync(new URL("../src/demos/QrGlassDemo.tsx", import.meta.url), "utf8");
-const qrGeometrySource = readFileSync(new URL("../src/demos/qr-geometry.ts", import.meta.url), "utf8");
-const qrRendererSource = readFileSync(new URL("../src/demos/qr-renderer.ts", import.meta.url), "utf8");
-const qrMapSource = readFileSync(new URL("../src/demos/qr-map.ts", import.meta.url), "utf8");
-const qrPaintSource = readFileSync(new URL("../src/demos/qr-paint.ts", import.meta.url), "utf8");
-const videoSource = readFileSync(new URL("../src/demos/VideoGlassDemo.tsx", import.meta.url), "utf8") + readFileSync(new URL("../src/lib/apple-motion/spring.ts", import.meta.url), "utf8") + readFileSync(new URL("../src/lib/apple-motion/presets.ts", import.meta.url), "utf8");
+].map(path => readFileSync(new URL(`../packages/react-liquid-glass/src/${path}`, import.meta.url), "utf8")).join("\n");
+const pointerFallbackSource = readFileSync(new URL("../packages/react-liquid-glass/src/apple-motion/use-pointer-release-fallback.ts", import.meta.url), "utf8");
+const videoSource = readFileSync(new URL("../packages/react-liquid-glass/src/controls/GlassVideo.tsx", import.meta.url), "utf8") + readFileSync(new URL("../packages/react-liquid-glass/src/apple-motion/spring.ts", import.meta.url), "utf8") + readFileSync(new URL("../packages/react-liquid-glass/src/apple-motion/presets.ts", import.meta.url), "utf8");
 const gitignoreSource = readFileSync(new URL("../.gitignore", import.meta.url), "utf8");
 const sha256 = (value) => createHash("sha256").update(value).digest("hex");
 
@@ -86,14 +79,6 @@ test("single-lens filter clips blur and refraction to the rounded map alpha", ()
   assert.doesNotMatch(filterSource, /maskDataUrl/);
 });
 
-test("playground geometry uses motion values instead of PNG generation during React render", () => {
-  assert.match(playgroundSource, /const lensW = useRef\(motionValue\(70\)\)\.current/);
-  assert.match(playgroundSource, /specularStrength: values\.specularStrength/);
-  assert.match(playgroundSource, /debug=\{debug\}/);
-  assert.doesNotMatch(playgroundSource, /onLensMapChange|createMapGenerator|toDataURL/);
-  assert.doesNotMatch(playgroundSource, /generateLensMap\(lens\)/);
-  assert.doesNotMatch(heroSource, /generateLensMap\(lens\)/);
-});
 
 test("animated map regeneration commits numeric depth and surface changes to the live filter", () => {
   assert.match(regenSource, /const genSizeRef = useRef\(0\)/);
@@ -167,13 +152,12 @@ test("video DOM chrome and WebGL geometry share the source responsive breakpoint
     demoStylesSource,
     /@media \(max-width: 767px\) \{[\s\S]*\.dg-video-demo \{ padding: 0 12px 18px; \}[\s\S]*\.dg-video-player__button--large \{ width: 83\.25px; height: 83\.25px; \}[\s\S]*\.dg-video-player__button--small \{ width: 48\.75px; height: 48\.75px; \}[\s\S]*\.dg-video-player__bar \{ left: 12px; right: 12px; bottom: 12px; \}/s,
   );
-  assert.doesNotMatch(
-    demoStylesSource,
-    /@media \(max-width: 640px\) \{[\s\S]*\.dg-video-player__button--large/s,
-  );
+  for (const block of demoStylesSource.match(/@media \(max-width: 640px\)\s*\{(?:[^{}]|\{[^{}]*\})*\}/g) ?? []) {
+    assert.doesNotMatch(block, /\.dg-video-player__button--large/);
+  }
   assert.match(videoSource, /const resizeObserver = new ResizeObserver\(\(\) => \{[\s\S]*ensureDraw\(\)/s);
-  assert.match(videoSource, /rewind: "后退 15 秒"/);
-  assert.match(videoSource, /forward: "前进 15 秒"/);
+  assert.match(readFileSync(new URL("../apps/docs/src/site/ComponentExample.tsx", import.meta.url), "utf8"), /rewind: "后退 15 秒"/);
+  assert.match(readFileSync(new URL("../apps/docs/src/site/ComponentExample.tsx", import.meta.url), "utf8"), /forward: "前进 15 秒"/);
   assert.match(videoSource, /onClick=\{\(\) => skip\(-15\)\}/);
   assert.match(videoSource, /onClick=\{\(\) => skip\(15\)\}/);
 });
@@ -199,18 +183,9 @@ test("video seeking recovers after leaving the viewport", () => {
   assert.match(videoSource, /onLostPointerCapture=\{endSeek\}/);
 });
 
-test("accepted switch, slider, and toggle stay mounted through the exact reusable controls", () => {
-  assert.match(controlGallerySource, /<GlassSwitch/);
-  assert.match(controlGallerySource, /<GlassSlider value=\{amount\}/);
-  assert.match(controlGallerySource, /<GlassSegmented value=\{segment\}/);
-  assert.match(controlGallerySource, /<ControlPanel title=\{text\.button\} wide>[\s\S]*<GlassActionDemo label=\{text\.hold\} \/>/s);
-  assert.doesNotMatch(appSource, /id="interactions"|title="交互"|<GlassActionDemo/);
-});
 
 test("liquid uses the shared smooth-union compositor for its full lifecycle", () => {
   assert.doesNotMatch(packageSource, /liquid-gooey/);
-  assert.match(appSource, /lazy\(\(\) =>\s*import\("\.\/demos\/LiquidGlassDemo"\)/s);
-  assert.match(appSource, /<LiquidGlassDemo locale=\{locale\} theme=\{theme\} \/>/);
   assert.doesNotMatch(liquidDemoSource, /from "liquid-gooey"/);
   assert.equal(existsSync(liquidCanvasUrl), true);
   assert.match(liquidCanvasSource, /float smoothMin\(/);
@@ -592,10 +567,6 @@ test("switch and slider expose a small size without changing default geometry", 
   assert.match(componentSource, /const width = compact \? 120 : 240/);
   assert.match(componentSource, /const thumbHeight = compact \? 16 : 22/);
   assert.match(componentSource, /const trackHeight = compact \? 4 : 6/);
-  assert.match(playgroundSource, /<GlassSlider[\s\S]*size="small"/);
-  assert.equal((playgroundSource.match(/<GlassSwitch/g) ?? []).length, 1);
-  assert.equal((playgroundSource.match(/size="small"/g) ?? []).length, 2);
-  assert.doesNotMatch(playgroundSource, /type="range"/);
 });
 
 test("dark switch uses its own neutral enabled color", () => {
@@ -605,7 +576,7 @@ test("dark switch uses its own neutral enabled color", () => {
 
 test("action glass stays icon-free and uses a neutral dark material", () => {
   assert.doesNotMatch(additionalDemosSource, /Sparkles|<svg/);
-  assert.match(additionalDemosSource, /tintColor="var\(--action-glass-tint\)"/);
+  assert.match(additionalDemosSource, /tintColor="var\(--action-glass-tint, var\(--dg-action-tint\)\)"/);
   assert.match(baseStylesSource, /--action-glass-tint:\s*#fff/);
   assert.match(baseStylesSource, /:root\[data-theme="dark"\][\s\S]*--action-glass-tint:\s*#4a4a46/s);
 });
@@ -624,47 +595,8 @@ test("switch, slider, and toggle retain their source motion contracts", () => {
   assert.match(componentSource, /refracted \? color1 : "#bcbbbb"/);
 });
 
-test("QR demo uses the source procedural geometry and expanding WebGL refraction", () => {
-  assert.match(qrGeometrySource, /QRCode\.create\("https:\/\/glass-ui\.dev", \{ errorCorrectionLevel: "Q" \}\)/);
-  assert.match(qrRendererSource, /gl\.R8/);
-  assert.match(qrSource, /createLiquidGlassRenderer\(liquidCanvas, \{ shared: true/);
-  assert.match(qrSource, /source: renderer\.canvas, sourceRevision: \+\+sourceRevision/);
-  assert.doesNotMatch(qrRendererSource, /u_displacementMap|u_chromaAmount/);
-  assert.doesNotMatch(qrSource, /QrWaveComposer/);
-  assert.match(qrSource, /const MAX_HALF_SIZE = 162 \* 2\.2/);
-  assert.match(qrSource, /Array<\{ slot: number; started: number \}>/);
-  assert.match(qrMapSource, /class QrWaveComposer/);
-  assert.match(qrPaintSource, /class QrPaintTexture/);
-  assert.match(demoStylesSource, /\.dg-qr__icon-rotator[^}]*inset:\s*0/s);
-  assert.match(demoStylesSource, /\.dg-qr__icon-face[^}]*inset:\s*0/s);
-});
 
-test("QR icon side wall stays inside the rounded face while rotating", () => {
-  assert.match(demoStylesSource, /\.dg-qr__icon-edge[^}]*height:\s*calc\(100% - 2px\)[^}]*border-radius:\s*4px/s);
-  assert.match(demoStylesSource, /\.dg-qr__icon-edge[^}]*top:\s*1px/s);
-  assert.doesNotMatch(demoStylesSource, /\.dg-qr__icon-edge[^}]*scaleY\(/s);
-  assert.doesNotMatch(demoStylesSource, /\.dg-qr__icon-edge[^}]*translateY\(/s);
-});
 
-test("demo copy supports persisted Chinese and English while branding stays neutral", () => {
-  assert.match(indexSource, /<html lang="en">/);
-  assert.match(indexSource, /<title>React Liquid Glass<\/title>/);
-  assert.match(appSource, /controls: "控件"/);
-  assert.match(appSource, /controls: "Controls"/);
-  assert.match(appSource, /saved === "en" \|\| saved === "zh" \? saved : "en"/);
-  assert.match(appSource, /localStorage\.setItem\("glass-locale", locale\)/);
-  assert.match(appSource, /document\.documentElement\.lang = locale === "zh" \? "zh-CN" : "en"/);
-  assert.match(appSource, /<ControlGallery locale=\{locale\} \/>/);
-  assert.match(controlGallerySource, /labels: \{ hubs: "Center", spokes: "Branches"/);
-  assert.match(playgroundSource, /specularRotation: "Highlight angle"/);
-  assert.match(qrSource, /Interactive glass QR code/);
-  assert.match(videoSource, /Glass also works with complex interactive media/);
-  assert.doesNotMatch(appSource, /为 Web 构建液态玻璃|一套可复用的实时折射组件|点击中心/);
-  assert.doesNotMatch(playgroundSource, /左侧是折射结果，右侧是位移图/);
-  assert.doesNotMatch(appSource, /Dezin Glass|Dezin logo|wordmark/);
-  assert.doesNotMatch(qrGeometrySource, /dezin\.com/);
-  assert.match(qrSource, /ScanQrCode/);
-});
 
 test("segmented control supports mouse press-drag tab switching", () => {
   assert.match(componentSource, /event\.pointerType !== "mouse"/);
@@ -866,70 +798,15 @@ test("video demo refracts one live texture through the shared four-blob material
   assert.match(videoSource, /blobs\[3\]\.halfWidth = barWidth \/ 2/);
   assert.doesNotMatch(videoSource, /backdrop-filter|FRAGMENT_SHADER/);
   assert.match(videoSource, /\.svg\?raw/);
-  assert.match(appSource, /<VideoGlassDemo locale=\{locale\} \/>/);
 });
 
-test("how-it-works keeps source structure and smooth map sampling", () => {
-  assert.match(appSource, /<DisplacementPlayground backgroundImage=\{HERO_PHOTO_URL\} locale=\{locale\} \/>/);
-  assert.doesNotMatch(demoStylesSource, /displacement-playground__map[^}]*image-rendering:\s*pixelated/s);
-  assert.doesNotMatch(playgroundSource, /PlaygroundParticles|👻|💜|👀|🛹/);
-  assert.match(playgroundSource, /const \[showBackground, setShowBackground\] = useState\(false\)/);
-  assert.match(playgroundSource, /<GlassSwitch[\s\S]*checked=\{showBackground\}[\s\S]*onCheckedChange=\{setShowBackground\}/);
-  assert.match(playgroundSource, /showBackground && !debug \? <img[\s\S]*backgroundImage/);
-  assert.match(playgroundSource, /shadowStrength: values\.shadowOpacity/);
-  assert.doesNotMatch(playgroundSource, /0 0 0 1px var\(--bg-max\)/);
-  assert.match(regenSource, /surfaceRafRef\.current = requestAnimationFrame/);
-});
 
-test("experiment exposes the actual shared shader parameters, with advanced controls lazy", () => {
-  assert.match(playgroundSource, /<details className="displacement-playground__advanced"/);
-  assert.match(playgroundSource, /<summary>.*其他参数/);
-  assert.match(playgroundSource, /advancedOpen \? <div/);
-  for (const key of ["brightness", "tint", "glowSpread", "glowExponent", "edgeWidth", "edgeExponent", "zoom", "filterResolution", "shadowOpacity"]) {
-    assert.ok(playgroundSource.includes(`${key}: [`), key);
-  }
-  assert.doesNotMatch(playgroundSource, /mapSize|splayAmount|regionScale|insetShadowOpacity|sdfBoundary|edgeFalloff/);
-  assert.match(playgroundSource, /scaleX: values\.scale, scaleY: values\.scale/);
-  assert.match(playgroundSource, /filterResolution=\{values\.filterResolution\}/);
-  assert.match(playgroundSource, /specularRotation: \[material\.specularRotation, 0, 360, 1\]/);
-});
 
-test("experiment memoizes parameter rows and keeps callbacks stable", () => {
-  assert.match(playgroundSource, /const ParameterSlider = memo\(function ParameterSlider/);
-  assert.match(playgroundSource, /const setValue = useCallback\(/);
-  assert.match(playgroundSource, /basicOrder\.map\(key => <ParameterSlider/s);
-});
 
-test("footer persists theme and locale with icon and language controls", () => {
-  assert.match(appSource, /const \[theme, setTheme\] = useState<"light" \| "dark">/);
-  assert.match(appSource, /localStorage\.setItem\("glass-theme", theme\)/);
-  assert.match(appSource, /document\.documentElement\.dataset\.theme = theme/);
-  assert.match(appSource, /className="footer-tool footer-theme"/);
-  assert.match(appSource, /<Sun aria-hidden="true" \/> : <Moon aria-hidden="true" \/>/);
-  assert.match(appSource, /className="footer-tool footer-language"/);
-  assert.match(appSource, /locale === "zh" \? "中" : "EN"/);
-  assert.match(pageStylesSource, /\.footer-tool svg[^}]*width:\s*14px/);
-  assert.match(baseStylesSource, /:root\[data-theme="dark"\]/);
-  assert.match(pageStylesSource, /\.site-footer[^}]*justify-content:\s*space-between/s);
-});
 
-test("demo architecture, Fontsource typography, and new interactions stay mounted", () => {
-  assert.match(mainSource, /@fontsource-variable\/manrope/);
-  assert.match(mainSource, /@fontsource-variable\/noto-sans-sc/);
-  assert.match(stylesSource, /@import "\.\/styles\/base\.css"/);
-  assert.match(stylesSource, /@import "\.\/styles\/page\.css"/);
-  assert.match(stylesSource, /@import "\.\/styles\/demos\.css"/);
-  assert.match(pageStylesSource, /\.hero__visual\s*\{[^}]*margin-top:\s*0/s);
-  assert.doesNotMatch(pageStylesSource, /\.hero\s*\{[^}]*grid-template-columns/s);
-  assert.doesNotMatch(appSource, /useActiveSection|data-theme|onToggleTheme/);
-  assert.doesNotMatch(appSource, /SiteChrome|site-header/);
-  assert.doesNotMatch(pageStylesSource, /position:\s*sticky|@keyframes page-enter/);
-  assert.match(additionalDemosSource, /export function GlassActionDemo/);
-  assert.doesNotMatch(additionalDemosSource, /GlassTargetGridDemo|RefractionTarget/);
-});
 
 test("runtime styling uses the project-owned namespace and private references stay ignored", () => {
-  const runtimeSource = [componentSource, heroSource, qrSource, videoSource, liquidDemoSource, liquidCanvasSource, libraryStylesSource, demoStylesSource].join("\n");
+  const runtimeSource = [componentSource, heroSource, videoSource, liquidDemoSource, liquidCanvasSource, libraryStylesSource, demoStylesSource].join("\n");
   assert.match(runtimeSource, /dg-(?:control|switch|slider|tabs|hero|qr|video)/);
   assert.match(filterSource, /data-dg-glass-surface=""/);
   assert.match(contextSource, /\[data-dg-glass-surface\]/);
@@ -940,49 +817,19 @@ test("runtime styling uses the project-owned namespace and private references st
 
 test("core library stays CSS-free while optional controls ship standalone styles", () => {
   assert.doesNotMatch(libraryIndexSource, /import ["']\.\/(?:style|controls)\.css["']/);
-  assert.match(stylesSource, /@import "\.\/lib\/controls\.css"/);
-  assert.match(packageSource, /"\.\/controls\.css": "\.\/dist\/library\/controls\.css"/);
+  assert.match(stylesSource, /@import "refractive-glass-react\/controls\.css"/);
+  assert.equal(JSON.parse(packageSource).exports["./controls.css"].default, "./dist/controls.css");
   assert.doesNotMatch(packageSource, /"\.\/style\.css"/);
-  assert.match(libraryConfigSource, /copyFileSync\(resolve\(import\.meta\.dirname, "src\/lib\/controls\.css"\), resolve\(libraryDir, "controls\.css"\)\)/);
+  assert.match(libraryConfigSource, /copyFileSync\(resolve\(import\.meta\.dirname, "src\/controls\.css"\), resolve\(libraryDir, "controls\.css"\)\)/);
   assert.doesNotMatch(readmeSource, /refractive-glass-react\/style\.css/);
   assert.match(readmeSource, /refractive-glass-react\/controls\.css/);
-  assert.match(libraryStylesSource, /--dg-control-accent: var\(--primary, #262626\)/);
-  assert.match(libraryStylesSource, /--dg-control-track: var\(--bg-4, #dcdcd8\)/);
+  assert.match(libraryStylesSource, /--dg-control-accent: var\(--primary, light-dark\(#262626, #dededb\)\)/);
+  assert.match(libraryStylesSource, /--dg-control-track: var\(--bg-4, light-dark\(#dcdcd8, #2c2c2c\)\)/);
 });
 
-test("minimal layout removes the two untracked circular decorations above the hero glass", () => {
-  assert.doesNotMatch(pageStylesSource, /site-header nav a::after/);
-  assert.doesNotMatch(pageStylesSource, /\.theme-button[^}]*border-radius:\s*50%/s);
-  assert.doesNotMatch(baseStylesSource, /radial-gradient/);
-  assert.doesNotMatch(additionalDemosSource, /action-demo__orbit/);
-  assert.doesNotMatch(appSource, /局部折射/);
-  assert.doesNotMatch(appSource, /hero__facts|principles|implementation__notes/);
-});
 
-test("button and experiment grids stay centered within their stages", () => {
-  assert.match(demoStylesSource, /\.action-demo__surface[\s\S]*?background-position: center/);
-  assert.match(demoStylesSource, /\.displacement-playground__background \{[^}]*background-position: center/);
-});
 
-test("Media keeps only video without importing or mounting the QR demo", () => {
-  const media = appSource.match(/<section className="page-section" id="media">([\s\S]*?)<\/section>/)?.[1];
-  assert.ok(media);
-  assert.equal((media.match(/<article\b/g) ?? []).length, 1);
-  assert.match(media, /<VideoGlassDemo locale=\{locale\} \/>/);
-  assert.doesNotMatch(appSource, /QrGlassDemo|qrLoading|media-panel--qr|text\.qr/);
-  assert.doesNotMatch(pageStylesSource, /media-stack|media-panel--qr|media-panel__stage/);
-});
 
-test("hero stays interactive over a real monochrome photograph", () => {
-  assert.match(appSource, /lensW: 140,\s*lensH: 140,\s*borderRadius: 140,[\s\S]*chromaAmount: 0\.55/s);
-  assert.match(appSource, /images\.unsplash\.com\/photo-1683318854587-3722ba210558/);
-  assert.match(appSource, /<HeroGlassDemo lens=\{HERO_LENS\} backgroundImage=\{HERO_PHOTO_URL\}/);
-  assert.doesNotMatch(appSource, /interactive=\{false\}/);
-  assert.doesNotMatch(heroSource, /Sparkles|dg-hero__icon-layer|dg-hero__neutral-mark/);
-  assert.match(additionalDemosSource, /<\/Glass>\s*<button\s*className="action-demo__button"/s);
-  assert.doesNotMatch(additionalDemosSource, /aria-live|本次会话已生成/);
-  assert.match(demoStylesSource, /\.action-demo__button[^}]*top:\s*50%[^}]*left:\s*50%[^}]*translate\(-50%, -50%\)/s);
-});
 
 test("control optics use a size-independent pixel gain without changing menu or motion", () => {
   assert.match(componentSource, /\.\.\.LIQUID_LENS/);
@@ -1006,7 +853,7 @@ test("control optics use a size-independent pixel gain without changing menu or 
 });
 
 test("Slider's refracted fill retains a moving round cap at every progress", () => {
-  const source = readFileSync(new URL("../src/lib/liquid-glass/source.ts", import.meta.url), "utf8");
+  const source = readFileSync(new URL("../packages/react-liquid-glass/src/liquid-glass/source.ts", import.meta.url), "utf8");
   const painterCode = source.slice(source.indexOf("export function liquidTrackSource"), source.indexOf("const svgImages"));
   const trackSource = new Function("readMotion", "liquidBackground", "liquidCssColor",
     `${stripTypeScriptTypes(painterCode).replace("export function", "function")}\nreturn liquidTrackSource;`,
@@ -1032,15 +879,6 @@ test("Slider's refracted fill retains a moving round cap at every progress", () 
   }
 });
 
-test("every demo uses the Liquid foundation while legacy map code remains unchanged", () => {
-  for (const source of [componentSource, heroSource, additionalDemosSource, playgroundSource]) {
-    assert.match(source, /LiquidGlass as Glass/);
-    assert.doesNotMatch(source, /from ["']\.\.?\/lib\/glass["']/);
-  }
-  assert.match(qrSource, /createLiquidGlassRenderer/);
-  assert.match(videoSource, /createLiquidGlassRenderer/);
-  assert.equal(sha256(qrMapSource), "2ba106207efe3a14b8bab03d25863c29756da5fe0d30807817445e27ceb01c0c");
-});
 
 test("source defaults and motion primitive stay stable", () => {
   assert.equal(DEFAULT_LENS_PARAMS.mapSize, 256);
