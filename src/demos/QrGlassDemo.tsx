@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import { ScanQrCode } from "lucide-react";
 import type { Locale } from "../i18n";
 import { buildQrGeometry, QR_SIZE } from "./qr-geometry";
-import { QrWaveComposer } from "./qr-map";
+import { createLiquidGlassRenderer, type LiquidGlassBlob } from "../lib/liquid-glass-renderer";
 import { QrPaintTexture } from "./qr-paint";
 import { QrWebglRenderer } from "./qr-renderer";
 
@@ -52,6 +52,7 @@ export function QrGlassDemo({ locale }: { locale: Locale }) {
   const qrRef = useRef<HTMLDivElement>(null);
   const colorCanvasRef = useRef<HTMLCanvasElement>(null);
   const glCanvasRef = useRef<HTMLCanvasElement>(null);
+  const liquidCanvasRef = useRef<HTMLCanvasElement>(null);
   const triggerRef = useRef<() => void>(() => undefined);
   const pointerMoveRef = useRef<(event: ReactPointerEvent<HTMLDivElement>) => void>(() => undefined);
   const pointerLeaveRef = useRef<() => void>(() => undefined);
@@ -64,12 +65,14 @@ export function QrGlassDemo({ locale }: { locale: Locale }) {
     const qr = qrRef.current;
     const colorCanvas = colorCanvasRef.current;
     const glCanvas = glCanvasRef.current;
-    if (!stage || !qr || !colorCanvas || !glCanvas) return;
+    const liquidCanvas = liquidCanvasRef.current;
+    if (!stage || !qr || !colorCanvas || !glCanvas || !liquidCanvas) return;
 
     let renderer: QrWebglRenderer;
     let colorPaint: QrPaintTexture;
     let scalePaint: QrPaintTexture;
-    let composer: QrWaveComposer;
+    let liquid: ReturnType<typeof createLiquidGlassRenderer>;
+    let sourceRevision = 0;
     try {
       const foreground = resolveColor(glCanvas, "var(--fg-1)");
       const background = resolveColor(glCanvas, "var(--bg-max)");
@@ -107,10 +110,12 @@ export function QrGlassDemo({ locale }: { locale: Locale }) {
         dotColor: "var(--fg-1)",
         backgroundColor: "var(--bg-max)",
       });
-      composer = new QrWaveComposer();
+      liquid = createLiquidGlassRenderer(liquidCanvas, { shared: true });
+      liquidCanvas.dataset.dgRenderer = "liquid-webgl2";
       renderer.updatePaintingTexture(scalePaint.canvas);
       renderer.updatePaintingColorTexture(colorPaint.canvas);
       renderer.draw();
+      liquid.draw({ source: glCanvas, sourceRevision: ++sourceRevision, width: QR_SIZE, height: QR_SIZE, blobs: [], pixelRatio: 1.5 });
       setReady(true);
     } catch (error) {
       console.error(error);
@@ -177,9 +182,9 @@ export function QrGlassDemo({ locale }: { locale: Locale }) {
         const progress = Math.min(1, (now - wave.started) / WAVE_DURATION);
         return { slot: wave.slot, radius: 4 + (MAX_HALF_SIZE - 4) * cubicBezier(progress) };
       });
-      const map = composer.compose(activeWaves);
-      if (map) renderer.updateDisplacement(map.canvas, map.lensOrigin, map.lensSize, map.scale, 1);
-      else renderer.clearDisplacement();
+      const blobs: LiquidGlassBlob[] = activeWaves.map(wave => ({
+        x: .5, y: .5, radius: wave.radius, halfWidth: wave.radius, halfHeight: wave.radius,
+      }));
 
       const painting = now - lastPointer < 1_000;
       colorPaint.update(delta, painting);
@@ -206,6 +211,12 @@ export function QrGlassDemo({ locale }: { locale: Locale }) {
         renderer.updateEyeColor(group, eye.currentColor[group]);
       }
       renderer.draw();
+      liquid.draw({
+        source: renderer.canvas, sourceRevision: ++sourceRevision,
+        width: QR_SIZE, height: QR_SIZE, blobs, pixelRatio: Math.min(2, window.devicePixelRatio || 1),
+        mergeDistance: 28, edgeDepth: 12, domeDepth: 58,
+        tintStrength: .025, blurStrength: .5, shadowStrength: .06,
+      });
       if (waves.length > 0 || painting || colorPaint.active || scalePaint.active || eyeMoving) ensureLoop();
     }
 
@@ -286,7 +297,7 @@ export function QrGlassDemo({ locale }: { locale: Locale }) {
       renderer.dispose();
       colorPaint.dispose();
       scalePaint.dispose();
-      composer.dispose();
+      liquid.dispose();
     };
   }, [geometry]);
 
@@ -296,7 +307,8 @@ export function QrGlassDemo({ locale }: { locale: Locale }) {
         <div ref={qrRef} className="dg-qr" style={{ opacity: ready ? 1 : 0 }}>
           <div className="dg-qr__wrapper">
             <canvas ref={colorCanvasRef} className="dg-qr__canvas dg-qr__fallback" aria-hidden="true" />
-            <canvas ref={glCanvasRef} className="dg-qr__canvas dg-qr__webgl" aria-label={text.canvas} role="img" />
+            <canvas ref={glCanvasRef} className="dg-qr__canvas" style={{ visibility: "hidden" }} aria-hidden="true" />
+            <canvas ref={liquidCanvasRef} className="dg-qr__canvas dg-qr__webgl" aria-label={text.canvas} role="img" />
             <button type="button" className="dg-qr__icon-button" aria-label={text.trigger} onClick={() => triggerRef.current()}>
               <span className="dg-qr__icon-content">
                 <span key={spin} className="dg-qr__icon-rotator">

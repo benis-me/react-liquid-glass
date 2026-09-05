@@ -5,22 +5,16 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import {
-  Glass,
-  PLAYGROUND_DEFAULTS,
-  motionValue,
-  type GenerationStats,
-  type LensParams,
-  type WritableMotionValue,
-} from "./lib";
+import { PLAYGROUND_DEFAULTS } from "./lib/presets";
+import { motionValue, type WritableMotionValue } from "./lib/motion";
+import type { LensParams } from "./lib/types";
+import { LiquidGlass as Glass, LIQUID_LENS } from "./lib/LiquidGlass";
 
 interface HeroGlassDemoProps {
   variant?: "primary" | "secondary";
   interactive?: boolean;
   backgroundImage?: string;
   lens?: Partial<LensParams>;
-  onLensMapChange?: (url: string | null) => void;
-  onGenerationTime?: (stats: GenerationStats) => void;
 }
 
 function tween(value: WritableMotionValue<number>, target: number, duration = 200) {
@@ -53,11 +47,9 @@ export function HeroGlassDemo({
   interactive = true,
   backgroundImage,
   lens: lensOverrides,
-  onLensMapChange,
-  onGenerationTime,
 }: HeroGlassDemoProps) {
   const scale = useMobileScale();
-  const sourceLens = { ...PLAYGROUND_DEFAULTS, ...lensOverrides };
+  const sourceLens = { ...PLAYGROUND_DEFAULTS, ...LIQUID_LENS, ...lensOverrides };
   const targetW = sourceLens.lensW * scale;
   const targetH = sourceLens.lensH * scale;
   const targetRadius = sourceLens.borderRadius * scale;
@@ -73,6 +65,9 @@ export function HeroGlassDemo({
   const restoreTimer = useRef<number | null>(null);
   const animationStops = useRef<Array<() => void>>([]);
   const visible = useRef(true);
+  const driftFrame = useRef(0);
+  const wakeDrift = useRef<() => void>(() => undefined);
+  const viewport = useRef({ width: 0, height: 0 });
 
   const stopTweens = () => {
     animationStops.current.forEach((stop) => stop());
@@ -92,9 +87,17 @@ export function HeroGlassDemo({
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
-    const observer = new IntersectionObserver(([entry]) => { visible.current = entry.isIntersecting; }, { rootMargin: "300px 0px" });
+    const observer = new IntersectionObserver(([entry]) => {
+      visible.current = entry.isIntersecting;
+      if (visible.current) wakeDrift.current();
+      else { cancelAnimationFrame(driftFrame.current); driftFrame.current = 0; }
+    }, { rootMargin: "80px 0px" });
     observer.observe(root);
-    return () => observer.disconnect();
+    const measure = () => { viewport.current = { width: root.clientWidth, height: root.clientHeight }; };
+    measure();
+    const resize = new ResizeObserver(measure);
+    resize.observe(root);
+    return () => { observer.disconnect(); resize.disconnect(); };
   }, []);
 
   useEffect(() => {
@@ -103,15 +106,15 @@ export function HeroGlassDemo({
       y.set(0.5);
       return;
     }
-    let frame = 0;
     let previous = 0;
     const update = (now: number) => {
-      frame = requestAnimationFrame(update);
-      if (!visible.current) return;
+      driftFrame.current = 0;
+      if (!visible.current || document.hidden) return;
+      driftFrame.current = requestAnimationFrame(update);
       if (previous === 0) { previous = now; return; }
       const dt = Math.min((now - previous) / 1000, 0.05);
       previous = now;
-      const rect = rootRef.current?.getBoundingClientRect();
+      const rect = viewport.current;
       if (!rect?.width || !rect.height) return;
       const marginX = (lensW.get() + 2) / rect.width;
       const marginY = (lensH.get() + 2) / rect.height;
@@ -132,8 +135,23 @@ export function HeroGlassDemo({
       x.set(nextX);
       y.set(nextY);
     };
-    frame = requestAnimationFrame(update);
-    return () => cancelAnimationFrame(frame);
+    wakeDrift.current = () => {
+      if (!driftFrame.current && visible.current && !document.hidden) {
+        previous = 0;
+        driftFrame.current = requestAnimationFrame(update);
+      }
+    };
+    const visibility = () => {
+      if (document.hidden) { cancelAnimationFrame(driftFrame.current); driftFrame.current = 0; }
+      else wakeDrift.current();
+    };
+    document.addEventListener("visibilitychange", visibility);
+    wakeDrift.current();
+    return () => {
+      cancelAnimationFrame(driftFrame.current);
+      document.removeEventListener("visibilitychange", visibility);
+      wakeDrift.current = () => undefined;
+    };
   }, [interactive, x, y, lensW, lensH]);
 
   useEffect(() => () => {
@@ -192,15 +210,12 @@ export function HeroGlassDemo({
       } : undefined}
     >
       <Glass
-        pauseOffscreen
         lens={lens}
         lensW={lensW}
         lensH={lensH}
         borderRadius={radius}
         x={x}
         y={y}
-        onLensMapChange={onLensMapChange}
-        onGenerationTime={onGenerationTime}
       >
         <div className="dg-hero__content">
           <div className="dg-hero__background-frame">
@@ -208,6 +223,7 @@ export function HeroGlassDemo({
               <img
                 className="dg-hero__background"
                 src={backgroundImage}
+                crossOrigin="anonymous"
                 alt=""
                 fetchPriority="high"
                 decoding="async"

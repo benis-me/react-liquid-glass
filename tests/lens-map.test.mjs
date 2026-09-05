@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
+import { stripTypeScriptTypes } from "node:module";
 import {
   liquidEasings,
   OPEN_MORPH_TIMES,
@@ -22,6 +23,7 @@ import {
   PLAYGROUND_DEFAULTS,
   axisScaleMatrix,
   motionValue,
+  LIQUID_GLASS_MATERIAL,
 } from "../dist/library/index.js";
 
 const filterSource = readFileSync(
@@ -40,7 +42,9 @@ const playgroundSource = readFileSync(new URL("../src/demos/DisplacementPlaygrou
 const additionalDemosSource = readFileSync(new URL("../src/demos/AdditionalGlassDemos.tsx", import.meta.url), "utf8");
 const liquidDemoSource = readFileSync(new URL("../src/demos/LiquidGlassDemo.tsx", import.meta.url), "utf8");
 const liquidCanvasUrl = new URL("../src/lib/LiquidGlassCanvas.tsx", import.meta.url);
-const liquidCanvasSource = existsSync(liquidCanvasUrl) ? readFileSync(liquidCanvasUrl, "utf8") : "";
+const liquidRendererSource = readFileSync(new URL("../src/lib/liquid-glass-renderer.ts", import.meta.url), "utf8");
+const liquidAdapterSource = readFileSync(new URL("../src/lib/LiquidGlass.tsx", import.meta.url), "utf8");
+const liquidCanvasSource = readFileSync(liquidCanvasUrl, "utf8") + liquidRendererSource;
 const indexSource = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const heroSource = readFileSync(new URL("../src/HeroGlassDemo.tsx", import.meta.url), "utf8");
 const stylesSource = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
@@ -80,7 +84,8 @@ test("single-lens filter clips blur and refraction to the rounded map alpha", ()
 test("playground geometry uses motion values instead of PNG generation during React render", () => {
   assert.match(playgroundSource, /const lensW = useRef\(motionValue\(70\)\)\.current/);
   assert.match(playgroundSource, /specularStrength: values\.specularStrength/);
-  assert.match(playgroundSource, /onLensMapChange=\{setMapUrl\}/);
+  assert.match(playgroundSource, /debug=\{debug\}/);
+  assert.doesNotMatch(playgroundSource, /onLensMapChange|createMapGenerator|toDataURL/);
   assert.doesNotMatch(playgroundSource, /generateLensMap\(lens\)/);
   assert.doesNotMatch(heroSource, /generateLensMap\(lens\)/);
 });
@@ -99,11 +104,14 @@ test("offscreen glass invalidates cached geometry before restoring its filter", 
   );
 });
 
-test("small controls keep optics idle until interaction", () => {
+test("small controls retain one Liquid material and only draw when dirty", () => {
   assert.match(filterSource, /filterEnabled\?: boolean/);
   assert.match(filterSource, /const filterActive = filterEnabled &&/);
   assert.match(filterSource, /filterEnabled \|\| animatedGeneratedRef\.current/);
-  assert.equal((componentSource.match(/filterEnabled=\{opticsActive\}/g) ?? []).length, 2);
+  assert.equal((componentSource.match(/sourceFactory=\{sourceFactory\}/g) ?? []).length, 2);
+  assert.match(liquidCanvasSource, /frame\.render\(drawFrame\)/);
+  assert.match(liquidCanvasSource, /if \(!visible \|\| document\.hidden \|\| !source\) return/);
+  assert.doesNotMatch(liquidAdapterSource, /requestAnimationFrame|toDataURL/);
   assert.equal((componentSource.match(/filterResolution=\{compact \? 1 : 2\}/g) ?? []).length, 2);
   assert.equal((componentSource.match(/const restTintBlur = compact \? 0 : 4/g) ?? []).length, 2);
 });
@@ -122,7 +130,7 @@ test("switch and slider recover when pointer release is lost outside the viewpor
   assert.match(pointerFallbackSource, /window\.addEventListener\("blur", finish\)/);
   assert.match(pointerFallbackSource, /document\.addEventListener\("visibilitychange", finishWhenHidden\)/);
   assert.equal((componentSource.match(/armPointerFallback\(event\.pointerId\)/g) ?? []).length, 2);
-  const switchSource = componentSource.slice(componentSource.indexOf("export function GlassSwitch"), componentSource.indexOf("const SLIDER_BASE"));
+  const switchSource = componentSource.slice(componentSource.indexOf("export function GlassSwitch"), componentSource.indexOf("const SLIDER_CLICK_SPRING"));
   const sliderSource = componentSource.slice(componentSource.indexOf("export function GlassSlider"), componentSource.indexOf("type IconProps"));
   assert.match(switchSource, /onLostPointerCapture=\{\(event\) =>/);
   assert.match(sliderSource, /onLostPointerCapture=\{\(event\) =>/);
@@ -137,9 +145,10 @@ test("video rendering follows visible video frames at a bounded DPR", () => {
 });
 
 test("video buttons use source-resolution AA and source-matched elastic springs", () => {
-  assert.equal((videoSource.match(/float aa = fwidth\(/g) ?? []).length, 2);
-  assert.doesNotMatch(videoSource, /max\(fwidth\(/);
-  assert.match(videoSource, /if \(coverage <= 0\.001\) \{\s*fragColor = videoAt\(v_uv\);\s*return;\s*\}/s);
+  assert.match(videoSource, /createLiquidGlassRenderer\(canvas/);
+  assert.match(liquidRendererSource, /float aa = max\(fwidth\(distance\), \.0001\)/);
+  assert.match(liquidRendererSource, /displacement \*= coverage \* uZoom/);
+  assert.match(liquidRendererSource, /coverage \* uOpacity/);
   assert.match(videoSource, /const SIDE_BUTTON_SPRING = \{ stiffness: 1000, damping: 40, mass: 1\.5 \}/);
   assert.match(videoSource, /const PLAY_BUTTON_SPRING = \{ stiffness: 500, damping: 32, mass: 1 \}/);
   assert.match(videoSource, /const BUTTON_HOVER_SCALE = 1\.045/);
@@ -193,7 +202,7 @@ test("accepted switch, slider, and toggle stay mounted through the exact reusabl
   assert.doesNotMatch(appSource, /id="interactions"|title="交互"|<GlassActionDemo/);
 });
 
-test("liquid work uses one internal smooth-union compositor for its full lifecycle", () => {
+test("liquid uses the shared smooth-union compositor for its full lifecycle", () => {
   assert.doesNotMatch(packageSource, /liquid-gooey/);
   assert.match(appSource, /lazy\(\(\) =>\s*import\("\.\/demos\/LiquidGlassDemo"\)/s);
   assert.match(appSource, /<LiquidGlassDemo locale=\{locale\} theme=\{theme\} \/>/);
@@ -202,10 +211,10 @@ test("liquid work uses one internal smooth-union compositor for its full lifecyc
   assert.match(liquidCanvasSource, /float smoothMin\(/);
   assert.match(liquidCanvasSource, /float movingBlobSdf\(/);
   assert.match(liquidCanvasSource, /float sceneSdf\(/);
-  assert.match(liquidCanvasSource, /uniform vec2 uHalfSize\[4\]/);
-  assert.match(liquidCanvasSource, /uniform float uCornerRadius\[4\]/);
+  assert.match(liquidCanvasSource, /uniform vec2 uHalfSize\[8\]/);
+  assert.match(liquidCanvasSource, /uniform float uCornerRadius\[8\]/);
   assert.match(liquidCanvasSource, /uniform float uDepth/);
-  assert.match(liquidCanvasSource, /uniform vec4 uDome\[4\]/);
+  assert.match(liquidCanvasSource, /uniform vec4 uDome\[8\]/);
   assert.match(liquidCanvasSource, /uniform float uDomeDepth/);
   assert.match(liquidCanvasSource, /uniform float uBrightness/);
   assert.match(liquidCanvasSource, /uniform float uGlowStrength/);
@@ -215,7 +224,7 @@ test("liquid work uses one internal smooth-union compositor for its full lifecyc
   assert.match(liquidCanvasSource, /float sceneSdf\(vec2 point, float inset\)/);
   assert.match(liquidCanvasSource, /float innerDistance = sceneSdf\(point, max\(uDepth, 0\.\)\)/);
   assert.match(liquidCanvasSource, /float falloff = \.5 \* \(1\. \+ erfApprox/);
-  assert.match(liquidCanvasSource, /float shadowDistance = sceneSdf\(point - vec2\(0\., 18\.\), 0\.\)/);
+  assert.match(liquidCanvasSource, /float shadowDistance = sceneSdf\(point - vec2\(0\., uShadowOffset\), 0\.\)/);
   assert.match(liquidCanvasSource, /float shadowFalloff = \.5 \* \(1\. - erfApprox/);
   assert.doesNotMatch(liquidCanvasSource, /exp\(-max\(shadowDistance|highlightInterior/);
   assert.match(liquidCanvasSource, /float align = abs\(dot\(materialUv, light\)\)/);
@@ -233,11 +242,12 @@ test("liquid work uses one internal smooth-union compositor for its full lifecyc
   assert.doesNotMatch(liquidCanvasSource, /edgeShare/);
   assert.doesNotMatch(liquidCanvasSource, /sceneNormal|insetRim/);
   assert.equal((liquidCanvasSource.match(/= sceneSdf\(/g) ?? []).length, 3, "edge profiles reuse the existing SDF distances");
-  assert.match(liquidCanvasSource, /vec3 sampleChroma\(vec2 uv, vec2 displacement\)/);
-  assert.match(liquidCanvasSource, /if \(uBlur <= \.001\) return sampleChroma\(uv, displacement\)/);
+  assert.match(liquidCanvasSource, /vec3 sampleChroma\(sampler2D source, vec2 uv, vec2 displacement\)/);
+  assert.match(liquidCanvasSource, /if \(uBlur <= \.001\) return sampleChroma\(uSource, uv, displacement\)/);
+  assert.match(liquidCanvasSource, /if \(uBlur >= \.75\) return sampleChroma\(uFrostSource, uv, displacement\)/);
   assert.match(liquidCanvasSource, /vec2 stepSize = vec2\(uBlur \* 1\.34\) \/ uSourceSize/);
   assert.equal((liquidCanvasSource.match(/frosted \+= sampleChroma/g) ?? []).length, 8);
-  assert.match(liquidCanvasSource, /return frosted/);
+  assert.match(liquidCanvasSource, /smoothstep\(\.5, \.75, uBlur\)\) : frosted/);
   const specularCompositeIndex = liquidCanvasSource.indexOf("float shine = specular * uSpecular");
   const brightnessCompositeIndex = liquidCanvasSource.indexOf("float brightnessAmount = clamp(abs(uBrightness)");
   const tintCompositeIndex = liquidCanvasSource.indexOf("refracted = mix(refracted, uTintColor");
@@ -271,7 +281,8 @@ test("liquid work uses one internal smooth-union compositor for its full lifecyc
   assert.match(liquidCanvasSource, /vec2 deformed = direction \* along \+ tangent \* across/);
   assert.doesNotMatch(liquidCanvasSource, /vec2 deformed = vec2\(\s*dot\(delta, direction\)/s);
   assert.doesNotMatch(liquidCanvasSource, /uTrail|movingTrail|tailBlob/i);
-  assert.doesNotMatch(libraryIndexSource, /LiquidGlassCanvas|LiquidGlassBlob/);
+  assert.match(libraryIndexSource, /LiquidGlassCanvas/);
+  assert.match(libraryIndexSource, /LiquidGlassBlob/);
 });
 
 test("liquid menu keeps one core-compatible Canvas material over the centered grid", () => {
@@ -279,17 +290,17 @@ test("liquid menu keeps one core-compatible Canvas material over the centered gr
   assert.match(liquidDemoSource, /import type \{ LensParams \} from "\.\.\/lib"/);
   assert.match(liquidDemoSource, /import \{ LiquidGlassCanvas \} from "\.\.\/lib\/LiquidGlassCanvas"/);
   assert.doesNotMatch(liquidDemoSource, /<Glass|coreOpacity|fusionOpacity/);
-  assert.match(liquidDemoSource, /const BASE_MENU_LENS: Partial<LensParams> = \{/);
+  assert.match(liquidDemoSource, /const BASE_MENU_LENS = LIQUID_LENS/);
   assert.match(liquidDemoSource, /const LIGHT_MENU_LENS: Partial<LensParams>/);
   assert.match(liquidDemoSource, /const DARK_MENU_LENS: Partial<LensParams>/);
-  assert.equal((liquidDemoSource.match(/chromaAmount: 0\.55/g) ?? []).length, 1);
-  assert.match(liquidDemoSource, /scaleX: 0\.11/);
-  assert.match(liquidDemoSource, /specularStrength: 0\.72/);
-  assert.match(liquidDemoSource, /glowSpread: 0\.72/);
-  assert.match(liquidDemoSource, /glowStrength: 0\.3/);
-  assert.match(liquidDemoSource, /edgeWidth: 1\.6/);
-  assert.match(liquidDemoSource, /specularRotation: 90/);
-  assert.match(liquidDemoSource, /edgeStrength: 0\.36/);
+  assert.equal(LIQUID_GLASS_MATERIAL.chromaAmount, .55);
+  assert.equal(LIQUID_GLASS_MATERIAL.refractionStrength, .11);
+  assert.equal(LIQUID_GLASS_MATERIAL.specularStrength, .72);
+  assert.equal(LIQUID_GLASS_MATERIAL.glowSpread, .72);
+  assert.equal(LIQUID_GLASS_MATERIAL.glowStrength, .3);
+  assert.equal(LIQUID_GLASS_MATERIAL.edgeWidth, 1.6);
+  assert.equal(LIQUID_GLASS_MATERIAL.specularRotation, 90);
+  assert.equal(LIQUID_GLASS_MATERIAL.edgeStrength, .36);
   assert.match(liquidDemoSource, /edgeStrength: 0\.42/);
   assert.match(liquidDemoSource, /const MIN_LENS_HALF = 1/);
   assert.doesNotMatch(liquidDemoSource, /BUTTON_MAP_SIZE|buttonLens/);
@@ -307,7 +318,7 @@ test("liquid menu keeps one core-compatible Canvas material over the centered gr
   assert.match(liquidDemoSource, /const OPEN_CONTENT_DURATION = 0\.34/);
   assert.match(liquidDemoSource, /const CLOSE_CONTENT_DURATION = 0\.24/);
   assert.match(liquidDemoSource, /const OPEN_MORPH_EASES = \[[\s\S]*cubicBezier/s);
-  assert.match(liquidDemoSource, /const CLOSE_FUSION_DURATION = 0\.42/);
+  assert.match(liquidDemoSource, /const CLOSE_FUSION_DURATION = 0\.38/);
   assert.doesNotMatch(liquidDemoSource, /SHADOW_SETTLE|SHADOW_HANDOFF|HIGHLIGHT_SETTLE/);
   assert.match(liquidDemoSource, /const CLOSE_IMPACT_DISTANCE = 2/);
   assert.match(liquidDemoSource, /function closeImpactVector\(layout: MenuLayout\)/);
@@ -357,7 +368,7 @@ test("liquid menu keeps one core-compatible Canvas material over the centered gr
   assert.match(liquidDemoSource, /if \(openRef\.current \|\| transitioningRef\.current\) return/);
   assert.match(liquidDemoSource, /animate\(buttonHalf, pressHalf/);
   assert.match(liquidDemoSource, /if \(nextOpen\) triggerRef\.current\?\.blur\(\)/);
-  assert.match(liquidDemoSource, /focusDelay = reduceMotion[\s\S]*CLOSE_FUSION_DURATION \* 1000 \+ 32/s);
+  assert.match(liquidDemoSource, /focusDelay = reduceMotion[\s\S]*transitionDuration \* 1000 \+ 32/s);
   assert.match(liquidDemoSource, /if \(reduceMotion\)[\s\S]*halfWidth\.jump\(target\.halfWidth\)/s);
   assert.equal((liquidDemoSource.match(/<LiquidGlassCanvas/g) ?? []).length, 1);
   assert.match(liquidDemoSource, /<LiquidGlassCanvas[\s\S]*sourceRef=\{fusionSourceRef\}[\s\S]*blobs=\{fusionBlobs\}[\s\S]*mergeDistance=\{mergeDistance\}/s);
@@ -384,7 +395,7 @@ test("liquid menu keeps one core-compatible Canvas material over the centered gr
   assert.match(liquidDemoSource, /clipPath: contentClip/);
   assert.match(liquidDemoSource, /animate\(reveal, \[reveal\.get\(\), reveal\.get\(\), Math\.max\(reveal\.get\(\), 0\.94\), 1\]/);
   assert.match(liquidDemoSource, /duration: OPEN_CONTENT_DURATION,[\s\S]*times: \[0, 0\.06, 0\.62, 1\]/s);
-  assert.match(liquidDemoSource, /animate\(reveal, \[reveal\.get\(\), reveal\.get\(\) \* 0\.3, reveal\.get\(\) \* 0\.02, 0\], \{[\s\S]*duration: CLOSE_CONTENT_DURATION,[\s\S]*times: \[0, 0\.28, 0\.52, 1\]/s);
+  assert.match(liquidDemoSource, /animate\(reveal, \[reveal\.get\(\), reveal\.get\(\) \* 0\.3, reveal\.get\(\) \* 0\.02, 0\], \{[\s\S]*duration: CLOSE_CONTENT_DURATION \* transitionDuration \/ CLOSE_FUSION_DURATION,[\s\S]*times: \[0, 0\.28, 0\.52, 1\]/s);
   assert.doesNotMatch(liquidDemoSource, /ease:\s*"linear"|type:\s*"spring"/);
   assert.match(liquidDemoSource, /tintColor=\{theme === "dark" \? \[74 \/ 255, 74 \/ 255, 70 \/ 255\] : \[1, 1, 1\]\}/);
   assert.match(liquidDemoSource, /tint: 0\.035/);
@@ -446,8 +457,8 @@ test("liquid content refraction and blur follow shape, with a neutral settled en
   assert.match(liquidCanvasSource, /texture\(uContent, uv, log2\(1\. \+ uContentBlur \* 2\.\)\)/);
   assert.match(liquidCanvasSource, /gl\.LINEAR_MIPMAP_LINEAR/);
   assert.match(liquidCanvasSource, /UNPACK_PREMULTIPLY_ALPHA_WEBGL, true/);
-  assert.match(liquidCanvasSource, /contentRevision\.on\("change", invalidate\)/);
-  assert.ok(liquidCanvasSource.indexOf("refracted = refracted * (1. - ink.a") < liquidCanvasSource.indexOf("color = mix(raw.rgb, refracted, coverage)"));
+  assert.match(liquidCanvasSource, /value\.on\("change", scheduleDraw\)/);
+  assert.ok(liquidCanvasSource.indexOf("refracted = refracted * (1. - ink.a") < liquidCanvasSource.indexOf("color = mix(raw.rgb, refracted, coverage * uOpacity)"));
 });
 
 test("liquid shape trajectories stay round early, gather on close, and preserve knot velocity", () => {
@@ -463,7 +474,7 @@ test("liquid shape trajectories stay round early, gather on close, and preserve 
     assert.ok(closing[3][3] >= 32 && closing[0][3] >= 30 && closing[1][3] > closing[0][3], "the button is established while a trailing lobe still remains");
     assert.ok(CLOSE_FUSION_TIMES[2] >= 0.45 && CLOSE_FUSION_TIMES[3] >= 0.68, "neck and two-lobed absorption remain legible in the second half");
     assert.ok(closing[0][4] < closing[3][4] && closing[3][4] === 34.6, "absorbing the panel gives the button one restrained impact");
-    for (const [tracks, times, duration] of [[opening, OPEN_MORPH_TIMES, 0.38], [closing, CLOSE_FUSION_TIMES, 0.42]]) {
+    for (const [tracks, times, duration] of [[opening, OPEN_MORPH_TIMES, 0.38], [closing, CLOSE_FUSION_TIMES, 0.38]]) {
       for (const values of tracks) {
         const eases = liquidEasings(values, times, duration);
         const epsilon = 1e-6;
@@ -510,6 +521,37 @@ test("liquid shape trajectories stay round early, gather on close, and preserve 
   }
 });
 
+test("interrupted Liquid closes scale one bounded clock with the live body", () => {
+  const durationCode = liquidDemoSource.match(/const transitionDuration = nextOpen[\s\S]*?;/)?.[0];
+  assert.ok(durationCode);
+  const duration = new Function("nextOpen", "interrupted", "halfWidth", "halfHeight", "layout", "clamp",
+    `const OPEN_MORPH_DURATION = .38, CLOSE_FUSION_DURATION = .38; ${durationCode}\nreturn transitionDuration;`);
+  const layout = { panelWidth: 404, panelHeight: 748 };
+  const clock = (widthProgress, heightProgress, interrupted = true, open = false) => duration(
+    open, interrupted, { get: () => 202 * widthProgress }, { get: () => 374 * heightProgress }, layout,
+    (value, min, max) => Math.min(max, Math.max(min, value)),
+  );
+  assert.ok(Math.abs(clock(.15, .1) - .209) < 1e-9, "small interrupted bodies return without a full-panel wait");
+  assert.ok(Math.abs(clock(.7, .6) - .266) < 1e-9);
+  assert.ok(Math.abs(clock(.4, .8) - .304) < 1e-9, "both size axes participate in the shared return duration");
+  assert.equal(clock(1.02, 1.01), .38, "opening overshoot must not lengthen the close");
+  assert.equal(clock(.15, .1, false), .38, "ordinary close keeps its complete fusion/impact trajectory");
+  assert.equal(clock(.15, .1, true, true), .38, "opening timing is unchanged");
+  assert.match(liquidDemoSource, /const duration = transitionDuration/);
+  assert.doesNotMatch(liquidDemoSource, /duration: CLOSE_FUSION_DURATION/);
+  assert.match(liquidDemoSource, /duration: CLOSE_CONTENT_DURATION \* transitionDuration \/ CLOSE_FUSION_DURATION/);
+  assert.match(liquidDemoSource, /transitionDuration \* 1000 \+ 32/);
+  for (const seconds of [.209, .266, .304, .38]) {
+    const { values, times } = retargetLiquidFrames(70, 1, seconds, 1200);
+    const eases = liquidEasings(values, times, seconds, 1200);
+    assert.ok(Math.abs(times[1] * seconds - .04) < 1e-9, "shortening the return must retain the bounded momentum brake");
+    for (let i = 0; i < eases.length; i++) for (let frame = 0; frame <= 120; frame++) {
+      const value = values[i] + (values[i + 1] - values[i]) * eases[i](frame / 120);
+      assert.ok(Number.isFinite(value) && value >= 1 - 1e-9 && value <= 94 + 1e-9, "no overshoot beyond the braking distance or negative lens size");
+    }
+  }
+});
+
 test("liquid contents share the moving SDF's center, directional stretch, and rounded clip", () => {
   const layout = { panelLeft: 258, panelTop: 66, panelWidth: 404, panelHeight: 748 };
   const rest = liquidContentPose([662, 814, 202, 374, 44, 0, 0], layout);
@@ -546,8 +588,8 @@ test("switch and slider expose a small size without changing default geometry", 
   assert.match(componentSource, /const thumbHeight = compact \? 16 : 22/);
   assert.match(componentSource, /const trackHeight = compact \? 4 : 6/);
   assert.match(playgroundSource, /<GlassSlider[\s\S]*size="small"/);
-  assert.equal((playgroundSource.match(/<GlassSwitch/g) ?? []).length, 2);
-  assert.equal((playgroundSource.match(/size="small"/g) ?? []).length, 3);
+  assert.equal((playgroundSource.match(/<GlassSwitch/g) ?? []).length, 1);
+  assert.equal((playgroundSource.match(/size="small"/g) ?? []).length, 2);
   assert.doesNotMatch(playgroundSource, /type="range"/);
 });
 
@@ -581,7 +623,10 @@ test("switch, slider, and toggle retain their source motion contracts", () => {
 test("QR demo uses the source procedural geometry and expanding WebGL refraction", () => {
   assert.match(qrGeometrySource, /QRCode\.create\("https:\/\/glass-ui\.dev", \{ errorCorrectionLevel: "Q" \}\)/);
   assert.match(qrRendererSource, /gl\.R8/);
-  assert.match(qrRendererSource, /float scaleR = 1\.0 \+ u_chromaAmount \* 2\.0/);
+  assert.match(qrSource, /createLiquidGlassRenderer\(liquidCanvas, \{ shared: true/);
+  assert.match(qrSource, /source: renderer\.canvas, sourceRevision: \+\+sourceRevision/);
+  assert.doesNotMatch(qrRendererSource, /u_displacementMap|u_chromaAmount/);
+  assert.doesNotMatch(qrSource, /QrWaveComposer/);
   assert.match(qrSource, /const MAX_HALF_SIZE = 162 \* 2\.2/);
   assert.match(qrSource, /Array<\{ slot: number; started: number \}>/);
   assert.match(qrMapSource, /class QrWaveComposer/);
@@ -695,19 +740,48 @@ test("segmented motion uses velocity-preserving iOS-style physical springs", () 
 
 test("segmented glass attenuation overlaps the low-amplitude travel tail", () => {
   assert.match(componentSource, /const glassOpacity = useMotionValue\(0\)/);
-  assert.match(componentSource, /Promise\.all\(\[shape\.finished, height\.finished\]\)/);
-  assert.match(componentSource, /waitForRest\(deformation, 0\.045, 500, 16\)/);
-  assert.match(componentSource, /epsilon = 0\.015, timeoutMs = 900, holdMs = 50/);
+  assert.doesNotMatch(componentSource, /Promise\.all\(\[shape\.finished, height\.finished\]\)/);
+  assert.match(componentSource, /waitForRest\(\[renderedLensW, renderedLensH, impactX, deformation, interaction, glassHeight\]/);
+  assert.match(componentSource, /epsilon = 1, timeoutMs = 900, holdMs = 32/);
   assert.match(componentSource, /restTimer = window\.setTimeout\(finish, holdMs\)/);
-  assert.match(componentSource, /animate\(glassOpacity, 0, \{ duration: 0\.265, ease: \[0\.4, 0, 0\.2, 1\] \}\)/);
+  assert.match(componentSource, /animate\(glassOpacity, 0, \{ duration: 0\.18, ease: \[0\.22, 1, 0\.36, 1\] \}\)/);
   assert.doesNotMatch(componentSource, /setTimeout\(\(\) => \{\s*rootRef\.current\?\.removeAttribute\("data-interacting"\)/);
   assert.doesNotMatch(libraryStylesSource, /\.dg-tabs__solid-thumb\s*\{[^}]*opacity 90ms/s);
+});
+
+test("the optical exit requires sustained geometric rest, not one zero crossing", async () => {
+  let now = 0, id = 0;
+  const timers = new Map();
+  const clock = {
+    setTimeout(fn, ms) { timers.set(++id, { fn, at: now + ms }); return id; },
+    clearTimeout(key) { timers.delete(key); },
+  };
+  const tick = ms => {
+    now += ms;
+    for (const [key, timer] of timers) if (timer.at <= now) { timers.delete(key); timer.fn(); }
+  };
+  const source = componentSource.slice(componentSource.indexOf("function waitForRest("), componentSource.indexOf("function useDerivedMotion("));
+  const wait = new Function("window", `${stripTypeScriptTypes(source)}; return waitForRest;`)(clock);
+  const geometry = motionValue(5);
+  let ended = false;
+  const pending = wait([geometry], () => Math.abs(geometry.get())).then(() => { ended = true; });
+  geometry.set(.2); tick(20); geometry.set(-3); tick(40);
+  await Promise.resolve(); assert.equal(ended, false, "the recoil must reset the stable window");
+  geometry.set(.2); tick(31); await Promise.resolve(); assert.equal(ended, false);
+  tick(1); await pending; assert.equal(timers.size, 0);
+});
+
+test("the retained material supports opaque control rests without covering refracted ink", () => {
+  assert.match(liquidAdapterSource, /base \+ \(1 - base\) \* Math\.max\(0, Math\.min\(1, readMotion\(props\.tintOpacity \?\? 0\)\)\)/);
+  assert.match(liquidAdapterSource, /ref=\{contentRef\} style=\{\{ position: "relative", zIndex: 0 \}\}/);
+  assert.equal((componentSource.match(/const tintOpacity = useMotionValue\(1\)/g) ?? []).length, 2);
+  assert.match(additionalDemosSource, /const tintStrength = useMotionValue\(0\.1846\)/, "the approved action tint is not made opaque with the controls");
 });
 
 test("segmented braking squashes both axes and hover stays subtle", () => {
   assert.match(componentSource, /stiffness: \(\) => impactLanded\.current && stationaryPress\(\) \? SEGMENTED_HOLD_IMPACT_SCRIPT\.stiffness : 210/);
   assert.match(componentSource, /if \(!impactLanded\.current\) return 15\.5/);
-  assert.match(componentSource, /return 19\.5/);
+  assert.match(componentSource, /return 22/);
   assert.match(componentSource, /typeof options\.stiffness === "function" \? options\.stiffness\(\) : options\.stiffness/);
   assert.match(componentSource, /typeof options\.damping === "function" \? options\.damping\(\) : options\.damping/);
   assert.match(componentSource, /width \* \(1 \+ amount \* 1\.45\)/);
@@ -779,16 +853,14 @@ test("segmented final state attenuates optics over an already-present base mater
   assert.doesNotMatch(componentSource, /animate\(solidOpacity, 1/);
 });
 
-test("video demo refracts one live texture through three lenses and the seek bar", () => {
-  assert.match(videoSource, /uniform vec3 u_circles\[3\]/);
-  assert.match(videoSource, /new Float32Array\(\[0\.04, 0\.07, 0\.04\]\)/);
+test("video demo refracts one live texture through the shared four-blob material", () => {
+  assert.match(videoSource, /createLiquidGlassRenderer\(canvas/);
+  assert.match(videoSource, /Array\.from\(\{ length: 4 \}/);
+  assert.match(videoSource, /source: video, sourceRevision, width, height, blobs/);
   assert.match(videoSource, /playSize = 111/);
   assert.match(videoSource, /sideSize = 65/);
-  assert.match(videoSource, /u_bar/);
-  assert.match(videoSource, /float coverage = clamp\(mask \* strength, 0\.0, 1\.0\)/);
-  assert.match(videoSource, /displacement \* baseScale \* coverage/);
-  assert.match(videoSource, /specular\) \* 0\.498 \* coverage/);
-  assert.doesNotMatch(videoSource, /backdrop-filter/);
+  assert.match(videoSource, /blobs\[3\]\.halfWidth = barWidth \/ 2/);
+  assert.doesNotMatch(videoSource, /backdrop-filter|FRAGMENT_SHADER/);
   assert.match(videoSource, /\.svg\?raw/);
   assert.match(appSource, /<VideoGlassDemo locale=\{locale\} \/>/);
 });
@@ -799,50 +871,29 @@ test("how-it-works keeps source structure and smooth map sampling", () => {
   assert.doesNotMatch(playgroundSource, /PlaygroundParticles|👻|💜|👀|🛹/);
   assert.match(playgroundSource, /const \[showBackground, setShowBackground\] = useState\(false\)/);
   assert.match(playgroundSource, /<GlassSwitch[\s\S]*checked=\{showBackground\}[\s\S]*onCheckedChange=\{setShowBackground\}/);
-  assert.match(playgroundSource, /showBackground \? \([\s\S]*backgroundImage/);
-  assert.match(playgroundSource, /edgeShadow: values\.shadowOpacity > 0/);
+  assert.match(playgroundSource, /showBackground && !debug \? <img[\s\S]*backgroundImage/);
+  assert.match(playgroundSource, /shadowStrength: values\.shadowOpacity/);
   assert.doesNotMatch(playgroundSource, /0 0 0 1px var\(--bg-max\)/);
   assert.match(regenSource, /surfaceRafRef\.current = requestAnimationFrame/);
 });
 
-test("experiment exposes every remaining optical parameter in a collapsed advanced section", () => {
+test("experiment exposes the actual shared shader parameters, with advanced controls lazy", () => {
   assert.match(playgroundSource, /<details className="displacement-playground__advanced"/);
-  assert.match(playgroundSource, /<summary>\{text\.more\}<\/summary>/);
-  for (const key of [
-    "scaleX",
-    "scaleY",
-    "mapSize",
-    "brightness",
-    "tint",
-    "glowSpread",
-    "glowExponent",
-    "edgeWidth",
-    "edgeExponent",
-    "zoom",
-    "filterResolution",
-    "regionScale",
-    "regionOriginX",
-    "regionOriginY",
-    "shadowOpacity",
-    "insetShadowOpacity",
-  ]) {
-    assert.match(playgroundSource, new RegExp(`${key}: \\[`));
+  assert.match(playgroundSource, /<summary>.*其他参数/);
+  assert.match(playgroundSource, /advancedOpen \? <div/);
+  for (const key of ["brightness", "tint", "glowSpread", "glowExponent", "edgeWidth", "edgeExponent", "zoom", "filterResolution", "shadowOpacity"]) {
+    assert.ok(playgroundSource.includes(`${key}: [`), key);
   }
-  for (const flag of ["sdfBoundary", "edgeFalloff", "specularDark"]) {
-    assert.match(playgroundSource, new RegExp(`${flag}: (?:true|false)`));
-  }
-  assert.match(playgroundSource, /scaleX: values\.scaleX/);
-  assert.match(playgroundSource, /scaleY: values\.scaleY/);
+  assert.doesNotMatch(playgroundSource, /mapSize|splayAmount|regionScale|insetShadowOpacity|sdfBoundary|edgeFalloff/);
+  assert.match(playgroundSource, /scaleX: values\.scale, scaleY: values\.scale/);
   assert.match(playgroundSource, /filterResolution=\{values\.filterResolution\}/);
-  assert.match(playgroundSource, /regionScale=\{values\.regionScale\}/);
-  assert.match(playgroundSource, /mapSize: \[512, 64, 1024, 64\]/);
-  assert.match(playgroundSource, /specularRotation: \[45, 0, 360, 1\]/);
+  assert.match(playgroundSource, /specularRotation: \[material\.specularRotation, 0, 360, 1\]/);
 });
 
 test("experiment memoizes parameter rows and keeps callbacks stable", () => {
   assert.match(playgroundSource, /const ParameterSlider = memo\(function ParameterSlider/);
   assert.match(playgroundSource, /const setValue = useCallback\(/);
-  assert.match(playgroundSource, /basicOrder\.map\(\(key\) => \(\s*<ParameterSlider/s);
+  assert.match(playgroundSource, /basicOrder\.map\(key => <ParameterSlider/s);
 });
 
 test("footer persists theme and locale with icon and language controls", () => {
@@ -911,7 +962,7 @@ test("button, QR, and experiment grids stay centered within their stages", () =>
 });
 
 test("hero stays interactive over a real monochrome photograph", () => {
-  assert.match(appSource, /lensW: 140,\s*lensH: 140,\s*borderRadius: 140,[\s\S]*chromaAmount: 0\.24/s);
+  assert.match(appSource, /lensW: 140,\s*lensH: 140,\s*borderRadius: 140,[\s\S]*chromaAmount: 0\.55/s);
   assert.match(appSource, /images\.unsplash\.com\/photo-1683318854587-3722ba210558/);
   assert.match(appSource, /<HeroGlassDemo lens=\{HERO_LENS\} backgroundImage=\{HERO_PHOTO_URL\}/);
   assert.doesNotMatch(appSource, /interactive=\{false\}/);
@@ -921,18 +972,61 @@ test("hero stays interactive over a real monochrome photograph", () => {
   assert.match(demoStylesSource, /\.action-demo__button[^}]*top:\s*50%[^}]*left:\s*50%[^}]*translate\(-50%, -50%\)/s);
 });
 
-test("segmented glass adds dispersion without changing its motion physics", () => {
-  assert.match(componentSource, /const SEGMENTED_CHROMA_AMOUNT = 0\.24/);
-  assert.equal((componentSource.match(/chromaAmount: SEGMENTED_CHROMA_AMOUNT/g) ?? []).length, 2);
+test("control optics use a size-independent pixel gain without changing menu or motion", () => {
+  assert.match(componentSource, /\.\.\.LIQUID_LENS/);
+  assert.equal((componentSource.match(/chromaAmount: \.24, edgeWidth: \.9/g) ?? []).length, 3);
+  assert.equal((componentSource.match(/refractionPixels=\{thumbHeight \* \.22\}/g) ?? []).length, 2);
+  assert.match(componentSource, /refractionPixels=\{5\.5\}/);
+  const scaleCode = liquidAdapterSource.match(/const scale = props\.refractionPixels[\s\S]*?;/)?.[0];
+  const ratioCode = liquidAdapterSource.match(/refractionRatio=\{([^}]+)\}/)?.[1];
+  assert.ok(scaleCode && ratioCode);
+  const gain = new Function("props", "lens", "size", `${scaleCode}\nreturn [scale, ${ratioCode}];`);
+  for (const [width, height] of [[124, 78], [290, 72], [698, 206], [490, 206]]) {
+    const [scale, ratio] = gain({ refractionPixels: 4.84 }, LIQUID_GLASS_MATERIAL, { width, height });
+    for (const [axis, length] of [width, height].entries()) {
+      assert.ok(Math.abs(scale * .5 * ratio[axis] * length - 4.84) < 1e-9, "padding and aspect ratio must not amplify refraction");
+    }
+  }
+  assert.deepEqual(gain({}, { scaleX: .08, scaleY: .12 }, { width: 124, height: 78 }), [.12, [.08 / .12, 1]], "existing objectBoundingBox callers keep their optics");
+  assert.equal(LIQUID_GLASS_MATERIAL.chromaAmount, .55);
   assert.match(componentSource, /SEGMENTED_TRAVEL_SPRING = \{ mass: 1, stiffness: 157\.9, damping: 17\.6 \}/);
   assert.match(componentSource, /SEGMENTED_HOLD_IMPACT_SCRIPT = \{\s*stiffness: 360,\s*damping: 24,\s*impulse: -7,/s);
 });
 
-test("approved controls and media stay locked after the performance pass", () => {
-  assert.equal(sha256(componentSource), "a9bc7e5013a1eed9a1ce8f1126ada035d3e4ce2e6f0cc3fdad6da083fa8cca68");
-  assert.equal(sha256(qrSource), "c541d7c3a7d58dbef77593077fd5ac0a4cdbbf55875da60fef0f91d8ca7435b7");
-  assert.equal(sha256(videoSource), "8010ff15ad786584045d32a3c2b5ae4fbef07758f6b10222bd8c183e719c04ae");
-  assert.equal(sha256(qrRendererSource), "31fa7f5b060752843d9e99c37c51066c80af0bbb3db19fb48788052836a71322");
+test("Slider's refracted fill retains a moving round cap at every progress", () => {
+  const source = readFileSync(new URL("../src/lib/liquid-source.ts", import.meta.url), "utf8");
+  const painterCode = source.slice(source.indexOf("export function liquidTrackSource"), source.indexOf("const svgImages"));
+  const trackSource = new Function("readMotion", "liquidBackground", "liquidCssColor",
+    `${stripTypeScriptTypes(painterCode).replace("export function", "function")}\nreturn liquidTrackSource;`,
+  )(value => typeof value === "number" ? value : value.get(), () => "background", (_, token) => token);
+  const offset = motionValue(0);
+  const painter = trackSource({ kind: "slider", width: 240, trackHeight: 17, travel: 196, offset, scaleX: .95, scaleY: .975 })({ parentElement: {} }, 290, 72);
+  for (const progress of [0, .01, .5, .99, 1]) {
+    offset.set(progress * 196);
+    let x = 0, y = 0, path;
+    const fills = [];
+    const ctx = {
+      save() {}, restore() {}, beginPath() {}, clip() {},
+      translate(dx, dy) { x += dx; y += dy; },
+      roundRect(rx, ry, width, height, radius) { path = { x: x + rx, y: y + ry, width, height, radius }; },
+      fillRect() { assert.equal(this.fillStyle, "background", "the active fill must not be rectangular"); },
+      fill() { fills.push({ ...path }); },
+    };
+    painter(ctx);
+    const cap = fills.at(-1);
+    assert.equal(cap.radius, 17 * .975 / 2);
+    assert.equal(cap.width, 240 * .95, "translate a complete capsule, including at near-zero progress");
+    assert.ok(Math.abs(cap.x + cap.width - (145 + 228 * (progress - .5))) < 1e-9);
+  }
+});
+
+test("every demo uses the Liquid foundation while legacy map code remains unchanged", () => {
+  for (const source of [componentSource, heroSource, additionalDemosSource, playgroundSource]) {
+    assert.match(source, /LiquidGlass as Glass/);
+    assert.doesNotMatch(source, /from ["']\.\.?\/lib\/glass["']/);
+  }
+  assert.match(qrSource, /createLiquidGlassRenderer/);
+  assert.match(videoSource, /createLiquidGlassRenderer/);
   assert.equal(sha256(qrMapSource), "2ba106207efe3a14b8bab03d25863c29756da5fe0d30807817445e27ceb01c0c");
 });
 

@@ -2,59 +2,80 @@
 
 A reusable React library for real-time liquid-glass refraction on the web.
 
-## What is implemented
+## Liquid foundation
 
-- `Glass`: live DOM refraction with a generated PNG displacement map and SVG `feDisplacementMap` chain.
-- `GlassCanvas`: the same map applied to Canvas, image, or video pixels with WebGL2.
-- `GlassSwitch`, `GlassSlider`, `GlassSegmented`: accessible native controls built on `Glass`.
-- Quarter-map generation, map caching, chromatic passes, specular channel, Safari filter-ID refresh, light/dark responsive Demo.
+The experimental `codex/liquid-glass-foundation` branch uses the approved Liquid menu material throughout the Demo: hero, Switch, Slider, Tabs, action button, menu, QR, video and Experiment. Control dimensions, gesture handling and motion curves remain independent of the material.
+
+- `LiquidGlass`: React DOM-source adapter, with native interactive children and a retained source texture.
+- `LiquidGlassCanvas`: React canvas/image/video-source adapter. Accepts up to eight circular or rounded-rectangle `blobs`, with live MotionValues for geometry, velocity and optical parameters.
+- `createLiquidGlassRenderer`: the same renderer without React, for procedural content and video.
+- `LIQUID_GLASS_MATERIAL` / `LIQUID_LENS`: one shared default material, in renderer and LensParams spelling respectively.
+- `GlassSwitch`, `GlassSlider`, `GlassSegmented`: accessible controls now built on `LiquidGlass`. `GlassCanvas` is a compatibility geometry adapter to the new renderer.
+
+The shared WebGL2 kernel owns the merged SDF, spherical-cap refraction, chromatic frost, adaptive glow, thin directional contour/reflection, shadow and optional foreground-ink optics. Fine frost retains the accepted nine-tap endpoint; wider frost uses a cached, separable Gaussian so thin lines soften instead of splitting into repeated strokes. There is no static/dynamic renderer handoff or runtime PNG displacement-map generation in the Demo. WebGL2 is required for this experimental material.
+
+The legacy SVG/PNG `Glass` API and map utilities remain exported for compatibility; the Demo no longer uses them. Legacy SVG-specific flags, map size, region transforms and inset-shadow controls are not supported by the Liquid renderer. Experiment exposes the actual new optical parameters and its right pane visualizes the live GPU displacement/coverage field.
 
 `lensW` and `lensH` are half-extents. A lens with `lensW: 70` is 140 CSS pixels wide.
 
 ## Use
 
 ```tsx
-import { Glass } from "refractive-glass-react";
+import { LiquidGlass } from "refractive-glass-react";
 
-<Glass
-  lens={{
-    lensW: 70,
-    lensH: 60,
-    borderRadius: 28,
-    depth: 10,
-    domeDepth: 24,
-    scaleX: 0.1,
-    scaleY: 0.1,
-    chromaAmount: 0.2,
-  }}
-  x={0.5}
-  y={0.5}
->
-  <YourLiveContent />
-</Glass>
+<LiquidGlass lens={{ lensW: 70, lensH: 60, borderRadius: 28 }}>
+  <div style={{ height: 240, background: "#eee", padding: 32 }}>
+    Content behind the lens
+  </div>
+</LiquidGlass>
 ```
 
-The core `Glass` and `GlassCanvas` components do not require a stylesheet. Import the separate control styles only when using `GlassSwitch`, `GlassSlider`, or `GlassSegmented`:
+The core components do not require a stylesheet. Import the separate control styles only when using `GlassSwitch`, `GlassSlider`, or `GlassSegmented`:
 
 ```tsx
 import { GlassSlider } from "refractive-glass-react";
 import "refractive-glass-react/controls.css";
 ```
 
-`x` and `y` are normalized lens-center coordinates by default. Use `positionUnit="pixel"` for CSS-pixel coordinates. Moving the lens does not regenerate the map.
+`x` and `y` are normalized lens-center coordinates. Half-extents, radii and velocities use CSS pixels. For fusion, pass multiple intentional bodies to one `LiquidGlassCanvas`; independent DOM surfaces do not merge across canvases.
+
+`LiquidGlass` snapshots the existing DOM only at content, font, theme, scroll and resize boundaries. Its bounded adapter supports this Demo's solid surfaces, centered grids, text, SVG icons and images; it is not a general-purpose DOM screenshot engine. Cross-origin images require CORS. Use `sourceFactory` plus `sourceValues` for procedural MotionValue-driven content such as control tracks, or provide a real canvas/image/video source for complex or continuously changing content.
+
+For direct rendering, keep the source revision unchanged when only the lens moves:
+
+```ts
+import { createLiquidGlassRenderer } from "refractive-glass-react";
+
+const renderer = createLiquidGlassRenderer(outputCanvas, { onRestore: redraw });
+renderer.draw({
+  source: backgroundCanvas,
+  sourceRevision: 1, // increment when pixels change
+  width: 640, height: 480,
+  blobs: [
+    { x: .45, y: .5, radius: 48 },
+    { x: .55, y: .5, radius: 32 },
+  ],
+});
+// On unmount:
+renderer.dispose();
+```
+
+The imperative API does not start a loop: callers schedule draws and visibility. `LiquidGlassCanvas` batches changes in Motion's render phase and skips hidden/offscreen draws. Sources and premultiplied content textures upload only when their revision/identity changes. Small and DOM surfaces share one WebGL context; video and the menu render directly to avoid full-frame copies. The Demo uses four contexts regardless of the number of experiment controls, bounds render scale, lazily mounts advanced controls, and pauses offscreen video. GPU context restoration recreates resources and invalidates retained uploads.
+
+Background blur uses CSS pixels, not render pixels. Broad frost is rebuilt only when source pixels, blur radius or source geometry changes; lens travel and output-DPR changes reuse it. It resolves the source to the blur grid before paired horizontal/vertical samples, keeps one shared scratch target, and uses lower resolution for very broad blur. Fine frost/video and opaque resting control thumbs skip that prefilter work. `tintOpacity={1}` means opaque tint; `0` reveals the underlying glass tint. The Switch/Slider use that continuous range to stay white at rest and become glass while active. Tabs retain their own velocity-driven travel/recoil, with optical exit overlapping the low-amplitude tail rather than waiting for exact spring rest.
 
 ## Liquid motion
 
-The Liquid menu and its icon button use separate core `Glass` surfaces at rest and shared compositor-bound MotionValues. During the complete 380ms opening and 420ms closing morph, the internal non-exported `LiquidGlassCanvas` becomes the sole visible geometry so one smooth-min SDF owns the boundary and merged neck. Its WebGL material mirrors core Glass's spherical-cap displacement, exact erf falloff, nine-tap frost, brightness, tint, chroma, local-coordinate glow, edge highlight, and displacement-only zoom; the core layer returns only after geometry and material settle. Close carries the joined body 8px toward the button, overshoots to a 37px half-size, then performs one smooth recoil to its 34px rest radius. No external gooey package or tail droplet is used.
+The menu and icon use one Liquid material throughout rest, press, opening, closing, fusion and settle. Project-tuned trajectories target approximately 380ms open / 380ms close; interrupted opening returns in 209–380ms according to the live body size, with geometry, optics and focus using that same clock. These timings are informed by iOS 27 references, not claimed native Apple constants. Closing retains the two-body absorption, directional impact and restrained recovery. Refraction, foreground blur, contour and reflection follow the same live shape. Captured menu ink participates in the optical field during motion and returns to native DOM at the neutral endpoint.
 
-The icon center stays 38px inward from the menu's right and bottom edges. Menu content padding is uniform (`14px` desktop, `10px` mobile), sort rows remain exactly `64px` tall after selection, and item corners use larger `56px / 50%` desktop and `52px / 50%` mobile squircles. Closing content fades, scales, and blurs out over 240ms. Transition highlight is a one-sided glow inside the surface, never an outer ring; its broad shadow hands off at matched intensity, while the core Glass specular channel eases in separately over 180ms.
+The trigger's rest center is 38px inward from the panel's right/bottom edges. Content padding is `14px` desktop / `10px` mobile, sort rows are `64px` tall, and item corners use ordinary circular radii (`31px` / `30px`). The accepted fine outer contour is lighter at the top/bottom; the narrow inset reflection is confined to the upper/lower arcs. No external gooey dependency, separate DOM outline, or trailing droplet is used.
 
 ## Commands
 
 ```bash
 npm run dev       # Demo
 npm run check     # TypeScript
-npm test          # Lens-map invariants
+npm test          # Legacy optics, motion regressions, shared renderer lifecycle
 npm run build     # Demo + ESM/CJS library + declarations
 ```
 
@@ -69,8 +90,8 @@ Library output is written to `dist/library`; the Sites-ready Demo is written to 
 
 ## Notes
 
-- Keep SVG-filtered DOM regions focused. Safari has practical source-graphic size ceilings.
-- Use `GlassCanvas` for Canvas content and for live video where Safari does not run the SVG filter path.
+- The experimental material is WebGL2, not WebGPU. Desktop mobile emulation is not a native iPhone GPU benchmark.
+- Keep legacy SVG-filtered regions focused if using `Glass`; Safari has practical source-graphic size ceilings.
 - Demo-only Dezin assets under `public/assets` are excluded from the library package.
 
 ## Reference and attribution

@@ -9,7 +9,8 @@ import {
   type ReactNode,
 } from "react";
 import { animate, motion, useMotionValue, useTransform, type MotionValue } from "motion/react";
-import { Glass } from "./glass";
+import { LiquidGlass as Glass, LIQUID_LENS } from "./LiquidGlass";
+import { liquidTrackSource } from "./liquid-source";
 import { motionValue, type WritableMotionValue } from "./motion";
 import type { LensParams } from "./types";
 import { usePointerReleaseFallback } from "./use-pointer-release-fallback";
@@ -32,27 +33,27 @@ function springTo(value: MotionValue<number>, target: number, config: PhysicalSp
   };
 }
 
-function waitForRest(value: WritableMotionValue<number>, epsilon = 0.015, timeoutMs = 900, holdMs = 50) {
+function waitForRest(values: readonly WritableMotionValue<number>[], error: () => number, epsilon = 1, timeoutMs = 900, holdMs = 32) {
   return new Promise<void>((resolve) => {
     let timeout = 0;
     let restTimer = 0;
-    let unsubscribe: () => void = () => undefined;
+    let unsubscribes: Array<() => void> = [];
     const finish = () => {
       window.clearTimeout(timeout);
       window.clearTimeout(restTimer);
-      unsubscribe();
+      unsubscribes.forEach(stop => stop());
       resolve();
     };
-    const check = (current: number) => {
-      if (Math.abs(current) <= epsilon) {
+    const check = () => {
+      if (error() <= epsilon) {
         if (restTimer === 0) restTimer = window.setTimeout(finish, holdMs);
       } else if (restTimer !== 0) {
         window.clearTimeout(restTimer);
         restTimer = 0;
       }
     };
-    unsubscribe = value.on("change", check);
-    check(value.get());
+    unsubscribes = values.map(value => value.on("change", check));
+    check();
     timeout = window.setTimeout(finish, timeoutMs);
   });
 }
@@ -167,34 +168,6 @@ function darkTheme() {
   return typeof document !== "undefined" && document.documentElement.dataset.theme === "dark";
 }
 
-function safariBrowser() {
-  return typeof navigator !== "undefined" && /^((?!chrome|chromium|android).)*safari/i.test(navigator.userAgent);
-}
-
-const SWITCH_BASE: Partial<LensParams> = {
-  mapSize: 256,
-  depth: 2,
-  chromaAmount: 1,
-  scaleX: 0.25,
-  scaleY: 0.25,
-  sdfBoundary: true,
-  edgeFalloff: true,
-  domeDepth: 6,
-  splayAmount: 0.4,
-  blurAmount: 0,
-  brightness: 0.06,
-  specularStrength: 1,
-  specularRotation: 45,
-  tint: 0,
-  glowStrength: 0,
-  glowSpread: 0.5,
-  glowExponent: 1.5,
-  edgeStrength: 0,
-  edgeWidth: 2,
-  edgeExponent: 1.5,
-  edgeShadow: "0 2px 6px rgba(0,0,0,.16)",
-  edgeInsetShadow: "0 -4px 10px rgba(0,0,0,.12)",
-};
 
 export interface GlassSwitchProps {
   checked?: boolean;
@@ -222,8 +195,6 @@ export function GlassSwitch({
   const [local, setLocal] = useState(defaultChecked);
   const current = checked ?? local;
   const compact = size === "small";
-  const [smallOpticsActive, setSmallOpticsActive] = useState(false);
-  const opticsActive = !compact || smallOpticsActive;
   const width = compact ? 52 : 74;
   const height = compact ? 20 : 28;
   const inset = compact ? 2 : 3;
@@ -258,7 +229,6 @@ export function GlassSwitch({
   const deformationWake = useRef<() => void>(() => undefined);
   const lensW = useTransform(() => baseLensW.get() * (1 - 0.2 * deformation.get()));
   const lensH = useTransform(() => baseLensH.get() * (1 + 0.4 * deformation.get()));
-  const edgeBias = useTransform(tintOpacity, (opacity) => opacity * 0.5);
 
   const rootRef = useRef<HTMLLabelElement>(null);
   const thumbRef = useRef<HTMLDivElement>(null);
@@ -271,7 +241,6 @@ export function GlassSwitch({
   const mode = useRef<"idle" | "pending" | "hold" | "tap">("idle");
   const holdTimer = useRef<number | null>(null);
   const restoreTimer = useRef<number | null>(null);
-  const opticsTimer = useRef<number | null>(null);
   const travelAnimation = useRef<ReturnType<typeof animate> | null>(null);
   const alive = useRef(true);
 
@@ -316,8 +285,6 @@ export function GlassSwitch({
 
   const wakeDeformation = () => deformationWake.current();
   const expand = () => {
-    if (opticsTimer.current !== null) clearTimeout(opticsTimer.current);
-    if (compact) setSmallOpticsActive(true);
     animate(baseLensW, halfThumbWidth * 1.5, pressTransition);
     animate(baseLensH, halfThumbHeight * 1.5, pressTransition);
     animate(radius, halfThumbHeight * 1.5, pressTransition);
@@ -336,10 +303,6 @@ export function GlassSwitch({
     animate(targetScaleX, 0.85, releaseTransition);
     animate(targetScaleY, 0.525, releaseTransition);
     animate(shadowOpacity, 0, releaseTransition);
-    if (compact) {
-      if (opticsTimer.current !== null) clearTimeout(opticsTimer.current);
-      opticsTimer.current = window.setTimeout(() => setSmallOpticsActive(false), 560);
-    }
   };
   const emit = (next: boolean) => {
     if (checked === undefined) setLocal(next);
@@ -352,7 +315,6 @@ export function GlassSwitch({
     mode.current = "tap";
     expand();
     if (restoreTimer.current !== null) clearTimeout(restoreTimer.current);
-    if (opticsTimer.current !== null) clearTimeout(opticsTimer.current);
     restoreTimer.current = window.setTimeout(collapse, 330);
     travelAnimation.current?.stop();
     travelAnimation.current = animate(offset, next ? travel : 0, {
@@ -398,10 +360,17 @@ export function GlassSwitch({
     }
   }, []);
 
-  const lensBase = compact ? { ...SWITCH_BASE, mapSize: 128 } : SWITCH_BASE;
-  const lens: Partial<LensParams> = darkTheme()
-    ? { ...lensBase, brightness: 0.12, glowStrength: 0.4, edgeStrength: 0.5, specularDark: false }
-    : { ...lensBase, brightness: -0.02, specularRotation: 30, specularStrength: 1.5, glowStrength: 0.4, glowExponent: 2, edgeStrength: 0.5, edgeWidth: 1.5, edgeExponent: 1, specularDark: true };
+  const sourceFactory = useMemo(() => liquidTrackSource({
+    kind: "switch", width,
+    trackHeight: refractedTrackHeight, travel, offset,
+    scaleX: targetScaleX, scaleY: targetScaleY,
+  }), [width, height, padding, refractedTrackHeight, thumbWidth, travel, offset, targetScaleX, targetScaleY]);
+  // Keep a thin refracting band and shallow cap at both thumb sizes.
+  const lens: Partial<LensParams> = {
+    ...LIQUID_LENS, depth: thumbHeight / 11, domeDepth: thumbHeight * (6 / 22),
+    chromaAmount: .24, edgeWidth: .9,
+    brightness: darkTheme() ? .035 : .015,
+  };
 
   return (
     <label ref={rootRef} data-size={size} className={["dg-switch", className].filter(Boolean).join(" ")} style={{ width, height, "--dg-switch-progress": current ? 1 : 0 } as React.CSSProperties}>
@@ -420,6 +389,9 @@ export function GlassSwitch({
         onChange={(event) => pulseAndToggle(event.currentTarget.checked)}
       />
       <Glass
+        sourceFactory={sourceFactory}
+        sourceValues={[offset, targetScaleX, targetScaleY]}
+        refractionPixels={thumbHeight * .22}
         lens={lens}
         x={x}
         y={0.5}
@@ -430,8 +402,6 @@ export function GlassSwitch({
         tintOpacity={tintOpacity}
         tintBlur={tintBlur}
         shadowOpacity={shadowOpacity}
-        edgeBias={edgeBias}
-        filterEnabled={opticsActive}
         filterResolution={compact ? 1 : 2}
         style={{ width: filterWidth, height: filterHeight, overflow: "visible", margin: -padding }}
         refractionTarget={
@@ -536,30 +506,6 @@ export function GlassSwitch({
   );
 }
 
-const SLIDER_BASE: Partial<LensParams> = {
-  mapSize: 256,
-  depth: 2,
-  chromaAmount: 0.65,
-  scaleX: 0.06,
-  scaleY: 0.06,
-  sdfBoundary: true,
-  edgeFalloff: true,
-  domeDepth: 5,
-  splayAmount: 0.5,
-  blurAmount: 0,
-  brightness: 0.06,
-  specularStrength: 1.5,
-  specularRotation: 45,
-  glowStrength: 0.4,
-  glowSpread: 0.5,
-  glowExponent: 1.5,
-  edgeStrength: 0,
-  edgeWidth: 3,
-  edgeExponent: 1.5,
-  edgeShadow: "0 2px 6px rgba(0,0,0,.16)",
-  edgeInsetShadow: "0 -4px 10px rgba(0,0,0,.12)",
-  restEdgeShadow: "0 1.333px 5.333px var(--shadow-strong)",
-};
 const SLIDER_CLICK_SPRING = { mass: 0.8, stiffness: 300, damping: 24 };
 
 export interface GlassSliderProps {
@@ -593,8 +539,6 @@ export function GlassSlider({
   const controlled = value !== undefined;
   const current = controlled ? value : local;
   const compact = size === "small";
-  const [smallOpticsActive, setSmallOpticsActive] = useState(false);
-  const opticsActive = !compact || smallOpticsActive;
   const width = compact ? 120 : 240;
   const thumbHeight = compact ? 16 : 22;
   const thumbWidth = Math.round(thumbHeight * 2);
@@ -633,7 +577,6 @@ export function GlassSlider({
   const targetScaleY = useMotionValue(0.525);
   const tintBlur = useMotionValue(restTintBlur);
   const shadowOpacity = useMotionValue(0);
-  const restShadowOpacity = useTransform(shadowOpacity, (opacity) => 1 - opacity);
   const deformation = useMotionValue(0);
   const deformationBoost = useRef(0);
   const deformationWake = useRef<() => void>(() => undefined);
@@ -649,7 +592,6 @@ export function GlassSlider({
   const dragging = useRef(false);
   const pointerMoved = useRef(false);
   const clickAnimation = useRef<SpringRun | null>(null);
-  const opticsTimer = useRef<number | null>(null);
 
   useEffect(() => {
     let frame = 0;
@@ -691,8 +633,6 @@ export function GlassSlider({
   }, [offset, deformation]);
 
   const expand = () => {
-    if (opticsTimer.current !== null) clearTimeout(opticsTimer.current);
-    if (compact) setSmallOpticsActive(true);
     animate(baseLensW, halfThumbWidth * 1.5, pressTransition);
     animate(baseLensH, halfThumbHeight * 1.5, pressTransition);
     animate(radius, halfThumbHeight * 1.5, pressTransition);
@@ -711,10 +651,6 @@ export function GlassSlider({
     animate(targetScaleX, 0.85, releaseTransition);
     animate(targetScaleY, 0.525, releaseTransition);
     animate(shadowOpacity, 0, releaseTransition);
-    if (compact) {
-      if (opticsTimer.current !== null) clearTimeout(opticsTimer.current);
-      opticsTimer.current = window.setTimeout(() => setSmallOpticsActive(false), 560);
-    }
   };
   const cancelPointerInteraction = () => {
     const activePointerId = pointerId.current;
@@ -745,21 +681,29 @@ export function GlassSlider({
     wrapperRef.current?.style.setProperty("--dg-slider-progress", String(Math.max(0, Math.min(1, progress))));
   }), [offset, thumbWidth, travel]);
   useEffect(() => () => {
-    if (opticsTimer.current !== null) clearTimeout(opticsTimer.current);
     clickAnimation.current?.stop();
     if (pointerId.current !== null && trackRef.current) {
       try { trackRef.current.releasePointerCapture(pointerId.current); } catch {}
     }
   }, []);
 
-  const lensBase = compact ? { ...SLIDER_BASE, mapSize: 128 } : SLIDER_BASE;
-  const lens: Partial<LensParams> = darkTheme()
-    ? { ...lensBase, scaleX: 0.133, scaleY: 0.135, brightness: 0.12, edgeStrength: 0.5, edgeWidth: 1, specularDark: false }
-    : { ...lensBase, scaleX: 0.1, scaleY: safariBrowser() ? 0.25 : 0.1, brightness: -0.02, specularRotation: 30, glowExponent: 2, edgeStrength: 0.5, edgeWidth: 1, edgeExponent: 1, specularDark: true };
+  const sourceFactory = useMemo(() => liquidTrackSource({
+    kind: "slider", width,
+    trackHeight: refractedTrackHeight, travel, offset,
+    scaleX: targetScaleX, scaleY: targetScaleY,
+  }), [width, thumbHeight, padding, refractedTrackHeight, thumbWidth, travel, offset, targetScaleX, targetScaleY]);
+  const lens: Partial<LensParams> = {
+    ...LIQUID_LENS, depth: thumbHeight / 11, domeDepth: thumbHeight * (5 / 22),
+    chromaAmount: .24, edgeWidth: .9,
+    brightness: darkTheme() ? .035 : .015,
+  };
 
   return (
     <div ref={wrapperRef} data-size={size} className={["dg-slider", className].filter(Boolean).join(" ")} style={{ width, height: thumbHeight, "--dg-slider-fill": `${thumbWidth / 2 + toOffset(current)}px`, "--dg-slider-progress": toOffset(current) / travel } as React.CSSProperties}>
       <Glass
+        sourceFactory={sourceFactory}
+        sourceValues={[offset, targetScaleX, targetScaleY]}
+        refractionPixels={thumbHeight * .22}
         lens={lens}
         x={x}
         y={0.5}
@@ -770,8 +714,6 @@ export function GlassSlider({
         tintOpacity={tintOpacity}
         tintBlur={tintBlur}
         shadowOpacity={shadowOpacity}
-        restShadowOpacity={restShadowOpacity}
-        filterEnabled={opticsActive}
         filterResolution={compact ? 1 : 2}
         style={{ width: filterWidth, height: filterHeight, overflow: "visible", margin: -padding }}
         refractionTarget={
@@ -901,7 +843,6 @@ const DEFAULT_SEGMENTS = [
 
 const SEGMENTED_PAD_X = 80;
 const SEGMENTED_PAD_Y = 80;
-const SEGMENTED_CHROMA_AMOUNT = 0.24;
 const SEGMENTED_TRAVEL_SPRING = { mass: 1, stiffness: 157.9, damping: 17.6 };
 const SEGMENTED_PRESS_SPRING = { mass: 0.9, stiffness: 190, damping: 18 };
 const SEGMENTED_DRAG_CATCHUP_SPRING = { mass: 0.7, stiffness: 360, damping: 28 };
@@ -973,7 +914,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, cl
     damping: () => {
       if (!impactLanded.current) return 15.5;
       if (stationaryPress()) return SEGMENTED_HOLD_IMPACT_SCRIPT.damping;
-      return 19.5;
+      return 22;
     },
   });
   impactKickRef.current = kickDeformation;
@@ -1089,6 +1030,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, cl
     });
   }, [x, pointerX]);
   useEffect(() => () => {
+    transitionToken.current++;
     stops.current.forEach((run) => run.stop());
     interactionStop.current?.stop();
     heightStop.current?.stop();
@@ -1199,15 +1141,21 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, cl
     heightStop.current = height;
     const travel = settle ? updateGeometry(selectedRef.current, false) : travelSettled.current;
     if (settle) travelSettled.current = travel;
-    void Promise.all([shape.finished, height.finished])
-      .then(() => waitForRest(deformation, 0.045, 500, 16))
+    // Fade in the visual spring tail, not after several mathematical rest waits.
+    // Pixel-space error also prevents a zero crossing from cutting off the recoil.
+    void waitForRest([renderedLensW, renderedLensH, impactX, deformation, interaction, glassHeight], () => Math.max(
+      Math.abs(renderedLensW.get() - lensW.get()),
+      Math.abs(renderedLensH.get() - lensH.get()),
+      Math.abs(impactX.get() - impactTargetX.current) * impactWidth.current,
+      Math.abs(x.getVelocity()) * impactWidth.current * SEGMENTED_IMPACT_RETENTION * .02,
+    ))
       .then(() => {
         if (token !== transitionToken.current) return;
         glassAnimation.current?.stop();
         solidAnimation.current?.stop();
         solidOpacity.set(1);
         rootRef.current?.setAttribute("data-crossfading", "");
-        const fade = animate(glassOpacity, 0, { duration: 0.265, ease: [0.4, 0, 0.2, 1] });
+        const fade = animate(glassOpacity, 0, { duration: 0.18, ease: [0.22, 1, 0.36, 1] });
         glassAnimation.current = fade;
         return fade.then(() => {
           if (token === transitionToken.current) {
@@ -1228,9 +1176,10 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, cl
       requestAnimationFrame(() => { suppressDragClick.current = false; });
     }
   };
-  const lens: Partial<LensParams> = darkTheme()
-    ? { lensW: 50, lensH: 20, borderRadius: 16, mapSize: 256, depth: 2.5, chromaAmount: SEGMENTED_CHROMA_AMOUNT, scaleX: 0.045, scaleY: 0.025, sdfBoundary: true, edgeFalloff: true, splayAmount: 1, brightness: 0.06, specularStrength: 1, specularRotation: 45, glowStrength: 0.5, glowSpread: 0.3, glowExponent: 1.5, edgeStrength: 0.6, edgeWidth: 1, edgeExponent: 1.5, specularDark: false }
-    : { lensW: 50, lensH: 20, borderRadius: 16, mapSize: 256, depth: 2.5, chromaAmount: SEGMENTED_CHROMA_AMOUNT, scaleX: 0.045, scaleY: safariBrowser() ? 0.075 : 0.025, sdfBoundary: true, edgeFalloff: true, splayAmount: 1, brightness: -0.04, specularStrength: 1, specularRotation: 28, glowStrength: 0, glowSpread: 0.5, glowExponent: 3, edgeStrength: 0.15, edgeWidth: 1.5, edgeExponent: 1, specularDark: true };
+  const lens: Partial<LensParams> = {
+    ...LIQUID_LENS, lensW: 50, lensH: 20, borderRadius: 16, depth: 2.5, domeDepth: 8,
+    chromaAmount: .24, edgeWidth: .9, brightness: darkTheme() ? .035 : .015,
+  };
 
   const items = (interactive: boolean, refracted = false) => DEFAULT_SEGMENTS.map(({ value: itemValue, label, Icon, color1, color2 }) => {
     const displayLabel = labels?.[itemValue] ?? label;
@@ -1329,6 +1278,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, cl
       <motion.div className="dg-tabs__glass-layer" aria-hidden style={{ opacity: glassOpacity }}>
         <Glass
           className="dg-tabs__glass"
+          refractionPixels={5.5}
           lens={lens}
           x={impactX}
           y={y}

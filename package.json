@@ -26,7 +26,7 @@
     "build:lib": "vite build --config vite.lib.config.mjs && tsc -p tsconfig.lib.json",
     "build": "npm run build:demo && npm run build:lib && node scripts/prepare-sites-build.mjs",
     "check": "tsc --noEmit",
-    "test": "npm run build:lib && node --test tests/lens-map.test.mjs",
+    "test": "npm run build:lib && node --test tests/lens-map.test.mjs tests/liquid-renderer.test.mjs",
     "preview": "vite preview",
     "test:sites": "node --test tests/sites-worker.test.mjs"
   },

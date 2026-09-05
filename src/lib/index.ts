@@ -48,3 +48,11 @@ export type { GlassCanvasProps } from "./GlassCanvas";
 export { GlassSegmented, GlassSlider, GlassSwitch } from "./components";
 export type { GlassSegmentedProps, GlassSliderProps, GlassSwitchProps } from "./components";
 export type GlassLens = Partial<import("./types").LensParams>;
+
+export { LiquidGlass, LIQUID_LENS } from "./LiquidGlass";
+export type { LiquidGlassProps } from "./LiquidGlass";
+export { LiquidGlassCanvas } from "./LiquidGlassCanvas";
+export type { LiquidGlassCanvasProps } from "./LiquidGlassCanvas";
+export { createLiquidGlassRenderer, LIQUID_GLASS_MATERIAL } from "./liquid-glass-renderer";
+export type { LiquidGlassBlob, LiquidGlassFrame, LiquidGlassSource, LiquidRendererStats } from "./liquid-glass-renderer";
+export type { LiquidSourceFactory, LiquidSourcePainter } from "./liquid-source";

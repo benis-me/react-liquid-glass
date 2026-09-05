@@ -24,10 +24,10 @@ const HERO_LENS = {
   lensH: 140,
   borderRadius: 140,
   depth: 24,
-  domeDepth: 140,
-  scaleX: 0.075,
-  scaleY: 0.075,
-  chromaAmount: 0.24,
+  domeDepth: 58,
+  scaleX: 0.11,
+  scaleY: 0.11,
+  chromaAmount: 0.55,
 };
 
 const copy = {

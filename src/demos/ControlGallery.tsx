@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { GlassSegmented, GlassSlider, GlassSwitch } from "../lib";
+import { GlassSegmented, GlassSlider, GlassSwitch } from "../lib/components";
 import { DemoLabel } from "../demo/Primitives";
 import type { Locale } from "../i18n";
 import { GlassActionDemo } from "./AdditionalGlassDemos";

@@ -43,20 +43,13 @@ uniform float u_cellUV;
 uniform float u_invCellUV;
 uniform int u_matrixLength;
 
-uniform sampler2D u_displacementMap;
 uniform sampler2D u_paintingColorTexture;
-uniform int u_displacementActive;
-uniform vec2 u_lensOrigin;
-uniform vec2 u_lensSize;
-uniform vec2 u_displacementScale;
-uniform float u_chromaAmount;
 
 uniform vec2 u_eyeCenter[3];
 uniform vec3 u_eyeHalf[3];
 uniform vec3 u_eyeRadius[3];
 uniform vec3 u_eyeColor[3];
 uniform float u_eyeScale[3];
-uniform float u_eyeRefractionScale;
 
 float testDot(vec2 pos, float r2) {
   int i = int(floor((pos.x - u_gridOriginUV) * u_invCellUV));
@@ -95,54 +88,11 @@ void main() {
   vec2 uv = vec2(v_uv.x, 1.0 - v_uv.y);
   float paint = texture(u_PaintingTexture, uv).r;
   float radiusSquared = pow(u_dotRadius * (1.0 - paint), 2.0);
-
-  if (u_displacementActive == 0) {
-    vec4 sample_ = sampleStatic(uv, radiusSquared);
-    if (sample_.a < 0.0) discard;
-    fragColor = sample_;
-    return;
-  }
-
-  vec2 lensUV = (uv - u_lensOrigin) / u_lensSize;
-  bool insideLens = lensUV.x >= 0.0 && lensUV.x <= 1.0 && lensUV.y >= 0.0 && lensUV.y <= 1.0;
-  if (!insideLens) {
-    vec4 sample_ = sampleStatic(uv, radiusSquared);
-    if (sample_.a < 0.0) discard;
-    fragColor = sample_;
-    return;
-  }
-
-  vec4 mapSample = texture(u_displacementMap, lensUV);
-  if (mapSample.a < 0.01) {
-    vec4 sample_ = sampleStatic(uv, radiusSquared);
-    if (sample_.a < 0.0) discard;
-    fragColor = sample_;
-    return;
-  }
-
-  vec2 displacement = (mapSample.rg - 0.5) * u_displacementScale;
-  float scaleR = 1.0 + u_chromaAmount * 2.0;
-  float scaleG = 1.0 + u_chromaAmount;
-  vec2 uvR = uv + displacement * scaleR;
-  vec2 uvG = uv + displacement * scaleG;
-  vec2 uvB = uv + displacement;
-
-  vec2 eyeDisplacement = displacement * u_eyeRefractionScale;
-  vec4 eyeR = testEyes(uv + eyeDisplacement * scaleR);
-  vec4 eyeG = testEyes(uv + eyeDisplacement * scaleG);
-  vec4 eyeB = testEyes(uv + eyeDisplacement);
-
-  float red;
-  float green;
-  float blue;
-  if (eyeR.a > 0.5) red = eyeR.r;
-  else red = mix(texture(u_paintingColorTexture, uvR).r, u_backgroundColor.r, testDot(uvR, radiusSquared));
-  if (eyeG.a > 0.5) green = eyeG.g;
-  else green = mix(texture(u_paintingColorTexture, uvG).g, u_backgroundColor.g, testDot(uvG, radiusSquared));
-  if (eyeB.a > 0.5) blue = eyeB.b;
-  else blue = mix(texture(u_paintingColorTexture, uvB).b, u_backgroundColor.b, testDot(uvB, radiusSquared));
-  fragColor = vec4(red, green, blue, 1.0);
-}`;
+  vec4 source = sampleStatic(uv, radiusSquared);
+  // QR geometry/painting only. Liquid Glass owns all refraction and material.
+  fragColor = source.a < 0.0 ? vec4(texture(u_paintingColorTexture, uv).rgb, 1.0) : source;
+}
+`;
 
 function compile(gl: WebGL2RenderingContext, type: number, source: string) {
   const shader = gl.createShader(type);
@@ -173,33 +123,22 @@ export class QrWebglRenderer {
   private readonly buffer: WebGLBuffer;
   private readonly occupancyTexture: WebGLTexture;
   private readonly paintingTexture: WebGLTexture;
-  private readonly displacementTexture: WebGLTexture;
   private readonly paintingColorTexture: WebGLTexture;
   private readonly eyeColorLocations: Array<WebGLUniformLocation | null> = [];
   private readonly eyeScaleLocations: Array<WebGLUniformLocation | null> = [];
   private readonly backgroundLocation: WebGLUniformLocation | null;
-  private readonly activeLocation: WebGLUniformLocation | null;
-  private readonly lensOriginLocation: WebGLUniformLocation | null;
-  private readonly lensSizeLocation: WebGLUniformLocation | null;
-  private readonly displacementScaleLocation: WebGLUniformLocation | null;
-  private readonly chromaLocation: WebGLUniformLocation | null;
-  private readonly eyeRefractionLocation: WebGLUniformLocation | null;
-  private displacementSize = { width: 0, height: 0 };
   private paintingSize = { width: 0, height: 0 };
   private paintingColorSize = { width: 0, height: 0 };
 
   constructor(options: QrRendererOptions) {
     this.canvas = options.canvas;
-    const ratio = 1.25 * Math.min(window.devicePixelRatio || 1, 3);
+    const ratio = Math.min(2, 1.25 * (window.devicePixelRatio || 1));
     this.canvas.width = Math.round(options.size * ratio);
     this.canvas.height = Math.round(options.size * ratio);
-    const gl = this.canvas.getContext("webgl2", { premultipliedAlpha: false, antialias: true });
+    const gl = this.canvas.getContext("webgl2", { premultipliedAlpha: false, antialias: false, depth: false });
     if (!gl) throw new Error("WebGL2 is unavailable for the QR renderer");
     this.gl = gl;
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
-    gl.enable(gl.SAMPLE_ALPHA_TO_COVERAGE);
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.ONE, gl.ZERO);
 
     this.vertexShader = compile(gl, gl.VERTEX_SHADER, VERTEX_SHADER);
     this.fragmentShader = compile(gl, gl.FRAGMENT_SHADER, FRAGMENT_SHADER);
@@ -223,12 +162,10 @@ export class QrWebglRenderer {
 
     const occupancyTexture = gl.createTexture();
     const paintingTexture = gl.createTexture();
-    const displacementTexture = gl.createTexture();
     const paintingColorTexture = gl.createTexture();
-    if (!occupancyTexture || !paintingTexture || !displacementTexture || !paintingColorTexture) throw new Error("Unable to create QR textures");
+    if (!occupancyTexture || !paintingTexture || !paintingColorTexture) throw new Error("Unable to create QR textures");
     this.occupancyTexture = occupancyTexture;
     this.paintingTexture = paintingTexture;
-    this.displacementTexture = displacementTexture;
     this.paintingColorTexture = paintingColorTexture;
 
     gl.activeTexture(gl.TEXTURE0);
@@ -243,10 +180,6 @@ export class QrWebglRenderer {
     gl.uniform1i(gl.getUniformLocation(program, "u_matrixLength"), options.matrixLength);
     gl.uniform1f(gl.getUniformLocation(program, "u_dotRadius"), options.dotRadius);
 
-    gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, displacementTexture);
-    configureTexture(gl, gl.LINEAR);
-    gl.uniform1i(gl.getUniformLocation(program, "u_displacementMap"), 1);
     gl.activeTexture(gl.TEXTURE2);
     gl.bindTexture(gl.TEXTURE_2D, paintingTexture);
     configureTexture(gl, gl.LINEAR);
@@ -257,14 +190,6 @@ export class QrWebglRenderer {
     gl.uniform1i(gl.getUniformLocation(program, "u_paintingColorTexture"), 3);
 
     this.backgroundLocation = gl.getUniformLocation(program, "u_backgroundColor");
-    this.activeLocation = gl.getUniformLocation(program, "u_displacementActive");
-    this.lensOriginLocation = gl.getUniformLocation(program, "u_lensOrigin");
-    this.lensSizeLocation = gl.getUniformLocation(program, "u_lensSize");
-    this.displacementScaleLocation = gl.getUniformLocation(program, "u_displacementScale");
-    this.chromaLocation = gl.getUniformLocation(program, "u_chromaAmount");
-    this.eyeRefractionLocation = gl.getUniformLocation(program, "u_eyeRefractionScale");
-    gl.uniform1i(this.activeLocation, 0);
-    gl.uniform1f(this.eyeRefractionLocation, 0.16);
 
     for (let group = 0; group < 3; group += 1) {
       const outer = options.eyes[group * 3];
@@ -308,10 +233,6 @@ export class QrWebglRenderer {
     this.gl.uniform1f(this.eyeScaleLocations[group], scale);
   }
 
-  updateEyeRefractionScale(scale: number) {
-    this.gl.uniform1f(this.eyeRefractionLocation, scale);
-  }
-
   private uploadTexture(texture: WebGLTexture, unit: number, source: TexImageSource, size: { width: number; height: number }) {
     const gl = this.gl;
     gl.activeTexture(gl.TEXTURE0 + unit);
@@ -325,19 +246,6 @@ export class QrWebglRenderer {
     } else {
       gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, source);
     }
-  }
-
-  updateDisplacement(source: TexImageSource, lensOrigin: [number, number], lensSize: [number, number], scale: [number, number], chroma: number) {
-    this.uploadTexture(this.displacementTexture, 1, source, this.displacementSize);
-    this.gl.uniform1i(this.activeLocation, 1);
-    this.gl.uniform2f(this.lensOriginLocation, lensOrigin[0], lensOrigin[1]);
-    this.gl.uniform2f(this.lensSizeLocation, lensSize[0], lensSize[1]);
-    this.gl.uniform2f(this.displacementScaleLocation, scale[0], scale[1]);
-    this.gl.uniform1f(this.chromaLocation, chroma);
-  }
-
-  clearDisplacement() {
-    this.gl.uniform1i(this.activeLocation, 0);
   }
 
   updatePaintingTexture(source: TexImageSource) {
@@ -363,7 +271,6 @@ export class QrWebglRenderer {
     gl.deleteBuffer(this.buffer);
     gl.deleteTexture(this.occupancyTexture);
     gl.deleteTexture(this.paintingTexture);
-    gl.deleteTexture(this.displacementTexture);
     gl.deleteTexture(this.paintingColorTexture);
   }
 }

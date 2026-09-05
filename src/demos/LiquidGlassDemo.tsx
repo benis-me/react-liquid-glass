@@ -50,20 +50,12 @@ import {
   retargetLiquidFrames,
 } from "./liquid-menu-motion";
 
+import { LIQUID_LENS } from "../lib/LiquidGlass";
+
 const TRIGGER_RADIUS = 34;
 const MIN_LENS_HALF = 1;
 
-const BASE_MENU_LENS: Partial<LensParams> = {
-  domeDepth: 58,
-  scaleX: 0.11,
-  chromaAmount: 0.55,
-  specularStrength: 0.72,
-  specularRotation: 90,
-  glowSpread: 0.72,
-  glowExponent: 1.4,
-  edgeWidth: 1.6,
-  edgeExponent: 1.2,
-};
+const BASE_MENU_LENS = LIQUID_LENS;
 
 const LIGHT_MENU_LENS: Partial<LensParams> = {
   ...BASE_MENU_LENS,
@@ -90,7 +82,7 @@ const OPEN_MORPH_EASES = [
   cubicBezier(0.32, 0, 0.18, 1),
   cubicBezier(0.22, 0, 0.18, 1),
 ];
-const CLOSE_FUSION_DURATION = 0.42;
+const CLOSE_FUSION_DURATION = 0.38;
 const CLOSE_IMPACT_DISTANCE = 2;
 const CLOSE_FUSION_EASES = [
   cubicBezier(0.42, 0, 0.58, 1),
@@ -672,8 +664,14 @@ export function LiquidGlassDemo({
           zoom: 1.35,
         };
 
+    // A partially opened body must not spend a full panel's time returning.
+    // Keep one clock for geometry, optics and focus, with room for momentum braking.
+    const transitionDuration = nextOpen ? OPEN_MORPH_DURATION : CLOSE_FUSION_DURATION * (interrupted
+      ? clamp(Math.max(halfWidth.get() * 2 / layout.panelWidth, halfHeight.get() * 2 / layout.panelHeight), 0.55, 1)
+      : 1);
+
     const morph = (value: MotionValue<number>, keyframes: number[], positive = false) => {
-      const duration = nextOpen ? OPEN_MORPH_DURATION : CLOSE_FUSION_DURATION;
+      const duration = transitionDuration;
       // The initial Hermite tangent peaks at 4/27; keep shrinking extents above zero.
       const velocity = positive
         ? Math.max(value.getVelocity(), -(value.get() - MIN_LENS_HALF) * 6.75 / duration)
@@ -850,29 +848,29 @@ export function LiquidGlassDemo({
         morph(halfHeight, heightFrames, true),
         morph(cornerRadius, closeMenuRadiusFrames(radiusStart, widthStart, heightStart), true),
         animate(depth, [depth.get(), 29, 22, 16, 10, target.depth], {
-          duration: CLOSE_FUSION_DURATION,
+          duration: transitionDuration,
           times: CLOSE_FUSION_TIMES,
           ease: CLOSE_FUSION_EASES,
         }),
         animate(tintOpacity, [tintOpacity.get(), 0.02, 0.055, 0.1, 0.04, target.tint], {
-          duration: CLOSE_FUSION_DURATION,
+          duration: transitionDuration,
           times: CLOSE_FUSION_TIMES,
           ease: CLOSE_FUSION_EASES,
         }),
         animate(zoom, [zoom.get(), 1.46, 1.52, 1.45, 1.2, target.zoom], {
-          duration: CLOSE_FUSION_DURATION,
+          duration: transitionDuration,
           times: CLOSE_FUSION_TIMES,
           ease: CLOSE_FUSION_EASES,
         }),
         // Ink loses focus while the body is still large; the glass gathers afterwards.
         animate(closingBlur, 3.2, { duration: 0.08, ease: PRESS_EASE }),
         animate(reveal, [reveal.get(), reveal.get() * 0.3, reveal.get() * 0.02, 0], {
-          duration: CLOSE_CONTENT_DURATION,
+          duration: CLOSE_CONTENT_DURATION * transitionDuration / CLOSE_FUSION_DURATION,
           times: [0, 0.28, 0.52, 1],
           ease: [PRESS_EASE, cubicBezier(0.3, 0, 0.45, 0.7), RELEASE_EASE],
         }),
         animate(triggerOpacity, interrupted ? [triggerOpacity.get(), 1] : [triggerOpacity.get(), 0, 0.2, 0.94, 1, 1], {
-          duration: CLOSE_FUSION_DURATION,
+          duration: transitionDuration,
           times: interrupted ? [0, 1] : CLOSE_FUSION_TIMES,
           ease: interrupted ? RELEASE_EASE : CLOSE_FUSION_EASES,
         }),
@@ -895,17 +893,17 @@ export function LiquidGlassDemo({
         ]),
         morph(buttonHalf, buttonFrames, true),
         animate(buttonDepth, [buttonDepth.get(), 10, 14, 18, 22, buttonTarget.depth], {
-          duration: CLOSE_FUSION_DURATION,
+          duration: transitionDuration,
           times: CLOSE_FUSION_TIMES,
           ease: CLOSE_FUSION_EASES,
         }),
         animate(buttonTintOpacity, [buttonTintOpacity.get(), 0, 0.03, 0.075, 0.12, buttonTarget.tint], {
-          duration: CLOSE_FUSION_DURATION,
+          duration: transitionDuration,
           times: CLOSE_FUSION_TIMES,
           ease: CLOSE_FUSION_EASES,
         }),
         animate(buttonZoom, [buttonZoom.get(), 1, 1.35, 1.55, 1.48, buttonTarget.zoom], {
-          duration: CLOSE_FUSION_DURATION,
+          duration: transitionDuration,
           times: CLOSE_FUSION_TIMES,
           ease: CLOSE_FUSION_EASES,
         }),
@@ -918,7 +916,7 @@ export function LiquidGlassDemo({
     if (restoreFocus) {
       const focusDelay = reduceMotion
         ? 0
-        : CLOSE_FUSION_DURATION * 1000 + 32;
+        : transitionDuration * 1000 + 32;
       focusTimer.current = window.setTimeout(() => {
         focusTimer.current = null;
         if (!openRef.current) triggerRef.current?.focus({ preventScroll: true });
