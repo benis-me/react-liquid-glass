@@ -221,11 +221,11 @@ test("liquid work uses one internal smooth-union compositor for its full lifecyc
   assert.match(liquidCanvasSource, /float specular = min\(1\., glow\)/);
   assert.match(liquidCanvasSource, /vec2 edgeGradient = vec2\(dFdx\(distance\), dFdy\(distance\)\)/);
   assert.match(liquidCanvasSource, /float edgeLight = pow\(clamp\(abs\(dot\(edgeGradient, light\)\) \/ max\(length\(edgeGradient\), \.001\), 0\., 1\.\), uEdgeExponent\)/);
-  assert.match(liquidCanvasSource, /float contour = 1\. - smoothstep\(0\., edgeWidth \* mix\(\.52, \.65, edgeLight\), inside\)/);
+  assert.match(liquidCanvasSource, /float contour = 1\. - smoothstep\(0\., edgeWidth \* mix\(\.48, \.65, edgeLight\), inside\)/);
   assert.match(liquidCanvasSource, /float reflection = smoothstep\(edgeWidth \* \.45, edgeWidth \* \.85, inside\)/);
   assert.match(liquidCanvasSource, /1\. - smoothstep\(edgeWidth \* \.85, edgeWidth \* 2\., inside\)/);
   assert.match(liquidCanvasSource, /float reflectionLight = smoothstep\(\.75, \.98, edgeLight\)/);
-  assert.match(liquidCanvasSource, /min\(\.85, edgeGain \* 3\.2\) \* mix\(\.9, \.24, edgeLight\)/);
+  assert.match(liquidCanvasSource, /min\(\.85, edgeGain \* 3\.2\) \* mix\(\.85, \.24, edgeLight\)/);
   assert.match(liquidCanvasSource, /refracted \*= 1\. - contour \* contourStrength/);
   assert.match(liquidCanvasSource, /refracted \+= vec3\(reflection \* reflectionLight \* edgeGain \* \.22\)/);
   assert.match(liquidCanvasSource, /refracted \* \(1\. - shine\)/);
