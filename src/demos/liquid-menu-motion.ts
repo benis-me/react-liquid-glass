@@ -38,7 +38,8 @@ export function retargetLiquidFrames(start: number, target: number, duration: nu
 }
 
 export const OPEN_MORPH_TIMES = [0, 0.06, 0.28, 0.6, 1];
-export const CLOSE_FUSION_TIMES = [0, 0.08, 0.41, 0.6, 0.76, 1];
+// Defocus/bunch -> anchored head and neck -> two-lobed absorption -> one impact.
+export const CLOSE_FUSION_TIMES = [0, 0.14, 0.48, 0.7, 0.84, 1];
 
 export function openWidthFrames(start: number, target: number) {
   return [start, Math.min(28, start), target * 0.86, target * 1.012, target];
@@ -53,19 +54,19 @@ export function openRadiusFrames(start: number, target: number, width: number, h
 }
 
 export function closeMenuWidthFrames(start: number) {
-  return [start, start * 0.994, start * 0.6, 38, 6, 1];
+  return [start, start * 0.985, start * 0.4, 32, 6, 1];
 }
 
 export function closeMenuHeightFrames(start: number) {
-  return [start, start * 1.012, start * 0.38, 48, 6, 1];
+  return [start, start * 1.008, start * 0.25, 41, 6, 1];
 }
 
 export function closeMenuRadiusFrames(start: number, width: number, height: number) {
-  return [start, Math.min(width * 0.46, height * 0.46), Math.min(width * 0.6, height * 0.38) * 0.96, 38, 6, 1];
+  return [start, Math.min(width, height) * 0.37, Math.min(width * 0.4, height * 0.25) * 0.98, 32, 6, 1];
 }
 
 export function closeButtonFrames(start: number) {
-  return [start, 1, 6, 28, 34.6, 34];
+  return [start, 1, 16, 33, 34.6, 34];
 }
 
 /** Content optics follow actual shape recovery, independently of the opacity reveal. */

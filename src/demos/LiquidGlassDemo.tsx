@@ -380,6 +380,7 @@ export function LiquidGlassDemo({
   const reveal = useMotionValue(0);
   const contentActive = useMotionValue(0);
   const contentRevision = useMotionValue(0);
+  const closingBlur = useMotionValue(0);
   const contentOpacity = useTransform([reveal, contentActive], ([opacity, active]: number[]) => opacity * active);
   const domContentOpacity = useTransform([reveal, contentActive], ([opacity, active]: number[]) => opacity * (1 - active));
   const triggerOpacity = useMotionValue(1);
@@ -417,7 +418,7 @@ export function LiquidGlassDemo({
   const contentOptics = useTransform([halfWidth, halfHeight, cornerRadius], (values) =>
     liquidContentOptics(values as number[], menuLayout(stageSizeRef.current.width, stageSizeRef.current.height)));
   const contentRefraction = useTransform(contentOptics, (optics) => optics.refraction);
-  const contentBlur = useTransform(contentOptics, (optics) => optics.blur);
+  const contentBlur = useTransform(() => Math.max(contentOptics.get().blur, closingBlur.get()));
   const contentFilter = useTransform(contentBlur, (blur) => `blur(${blur}px)`);
   const fusionBlobs = useMemo(
     () => [
@@ -706,6 +707,7 @@ export function LiquidGlassDemo({
       buttonVelocityY.jump(0);
       mergeDistance.jump(0);
       contentActive.jump(0);
+      closingBlur.jump(0);
       animations.current = [];
     };
 
@@ -785,6 +787,7 @@ export function LiquidGlassDemo({
           times: [0, 0.06, 0.62, 1],
           ease: OPEN_MORPH_EASES,
         }),
+        animate(closingBlur, 0, { duration: 0.16, ease: RELEASE_EASE }),
         animate(triggerOpacity, 0, {
           duration: 0.1,
           ease: PRESS_EASE,
@@ -805,19 +808,20 @@ export function LiquidGlassDemo({
       const heightFrames = closeMenuHeightFrames(heightStart);
       const buttonFrames = closeButtonFrames(buttonHalf.get());
       const impact = closeImpactVector(layout);
+      // Let the anchored head lead outside the body before their lobes overlap.
       const approachCenter = closeContactCenter(
         layout,
         widthFrames[2],
         heightFrames[2],
         buttonFrames[2],
-        -12,
+        21,
       );
       const contactCenter = closeContactCenter(
         layout,
         widthFrames[3],
         heightFrames[3],
         buttonFrames[3],
-        -20,
+        -8,
       );
       const buttonBaseX = layout.triggerCenterX / size.width;
       const buttonBaseY = layout.triggerCenterY / size.height;
@@ -860,17 +864,19 @@ export function LiquidGlassDemo({
           times: CLOSE_FUSION_TIMES,
           ease: CLOSE_FUSION_EASES,
         }),
-        animate(reveal, [reveal.get(), reveal.get() * 0.92, reveal.get() * 0.46, 0], {
+        // Ink loses focus while the body is still large; the glass gathers afterwards.
+        animate(closingBlur, 3.2, { duration: 0.08, ease: PRESS_EASE }),
+        animate(reveal, [reveal.get(), reveal.get() * 0.3, reveal.get() * 0.02, 0], {
           duration: CLOSE_CONTENT_DURATION,
-          times: [0, 0.25, 0.72, 1],
+          times: [0, 0.28, 0.52, 1],
           ease: [PRESS_EASE, cubicBezier(0.3, 0, 0.45, 0.7), RELEASE_EASE],
         }),
-        animate(triggerOpacity, interrupted ? [triggerOpacity.get(), 1] : [triggerOpacity.get(), 0, 0.18, 0.64, 1, 1], {
+        animate(triggerOpacity, interrupted ? [triggerOpacity.get(), 1] : [triggerOpacity.get(), 0, 0.2, 0.94, 1, 1], {
           duration: CLOSE_FUSION_DURATION,
           times: interrupted ? [0, 1] : CLOSE_FUSION_TIMES,
           ease: interrupted ? RELEASE_EASE : CLOSE_FUSION_EASES,
         }),
-        morph(triggerScale, [triggerScale.get(), 0.25, 0.48, 0.82, 1.02, 1]),
+        morph(triggerScale, [triggerScale.get(), 0.25, 0.47, 0.97, 1.02, 1]),
         morph(buttonCenterX, [
           buttonCenterX.get(),
           buttonBaseX,
@@ -903,7 +909,7 @@ export function LiquidGlassDemo({
           times: CLOSE_FUSION_TIMES,
           ease: CLOSE_FUSION_EASES,
         }),
-        morph(mergeDistance, [mergeDistance.get(), 0, 32, 32, 2, 0]),
+        morph(mergeDistance, [mergeDistance.get(), 0, 40, 28, 2, 0]),
       ];
     }
 
@@ -933,6 +939,7 @@ export function LiquidGlassDemo({
     clearFocusTimer,
     captureContent,
     contentActive,
+    closingBlur,
     cornerRadius,
     depth,
     halfHeight,
