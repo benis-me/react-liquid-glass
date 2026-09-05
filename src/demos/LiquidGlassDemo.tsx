@@ -33,6 +33,7 @@ import {
 import type { Locale } from "../i18n";
 import type { LensParams } from "../lib";
 import { LiquidGlassCanvas } from "../lib/LiquidGlassCanvas";
+import { paintLiquidMenuContent } from "./liquid-menu-content";
 import {
   CLOSE_FUSION_TIMES,
   OPEN_MORPH_TIMES,
@@ -41,6 +42,7 @@ import {
   closeMenuRadiusFrames,
   closeMenuWidthFrames,
   liquidContentPose,
+  liquidContentOptics,
   liquidEasings,
   openHeightFrames,
   openRadiusFrames,
@@ -350,6 +352,8 @@ export function LiquidGlassDemo({
   const stageRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const fusionSourceRef = useRef<HTMLCanvasElement>(null);
+  const contentSourceRef = useRef<HTMLCanvasElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const stageSizeRef = useRef<StageSize>({ width: 1, height: 1 });
   const animations = useRef<AnimationControl[]>([]);
   const transitionRevision = useRef(0);
@@ -374,6 +378,10 @@ export function LiquidGlassDemo({
   const tintOpacity = useMotionValue(0.16);
   const zoom = useMotionValue(1.35);
   const reveal = useMotionValue(0);
+  const contentActive = useMotionValue(0);
+  const contentRevision = useMotionValue(0);
+  const contentOpacity = useTransform([reveal, contentActive], ([opacity, active]: number[]) => opacity * active);
+  const domContentOpacity = useTransform([reveal, contentActive], ([opacity, active]: number[]) => opacity * (1 - active));
   const triggerOpacity = useMotionValue(1);
   const triggerScale = useMotionValue(1);
   const buttonCenterX = useMotionValue(0.5);
@@ -406,7 +414,11 @@ export function LiquidGlassDemo({
     blendMaterialValue,
   );
   const materialZoom = useTransform([materialProgress, zoom, buttonZoom], blendMaterialValue);
-  const contentFilter = useTransform(reveal, (opacity) => `blur(${(1 - opacity) * 2}px)`);
+  const contentOptics = useTransform([halfWidth, halfHeight, cornerRadius], (values) =>
+    liquidContentOptics(values as number[], menuLayout(stageSizeRef.current.width, stageSizeRef.current.height)));
+  const contentRefraction = useTransform(contentOptics, (optics) => optics.refraction);
+  const contentBlur = useTransform(contentOptics, (optics) => optics.blur);
+  const contentFilter = useTransform(contentBlur, (blur) => `blur(${blur}px)`);
   const fusionBlobs = useMemo(
     () => [
       {
@@ -451,6 +463,27 @@ export function LiquidGlassDemo({
   );
   const contentTransform = useTransform(contentPose, (pose) => pose.transform);
   const contentClip = useTransform(contentPose, (pose) => pose.clipPath);
+
+  const captureContent = useCallback(() => {
+    const panel = panelRef.current;
+    const canvas = contentSourceRef.current;
+    if (!panel || !canvas) return false;
+    try {
+      if (!paintLiquidMenuContent(panel, canvas)) return false;
+    } catch (error) {
+      console.warn("Liquid menu content capture failed; retaining DOM content.", error);
+      return false;
+    }
+    contentRevision.set(contentRevision.get() + 1);
+    return true;
+  }, [contentRevision]);
+  const refreshMovingContent = useCallback(() => {
+    if (contentActive.get()) captureContent();
+  }, [captureContent, contentActive]);
+
+  useEffect(() => {
+    if (contentActive.get()) captureContent();
+  }, [captureContent, contentActive, filters, locale, sort, stageSize, theme]);
 
   useEffect(() => {
     const canvas = fusionSourceRef.current;
@@ -597,6 +630,8 @@ export function LiquidGlassDemo({
   const setExpanded = useCallback((nextOpen: boolean, restoreFocus = false) => {
     if (openRef.current === nextOpen) return;
     const interrupted = transitioningRef.current;
+    // Snapshot only at a transition boundary; every animated frame reuses the texture.
+    if (!reduceMotion && !interrupted) contentActive.set(captureContent() ? 1 : 0);
     clearFocusTimer();
     stopAnimations();
     const revision = transitionRevision.current;
@@ -670,6 +705,7 @@ export function LiquidGlassDemo({
       buttonVelocityX.jump(0);
       buttonVelocityY.jump(0);
       mergeDistance.jump(0);
+      contentActive.jump(0);
       animations.current = [];
     };
 
@@ -895,6 +931,8 @@ export function LiquidGlassDemo({
     centerX,
     centerY,
     clearFocusTimer,
+    captureContent,
+    contentActive,
     cornerRadius,
     depth,
     halfHeight,
@@ -966,9 +1004,15 @@ export function LiquidGlassDemo({
         className="dg-liquid-menu__fusion-source"
         aria-hidden="true"
       />
+      <canvas ref={contentSourceRef} className="dg-liquid-menu__fusion-source" aria-hidden="true" />
       <div className="dg-liquid-menu__fusion-layer" aria-hidden="true">
         <LiquidGlassCanvas
           sourceRef={fusionSourceRef}
+          contentRef={contentSourceRef}
+          contentRevision={contentRevision}
+          contentOpacity={contentOpacity}
+          contentRefraction={contentRefraction}
+          contentBlur={contentBlur}
           width={stageSize.width}
           height={stageSize.height}
           blobs={fusionBlobs}
@@ -1031,8 +1075,12 @@ export function LiquidGlassDemo({
       </motion.button>
 
       <motion.div
+        ref={panelRef}
         id={menuId}
         className="dg-liquid-menu__panel"
+        onScrollCapture={refreshMovingContent}
+        onFocusCapture={refreshMovingContent}
+        onBlurCapture={refreshMovingContent}
         role="menu"
         aria-label={text.menu}
         aria-hidden={!open}
@@ -1043,7 +1091,7 @@ export function LiquidGlassDemo({
           width: layout.panelWidth,
           height: layout.panelHeight,
           borderRadius: layout.panelRadius,
-          opacity: reveal,
+          opacity: domContentOpacity,
           transform: contentTransform,
           transformOrigin: "0 0",
           filter: contentFilter,

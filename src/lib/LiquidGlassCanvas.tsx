@@ -23,6 +23,12 @@ export interface LiquidGlassBlob {
 
 export interface LiquidGlassCanvasProps {
   sourceRef: RefObject<HTMLCanvasElement | HTMLImageElement | null>;
+  /** Optional foreground ink, sampled in the first blob's moving local coordinates. */
+  contentRef?: RefObject<HTMLCanvasElement | null>;
+  contentRevision?: MotionInput;
+  contentOpacity?: MotionInput;
+  contentRefraction?: MotionInput;
+  contentBlur?: MotionInput;
   width: number;
   height: number;
   blobs: readonly LiquidGlassBlob[];
@@ -72,6 +78,10 @@ in vec2 vUv;
 out vec4 outputColor;
 
 uniform sampler2D uSource;
+uniform sampler2D uContent;
+uniform float uContentOpacity;
+uniform float uContentRefraction;
+uniform float uContentBlur;
 uniform vec2 uSourceSize;
 uniform vec3 uBlobs[4];
 uniform vec2 uHalfSize[4];
@@ -187,6 +197,12 @@ vec3 sampleGlass(vec2 uv, vec2 displacement) {
   return frosted;
 }
 
+vec4 sampleContent(vec2 uv) {
+  if (any(lessThan(uv, vec2(0.))) || any(greaterThan(uv, vec2(1.)))) return vec4(0.);
+  // Prefilter glyphs instead of spacing discrete taps far enough to duplicate strokes.
+  return texture(uContent, uv, log2(1. + uContentBlur * 2.));
+}
+
 void main() {
   vec4 raw = texture(uSource, vUv);
   if (uBlobCount < 1) {
@@ -291,6 +307,16 @@ void main() {
   vec3 brightnessTarget = uBrightness >= 0. ? vec3(1.) : vec3(0.);
   refracted = mix(refracted, brightnessTarget, brightnessAmount);
   refracted = mix(refracted, uTintColor, clamp(uTint, 0., 1.));
+  if (uContentOpacity > .001) {
+    vec2 extent = max(uHalfSize[0] * 2., vec2(1.));
+    vec2 local = movingBlobLocal(point, uBlobs[0], uVelocity[0]);
+    // Reuse the live merged optical field; only the peripheral ink is stretched.
+    float edgeFocus = 1. - smoothstep(0., max(uDepth * 2., 1.), inside);
+    vec2 contentUv = .5 + (local - displacement * uSourceSize * .42 * uContentRefraction * edgeFocus) / extent;
+    vec4 ink = sampleContent(contentUv);
+    // Premultiplied ink avoids dark fringes as transparent glyph edges are blurred.
+    refracted = refracted * (1. - ink.a * uContentOpacity) + ink.rgb * uContentOpacity;
+  }
   color = mix(raw.rgb, refracted, coverage);
   outputColor = vec4(color, raw.a);
 }`;
@@ -319,6 +345,11 @@ function createTexture(gl: WebGL2RenderingContext) {
 
 export function LiquidGlassCanvas({
   sourceRef,
+  contentRef,
+  contentRevision = 0,
+  contentOpacity = 0,
+  contentRefraction = 0,
+  contentBlur = 0,
   width,
   height,
   blobs,
@@ -350,7 +381,11 @@ export function LiquidGlassCanvas({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawRef = useRef<() => void>(() => undefined);
   const textureDirtyRef = useRef(true);
+  const contentDirtyRef = useRef(true);
   const configRef = useRef({
+    contentOpacity,
+    contentRefraction,
+    contentBlur,
     width,
     height,
     blobs,
@@ -375,6 +410,9 @@ export function LiquidGlassCanvas({
     shadowStrength,
   });
   configRef.current = {
+    contentOpacity,
+    contentRefraction,
+    contentBlur,
     width,
     height,
     blobs,
@@ -448,7 +486,17 @@ export function LiquidGlassCanvas({
     gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
 
     const texture = createTexture(gl);
+    gl.activeTexture(gl.TEXTURE1);
+    const contentTexture = createTexture(gl);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
+    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.activeTexture(gl.TEXTURE0);
     const uniforms = {
+      content: gl.getUniformLocation(program, "uContent"),
+      contentOpacity: gl.getUniformLocation(program, "uContentOpacity"),
+      contentRefraction: gl.getUniformLocation(program, "uContentRefraction"),
+      contentBlur: gl.getUniformLocation(program, "uContentBlur"),
       source: gl.getUniformLocation(program, "uSource"),
       sourceSize: gl.getUniformLocation(program, "uSourceSize"),
       blobs: gl.getUniformLocation(program, "uBlobs[0]"),
@@ -478,7 +526,9 @@ export function LiquidGlassCanvas({
       shadow: gl.getUniformLocation(program, "uShadow"),
     };
     gl.uniform1i(uniforms.source, 0);
+    gl.uniform1i(uniforms.content, 1);
     textureDirtyRef.current = true;
+    contentDirtyRef.current = true;
 
     const blobData = new Float32Array(MAX_BLOBS * 3);
     const halfSizeData = new Float32Array(MAX_BLOBS * 2);
@@ -500,6 +550,21 @@ export function LiquidGlassCanvas({
           return;
         }
         textureDirtyRef.current = false;
+      }
+
+      const content = contentRef?.current;
+      if (contentDirtyRef.current && content && content.width > 0 && content.height > 0) {
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, contentTexture);
+        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+        try {
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, content);
+          gl.generateMipmap(gl.TEXTURE_2D);
+          contentDirtyRef.current = false;
+        } finally {
+          gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+          gl.activeTexture(gl.TEXTURE0);
+        }
       }
 
       blobData.fill(0);
@@ -531,6 +596,9 @@ export function LiquidGlassCanvas({
 
       gl.viewport(0, 0, renderWidth, renderHeight);
       gl.uniform2f(uniforms.sourceSize, config.width, config.height);
+      gl.uniform1f(uniforms.contentOpacity, readMotion(config.contentOpacity));
+      gl.uniform1f(uniforms.contentRefraction, readMotion(config.contentRefraction));
+      gl.uniform1f(uniforms.contentBlur, readMotion(config.contentBlur));
       gl.uniform3fv(uniforms.blobs, blobData);
       gl.uniform2fv(uniforms.halfSize, halfSizeData);
       gl.uniform1fv(uniforms.cornerRadius, cornerRadiusData);
@@ -570,12 +638,13 @@ export function LiquidGlassCanvas({
       cancelFrame(drawFrame);
       drawRef.current = () => undefined;
       gl.deleteTexture(texture);
+      gl.deleteTexture(contentTexture);
       gl.deleteBuffer(buffer);
       gl.deleteProgram(program);
       gl.deleteShader(vertex);
       gl.deleteShader(fragment);
     };
-  }, [drawFrame, renderHeight, renderWidth, scheduleDraw, sourceRef]);
+  }, [contentRef, drawFrame, renderHeight, renderWidth, scheduleDraw, sourceRef]);
 
   useEffect(() => {
     const unsubscribe: Array<() => void> = [];
@@ -597,6 +666,9 @@ export function LiquidGlassCanvas({
       unsubscribe.push(mergeDistance.on("change", scheduleDraw));
     }
     for (const value of [
+      contentOpacity,
+      contentRefraction,
+      contentBlur,
       refractionStrength,
       specularStrength,
       blurStrength,
@@ -610,6 +682,9 @@ export function LiquidGlassCanvas({
     scheduleDraw();
     return () => unsubscribe.forEach((stop) => stop());
   }, [
+    contentOpacity,
+    contentRefraction,
+    contentBlur,
     blobs,
     blurStrength,
     edgeDepth,
@@ -629,7 +704,16 @@ export function LiquidGlassCanvas({
     scheduleDraw();
   }, [sourceRevision, scheduleDraw]);
 
+  useEffect(() => {
+    const invalidate = () => { contentDirtyRef.current = true; scheduleDraw(); };
+    invalidate();
+    if (isMotionValue(contentRevision)) return contentRevision.on("change", invalidate);
+  }, [contentRevision, scheduleDraw]);
+
   useEffect(scheduleDraw, [
+    contentOpacity,
+    contentRefraction,
+    contentBlur,
     width,
     height,
     mergeDistance,

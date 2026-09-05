@@ -14,6 +14,7 @@ import {
   closeMenuRadiusFrames,
   closeButtonFrames,
   liquidContentPose,
+  liquidContentOptics,
   retargetLiquidFrames,
 } from "../src/demos/liquid-menu-motion.ts";
 import {
@@ -378,7 +379,7 @@ test("liquid menu keeps one core-compatible Canvas material over the centered gr
   assert.doesNotMatch(liquidDemoSource, /overlay=|opticalOpacity|dg-liquid-menu__optical/);
   assert.match(liquidDemoSource, /const contentPose = useTransform\([\s\S]*liquidContentPose\(values as number\[\]/s);
   assert.match(liquidDemoSource, /transform: contentTransform,\s*transformOrigin: "0 0"/);
-  assert.match(liquidDemoSource, /const contentFilter = useTransform\(reveal/);
+  assert.match(liquidDemoSource, /const contentFilter = useTransform\(contentBlur/);
   assert.match(liquidDemoSource, /const contentClip = useTransform\(/);
   assert.match(liquidDemoSource, /clipPath: contentClip/);
   assert.match(liquidDemoSource, /animate\(reveal, \[reveal\.get\(\), reveal\.get\(\), Math\.max\(reveal\.get\(\), 0\.94\), 1\]/);
@@ -419,6 +420,30 @@ test("liquid menu keeps one core-compatible Canvas material over the centered gr
   assert.doesNotMatch(demoStylesSource, /\.dg-liquid-menu__panel::after/);
   assert.doesNotMatch(liquidDemoSource, /OPEN_WIDTH_SPRING|OPEN_HEIGHT_SPRING|deformation|renderedHalf/);
   assert.doesNotMatch(liquidDemoSource, /dragConstraints|dragMomentum|onDragStart|onDragEnd|movingTrail/);
+});
+
+test("liquid content refraction and blur follow shape, with a neutral settled endpoint", () => {
+  const layout = { panelWidth: 404, panelHeight: 748, panelRadius: 44 };
+  assert.deepEqual(liquidContentOptics([202, 374, 44], layout), { refraction: 0, blur: 0 });
+  const capsule = liquidContentOptics([190, 270, 190], layout);
+  const recovering = liquidContentOptics([203, 376, 48], layout);
+  assert.ok(capsule.refraction > recovering.refraction && capsule.blur > recovering.blur);
+  assert.ok(recovering.refraction > 0 && recovering.blur > 0);
+  for (const shape of [[1, 1, 1], [34, 34, 34], [190, 270, 190], [202, 374, 44]]) {
+    const optics = liquidContentOptics(shape, layout);
+    assert.ok(optics.refraction >= 0 && optics.refraction <= 1);
+    assert.ok(optics.blur >= 0 && optics.blur <= 2.4);
+  }
+  assert.match(liquidDemoSource, /contentRevision\.set\(contentRevision\.get\(\) \+ 1\)/);
+  assert.match(liquidDemoSource, /!reduceMotion && !interrupted/);
+  assert.match(liquidDemoSource, /contentActive\.jump\(0\)/);
+  assert.match(liquidDemoSource, /opacity: domContentOpacity/);
+  assert.match(liquidCanvasSource, /local - displacement \* uSourceSize \* \.42 \* uContentRefraction \* edgeFocus/);
+  assert.match(liquidCanvasSource, /texture\(uContent, uv, log2\(1\. \+ uContentBlur \* 2\.\)\)/);
+  assert.match(liquidCanvasSource, /gl\.LINEAR_MIPMAP_LINEAR/);
+  assert.match(liquidCanvasSource, /UNPACK_PREMULTIPLY_ALPHA_WEBGL, true/);
+  assert.match(liquidCanvasSource, /contentRevision\.on\("change", invalidate\)/);
+  assert.ok(liquidCanvasSource.indexOf("refracted = refracted * (1. - ink.a") < liquidCanvasSource.indexOf("color = mix(raw.rgb, refracted, coverage)"));
 });
 
 test("liquid shape trajectories stay round early, gather on close, and preserve knot velocity", () => {

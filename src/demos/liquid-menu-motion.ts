@@ -68,6 +68,19 @@ export function closeButtonFrames(start: number) {
   return [start, 1, 6, 28, 34.6, 34];
 }
 
+/** Content optics follow actual shape recovery, independently of the opacity reveal. */
+export function liquidContentOptics(
+  [halfWidth, halfHeight, radius]: number[],
+  layout: { panelWidth: number; panelHeight: number; panelRadius: number },
+) {
+  const shape = Math.min(1, Math.max(
+    Math.abs(1 - halfWidth * 2 / layout.panelWidth),
+    Math.abs(1 - halfHeight * 2 / layout.panelHeight),
+    Math.abs(radius - layout.panelRadius) / Math.max(1, layout.panelWidth / 2),
+  ));
+  return { refraction: Math.min(1, shape * 2.4), blur: Math.min(2.4, shape * 4) };
+}
+
 /** Map the panel's content and clip into the same moving rounded body as the SDF. */
 export function liquidContentPose(
   [right, bottom, halfWidth, halfHeight, radius, velocityX, velocityY]: number[],
