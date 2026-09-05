@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { animate, cancelFrame, frame, useMotionValue, useReducedMotion, useTransform, type MotionValue } from "motion/react";
+import { animate, cancelFrame, frame, useMotionValue, useReducedMotion, useTransform, type MotionValue, type AnimationPlaybackControlsWithThen } from "motion/react";
 import { liquidEasings, retargetLiquidFrames } from "./trajectory";
 import { TRIGGER_RADIUS, MIN_LENS_HALF, OPEN_MORPH_DURATION, OPEN_CONTENT_DURATION, CLOSE_CONTENT_DURATION, CLOSE_FUSION_DURATION, CLOSE_IMPACT_DISTANCE, OPEN_MORPH_EASES, CLOSE_FUSION_EASES, PRESS_EASE, RELEASE_EASE, OPEN_MORPH_TIMES, CLOSE_FUSION_TIMES, openWidthFrames, openHeightFrames, openRadiusFrames, closeMenuWidthFrames, closeMenuHeightFrames, closeMenuRadiusFrames, closeButtonFrames } from "./menu";
 import { cubicBezier } from "motion";
@@ -23,9 +23,7 @@ export interface MenuLayout {
   triggerTop: number;
 }
 
-export interface AnimationControl {
-  stop: () => void;
-}
+export type AnimationControl = Pick<AnimationPlaybackControlsWithThen, "stop" | "then">;
 
 function clamp(value: number, min: number, max: number) { return Math.min(max, Math.max(min, value)); }
 

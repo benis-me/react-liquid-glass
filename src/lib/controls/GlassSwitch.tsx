@@ -55,7 +55,7 @@ export function GlassSwitch({
 
   const offset = useMotionValue(current ? travel : 0);
   const x = useTransform(offset, (position) => (padding + inset + thumbWidth / 2 + position) / filterWidth);
-  const { lensW, lensH, radius, tintOpacity, targetScaleX, targetScaleY, tintBlur, shadowOpacity, deformationBoost, deformationWake, expand, collapse } = useThumbMotion(offset, halfThumbWidth, halfThumbHeight, restTintBlur);
+  const { lensW, lensH, radius, tintOpacity, targetScaleX, targetScaleY, tintBlur, shadowOpacity, setDeformationBoost, expand, collapse } = useThumbMotion(offset, halfThumbWidth, halfThumbHeight, restTintBlur);
 
   const rootRef = useRef<HTMLLabelElement>(null);
   const thumbRef = useRef<HTMLDivElement>(null);
@@ -100,7 +100,7 @@ export function GlassSwitch({
     holdTimer.current = null;
     dragged.current = false;
     mode.current = "idle";
-    deformationBoost.current = 0;
+    setDeformationBoost(0);
     suppressNative.current = false;
     collapse();
     travelAnimation.current?.stop();
@@ -199,8 +199,7 @@ export function GlassSwitch({
                     mode.current = "hold";
                     travelAnimation.current?.stop();
                     expand();
-                    deformationBoost.current = 0.175;
-                    deformationWake.current();
+                    setDeformationBoost(0.175);
                   }
                 }, 200);
               }}
@@ -214,7 +213,7 @@ export function GlassSwitch({
                   offsetStart.current = offset.get();
                   pointerStart.current = event.clientX;
                   if (holdTimer.current !== null) clearTimeout(holdTimer.current);
-                  deformationBoost.current = 0;
+                  setDeformationBoost(0);
                   if (mode.current !== "hold") { mode.current = "hold"; expand(); }
                 }
                 let next = offsetStart.current + (event.clientX - pointerStart.current);
@@ -230,7 +229,7 @@ export function GlassSwitch({
                 if (dragged.current) {
                   mode.current = "idle";
                   collapse();
-                  deformationBoost.current = 0;
+                  setDeformationBoost(0);
                   const next = Math.max(0, Math.min(travel, offset.get())) > travel / 2;
                   travelAnimation.current = animate(offset, next ? travel : 0, travelTransition);
                   if (next !== current) emit(next);
@@ -248,7 +247,7 @@ export function GlassSwitch({
                   });
                 } else {
                   mode.current = "idle";
-                  deformationBoost.current = 0;
+                  setDeformationBoost(0);
                   collapse();
                   travelAnimation.current = animate(offset, current ? travel : 0, travelTransition);
                   requestAnimationFrame(() => { suppressNative.current = false; });
@@ -272,4 +271,3 @@ export function GlassSwitch({
     </label>
   );
 }
-

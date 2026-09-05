@@ -1,11 +1,13 @@
 import { useEffect, useRef } from "react";
-import { animate, type MotionValue } from "motion/react";
+import { animate, cancelFrame, frame, useMotionValue, type MotionValue } from "motion/react";
 import { motionValue, type WritableMotionValue } from "../shared/values";
-import type { PhysicalSpring } from "./spring";
+import { stepSpring, type PhysicalSpring } from "./spring";
 
 export type SpringRun = { stop: () => void; finished: Promise<void> };
 
 export function springTo(value: MotionValue<number>, target: number, config: PhysicalSpring): SpringRun {
+  let finish!: () => void;
+  const finished = new Promise<void>(resolve => { finish = resolve; });
   const distance = Math.abs(target - value.get());
   const animation = animate(value, target, {
     type: "spring",
@@ -14,9 +16,10 @@ export function springTo(value: MotionValue<number>, target: number, config: Phy
     restDelta: Math.max(0.0005, distance * 0.001),
     restSpeed: Math.max(0.01, distance * 0.025),
   });
+  void animation.then(finish, finish);
   return {
-    stop: () => animation.stop(),
-    finished: animation.then(() => undefined, () => undefined),
+    stop: () => { animation.stop(); finish(); },
+    finished,
   };
 }
 
@@ -84,7 +87,7 @@ export function useVelocityDeformation(
 ) {
   const configRef = useRef(config);
   configRef.current = config;
-  const deformation = useRef(motionValue(0)).current;
+  const deformation = useMotionValue(0);
   const boostRef = useRef(0);
   const velocityImpulseRef = useRef(0);
   const wakeRef = useRef<() => void>(() => undefined);
@@ -98,18 +101,16 @@ export function useVelocityDeformation(
   }).current;
 
   useEffect(() => {
-    let frame = 0;
     let running = false;
     let previousTime = 0;
     let previousPosition = source.get();
     let position = deformation.get();
     let velocity = 0;
-    const tick = (now: number) => {
-      const elapsed = previousTime === 0 ? 1 / 60 : (now - previousTime) / 1_000;
-      const dt = Math.min(elapsed, 0.033);
+    const tick = ({ timestamp: now }: { timestamp: number }) => {
+      const elapsed = Math.max(0.000001, (now - previousTime) / 1_000);
       previousTime = now;
       const current = source.get();
-      const sourceVelocity = (current - previousPosition) / Math.min(Math.max(elapsed, 0.008), 0.03);
+      const sourceVelocity = (current - previousPosition) / elapsed;
       previousPosition = current;
       const options = configRef.current;
       const target = Math.max(options.target(Math.abs(sourceVelocity)), boostRef.current);
@@ -117,29 +118,26 @@ export function useVelocityDeformation(
       const damping = typeof options.damping === "function" ? options.damping() : options.damping;
       velocity += velocityImpulseRef.current;
       velocityImpulseRef.current = 0;
-      const acceleration = -stiffness * (position - target) - damping * velocity;
-      velocity += acceleration * dt;
-      position += velocity * dt;
+      [position, velocity] = stepSpring(position, velocity, target, { mass: 1, stiffness, damping }, elapsed);
       deformation.set(position);
-      if (Math.abs(position) < 0.0005 && Math.abs(velocity) < 0.005 && Math.abs(sourceVelocity) < 0.005 && boostRef.current === 0) {
+      if (position === target && velocity === 0 && Math.abs(sourceVelocity) < 0.005) {
         running = false;
-        deformation.set(0);
-        return;
+        cancelFrame(tick);
       }
-      frame = requestAnimationFrame(tick);
     };
     const wake = () => {
       if (running) return;
       running = true;
       previousTime = performance.now();
+      previousPosition = source.get();
       position = deformation.get();
-      frame = requestAnimationFrame(tick);
+      frame.update(tick, true);
     };
     wakeRef.current = wake;
     const unsubscribe = source.on("change", wake);
     return () => {
       unsubscribe();
-      cancelAnimationFrame(frame);
+      cancelFrame(tick);
       wakeRef.current = () => undefined;
     };
   }, [source, deformation]);

@@ -140,7 +140,7 @@ export function VideoGlassDemo({ locale }: { locale: Locale }) {
     const draw = (uploadVideo: boolean, now = performance.now()) => {
       if (!visible) return;
       if (video.readyState < 2 || !player.clientWidth || !player.clientHeight) return;
-      const elapsed = Math.min((now - previousDrawTime) / 1_000, 0.033);
+      const elapsed = Math.max(0, (now - previousDrawTime) / 1_000);
       previousDrawTime = now;
       const ratio = Math.min(2.5, 1.25 * (window.devicePixelRatio || 1));
       const width = player.clientWidth;
@@ -166,7 +166,7 @@ export function VideoGlassDemo({ locale }: { locale: Locale }) {
         if (button) button.style.transform = `scale(${scale})`;
       }
       const strengthTarget = strengthTargetRef.current;
-      strengthRef.current = Math.abs(strengthTarget - strengthRef.current) < 0.001 ? strengthTarget : strengthRef.current + (strengthTarget - strengthRef.current) * 0.18;
+      strengthRef.current = Math.abs(strengthTarget - strengthRef.current) < 0.001 ? strengthTarget : strengthRef.current + (strengthTarget - strengthRef.current) * (1 - 0.82 ** (elapsed * 60));
       [barStretchRef.current, barStretchVelocityRef.current] = stepSpring(
         barStretchRef.current,
         barStretchVelocityRef.current,

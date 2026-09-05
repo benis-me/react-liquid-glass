@@ -71,7 +71,7 @@ export function GlassSlider({
 
   const offset = useMotionValue(toOffset(current));
   const x = useTransform(offset, (position) => (padding + thumbWidth / 2 + position) / filterWidth);
-  const { lensW, lensH, radius, tintOpacity, targetScaleX, targetScaleY, tintBlur, shadowOpacity, deformationBoost, deformationWake, expand, collapse } = useThumbMotion(offset, halfThumbWidth, halfThumbHeight, restTintBlur);
+  const { lensW, lensH, radius, tintOpacity, targetScaleX, targetScaleY, tintBlur, shadowOpacity, setDeformationBoost, expand, collapse } = useThumbMotion(offset, halfThumbWidth, halfThumbHeight, restTintBlur);
 
   const wrapperRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -93,7 +93,7 @@ export function GlassSlider({
     dragging.current = false;
     pointerMoved.current = false;
     clickAnimation.current?.stop();
-    deformationBoost.current = 0;
+    setDeformationBoost(0);
     animate(offset, Math.max(0, Math.min(travel, offset.get())), releaseTransition);
     collapse();
   };
@@ -197,8 +197,7 @@ export function GlassSlider({
               pointerStart.current = event.clientX;
               offsetStart.current = offset.get();
               expand();
-              deformationBoost.current = 0.175;
-              deformationWake.current();
+              setDeformationBoost(0.175);
             }}
             onPointerMove={(event) => {
               if (event.pointerId !== pointerId.current) return;
@@ -220,7 +219,7 @@ export function GlassSlider({
               disarmPointerFallback();
               pointerId.current = null;
               dragging.current = false;
-              deformationBoost.current = 0;
+              setDeformationBoost(0);
               if (pointerMoved.current) {
                 animate(offset, Math.max(0, Math.min(travel, offset.get())), releaseTransition);
               }
@@ -249,4 +248,3 @@ export function GlassSlider({
     </div>
   );
 }
-
