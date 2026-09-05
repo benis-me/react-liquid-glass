@@ -12,7 +12,8 @@ import {
   closeMenuWidthFrames,
   closeMenuHeightFrames,
   closeMenuRadiusFrames,
-  closeButtonFrames,
+  liquidContentPose,
+  retargetLiquidFrames,
 } from "../src/demos/liquid-menu-motion.ts";
 import {
   DEFAULT_LENS_PARAMS,
@@ -282,8 +283,9 @@ test("liquid menu keeps one core-compatible Canvas material over the centered gr
   assert.match(liquidDemoSource, /const halfHeight = useMotionValue\(MIN_LENS_HALF\)/);
   assert.match(liquidDemoSource, /const cornerRadius = useMotionValue\(MIN_LENS_HALF\)/);
   assert.match(liquidDemoSource, /const buttonHalf = useMotionValue\(TRIGGER_RADIUS\)/);
-  assert.match(liquidDemoSource, /const buttonCenterX = useMotionValue\(0\.5\)/);
-  assert.match(liquidDemoSource, /const buttonCenterY = useMotionValue\(0\.5\)/);
+  assert.match(liquidDemoSource, /const lensHalfWidth = useTransform\(\[halfWidth, buttonHalf\]/);
+  assert.match(liquidDemoSource, /const lensHalfHeight = useTransform\(\[halfHeight, buttonHalf\]/);
+  assert.doesNotMatch(liquidDemoSource, /buttonCenter[XY]|buttonVelocity[XY]|closeButtonFrames/);
   assert.match(liquidDemoSource, /const triggerCenterX = clamp\(panelRight - 38/);
   assert.match(liquidDemoSource, /const triggerCenterY = clamp\(panelBottom - 38/);
   assert.match(liquidDemoSource, /const OPEN_MORPH_DURATION = 0\.38/);
@@ -304,14 +306,13 @@ test("liquid menu keeps one core-compatible Canvas material over the centered gr
   assert.match(liquidDemoSource, /morph\(halfHeight, heightFrames, true\)/);
   assert.match(liquidDemoSource, /ease: liquidEasings\(values, times, duration, velocity\)/);
   assert.match(liquidDemoSource, /const interrupted = transitioningRef\.current/);
-  assert.match(liquidDemoSource, /interrupted \? \[value\.get\(\), keyframes\[keyframes\.length - 1\]\]/);
-  assert.match(liquidDemoSource, /animate\(triggerOpacity, interrupted \? \[triggerOpacity\.get\(\), 1\] : \[triggerOpacity\.get\(\), 0, 0\.18, 0\.64, 1, 1\]/);
+  assert.match(liquidDemoSource, /retargetLiquidFrames\(value\.get\(\), keyframes\[keyframes\.length - 1\], duration, velocity\)/);
+  assert.match(liquidDemoSource, /animate\(triggerOpacity, interrupted \? \[triggerOpacity\.get\(\), 1\] : \[triggerOpacity\.get\(\), 0, 0, 0\.55, 1, 1\]/);
   assert.match(liquidDemoSource, /const impact = closeImpactVector\(layout\)/);
-  assert.match(liquidDemoSource, /const approachCenter = closeContactCenter\(\s*layout,\s*widthFrames\[2\],\s*heightFrames\[2\],\s*buttonFrames\[2\],\s*-12,/s);
-  assert.match(liquidDemoSource, /const contactCenter = closeContactCenter\(\s*layout,\s*widthFrames\[3\],\s*heightFrames\[3\],\s*buttonFrames\[3\],/s);
-  assert.match(liquidDemoSource, /const triggerOffsetX = useMotionValue\(0\)/);
-  assert.match(liquidDemoSource, /const triggerOffsetY = useMotionValue\(0\)/);
-  assert.match(liquidDemoSource, /const mergeDistance = useMotionValue\(0\)/);
+  assert.match(liquidDemoSource, /const approachCenter = closeContactCenter\(\s*layout,\s*widthFrames\[2\],\s*heightFrames\[2\],\s*MIN_LENS_HALF,\s*-12,/s);
+  assert.match(liquidDemoSource, /const contactCenter = closeContactCenter\(\s*layout,\s*widthFrames\[3\],\s*heightFrames\[3\],\s*MIN_LENS_HALF,\s*-TRIGGER_RADIUS,/s);
+  assert.match(liquidDemoSource, /const triggerOffsetX = useTransform\(centerX/);
+  assert.match(liquidDemoSource, /const triggerOffsetY = useTransform\(centerY/);
   assert.match(liquidDemoSource, /const transitioningRef = useRef\(false\)/);
   assert.match(liquidDemoSource, /const fusionBlobs = useMemo\(/);
   assert.match(liquidDemoSource, /const materialProgress = useTransform\(halfWidth/);
@@ -319,14 +320,13 @@ test("liquid menu keeps one core-compatible Canvas material over the centered gr
   assert.match(liquidDemoSource, /const materialDepth = useTransform\(\[materialProgress, depth, buttonDepth\], blendMaterialValue\)/);
   assert.match(liquidDemoSource, /\[materialProgress, tintOpacity, buttonTintOpacity\],[\s\S]*blendMaterialValue/s);
   assert.match(liquidDemoSource, /const materialZoom = useTransform\(\[materialProgress, zoom, buttonZoom\], blendMaterialValue\)/);
-  assert.match(liquidDemoSource, /morph\(triggerOffsetX, \[triggerOffsetX\.get\(\), 0, 0, 0, impact\.x, 0\]/);
-  assert.match(liquidDemoSource, /morph\(triggerOffsetY, \[triggerOffsetY\.get\(\), 0, 0, 0, impact\.y, 0\]/);
+  assert.doesNotMatch(liquidDemoSource, /morph\(triggerOffset[XY]/);
   assert.match(liquidDemoSource, /const finishTransition = \(\) => \{/);
   assert.match(liquidDemoSource, /transitioningRef\.current = false/);
   assert.match(liquidDemoSource, /Promise\.all\(animations\.current\)\.then\(finishTransition\)/);
   assert.doesNotMatch(liquidDemoSource, /Handoff|handoff|coreOpacity|fusionOpacity|stableShadow|stableSpecular/);
-  assert.match(liquidDemoSource, /morph\(mergeDistance, \[mergeDistance\.get\(\), 12, 8, 0, 0\]/);
-  assert.match(liquidDemoSource, /morph\(mergeDistance, \[mergeDistance\.get\(\), 0, 32, 32, 2, 0\]/);
+  assert.match(liquidDemoSource, /if \(!interrupted\) \{\s*const startHalf = buttonHalf\.get\(\);/);
+  assert.match(liquidDemoSource, /if \(!nextOpen\) \{[\s\S]*?buttonHalf\.jump\(TRIGGER_RADIUS\)/s);
   assert.doesNotMatch(liquidDemoSource, /tintBlur|buttonTintBlur/);
   assert.doesNotMatch(liquidDemoSource, /animate\((menu|button)Velocity[XY],/);
   assert.match(liquidDemoSource, /rightEdge\.getVelocity\(\) - halfWidth\.getVelocity\(\)/);
@@ -340,7 +340,7 @@ test("liquid menu keeps one core-compatible Canvas material over the centered gr
   assert.match(liquidDemoSource, /focusDelay = reduceMotion[\s\S]*CLOSE_FUSION_DURATION \* 1000 \+ 32/s);
   assert.match(liquidDemoSource, /if \(reduceMotion\)[\s\S]*halfWidth\.jump\(target\.halfWidth\)/s);
   assert.equal((liquidDemoSource.match(/<LiquidGlassCanvas/g) ?? []).length, 1);
-  assert.match(liquidDemoSource, /<LiquidGlassCanvas[\s\S]*sourceRef=\{fusionSourceRef\}[\s\S]*blobs=\{fusionBlobs\}[\s\S]*mergeDistance=\{mergeDistance\}/s);
+  assert.match(liquidDemoSource, /<LiquidGlassCanvas[\s\S]*sourceRef=\{fusionSourceRef\}[\s\S]*blobs=\{fusionBlobs\}[\s\S]*mergeDistance=\{0\}/s);
   assert.match(liquidDemoSource, /edgeDepth=\{materialDepth\}/);
   assert.match(liquidDemoSource, /blurStrength=\{materialBlur\}/);
   assert.match(liquidDemoSource, /tintStrength=\{materialTintOpacity\}/);
@@ -357,12 +357,13 @@ test("liquid menu keeps one core-compatible Canvas material over the centered gr
   assert.match(liquidDemoSource, /<div className="dg-liquid-menu__fusion-layer" aria-hidden="true">/);
   assert.match(liquidDemoSource, /className="dg-liquid-menu__fusion-source"/);
   assert.doesNotMatch(liquidDemoSource, /overlay=|opticalOpacity|dg-liquid-menu__optical/);
-  assert.match(liquidDemoSource, /const contentScale = useTransform\(reveal/);
+  assert.match(liquidDemoSource, /const contentPose = useTransform\([\s\S]*liquidContentPose\(values as number\[\]/s);
+  assert.match(liquidDemoSource, /transform: contentTransform,\s*transformOrigin: "0 0"/);
   assert.match(liquidDemoSource, /const contentFilter = useTransform\(reveal/);
   assert.match(liquidDemoSource, /const contentClip = useTransform\(/);
   assert.match(liquidDemoSource, /clipPath: contentClip/);
   assert.match(liquidDemoSource, /animate\(reveal, \[reveal\.get\(\), reveal\.get\(\), Math\.max\(reveal\.get\(\), 0\.94\), 1\]/);
-  assert.match(liquidDemoSource, /duration: OPEN_CONTENT_DURATION,[\s\S]*times: \[0, 0\.58, 0\.84, 1\]/s);
+  assert.match(liquidDemoSource, /duration: OPEN_CONTENT_DURATION,[\s\S]*times: \[0, 0\.06, 0\.62, 1\]/s);
   assert.match(liquidDemoSource, /animate\(reveal, \[reveal\.get\(\), reveal\.get\(\) \* 0\.92, reveal\.get\(\) \* 0\.46, 0\], \{[\s\S]*duration: CLOSE_CONTENT_DURATION,[\s\S]*times: \[0, 0\.25, 0\.72, 1\]/s);
   assert.doesNotMatch(liquidDemoSource, /ease:\s*"linear"|type:\s*"spring"/);
   assert.match(liquidDemoSource, /tintColor=\{theme === "dark" \? \[74 \/ 255, 74 \/ 255, 70 \/ 255\] : \[1, 1, 1\]\}/);
@@ -403,12 +404,14 @@ test("liquid menu keeps one core-compatible Canvas material over the centered gr
 
 test("liquid shape trajectories stay round early, gather on close, and preserve knot velocity", () => {
   for (const [width, height, radius] of [[202, 374, 44], [159, 345, 40]]) {
-    const opening = [openWidthFrames(1, width), openHeightFrames(1, height), openRadiusFrames(1, radius, width, height)];
+    const opening = [openWidthFrames(34, width), openHeightFrames(34, height), openRadiusFrames(34, radius, width, height)];
     assert.equal(opening[2][2], Math.min(opening[0][2], opening[1][2]), "early body is a capsule, not a miniature panel");
     assert.ok(opening[0][2] / width > opening[1][2] / height, "width develops before height");
-    const closing = [closeMenuWidthFrames(width), closeMenuHeightFrames(height), closeMenuRadiusFrames(radius, width, height), closeButtonFrames(1)];
+    assert.ok(OPEN_MORPH_TIMES[2] < 0.3 && opening[1][2] / height >= 0.7, "main expansion is early, leaving time for contour recovery");
+    const closing = [closeMenuWidthFrames(width), closeMenuHeightFrames(height), closeMenuRadiusFrames(radius, width, height)];
     assert.ok(closing[2][1] > radius && closing[0][1] < width, "closure rounds and bunches before travel");
-    assert.ok(Math.max(...closing[3]) < 35, "button recovery is restrained");
+    assert.deepEqual(closing.map((track) => track.at(-1)), [34, 34, 34], "the body itself ends at the trigger circle");
+    assert.ok(closing[0][4] < 35 && closing[1][4] < 34, "one restrained, volume-like recoil");
     for (const [tracks, times, duration] of [[opening, OPEN_MORPH_TIMES, 0.38], [closing, CLOSE_FUSION_TIMES, 0.42]]) {
       for (const values of tracks) {
         const eases = liquidEasings(values, times, duration);
@@ -435,6 +438,53 @@ test("liquid shape trajectories stay round early, gather on close, and preserve 
   const reversed = liquidEasings([120, 1], [0, 1], 0.42, 600)[0];
   const initialVelocity = (reversed(1e-6) - reversed(0)) * (1 - 120) / 1e-6 / 0.42;
   assert.ok(Math.abs(initialVelocity - 600) < 0.01, "retarget carries live velocity before changing direction");
+  for (const [start, target, velocity] of [[130, 34, 2400], [100, 202, -1600]]) {
+    const { values, times } = retargetLiquidFrames(start, target, 0.42, velocity);
+    const ease = liquidEasings(values, times, 0.42, velocity)[0];
+    const brakeDuration = times[1] * 0.42;
+    assert.equal(brakeDuration, 0.04);
+    assert.equal(values[1], start + velocity * 0.02, "outgoing momentum has a bounded stopping distance");
+    const initial = ease(1e-6) * (values[1] - start) / 1e-6 / brakeDuration;
+    const final = (1 - ease(1 - 1e-6)) * (values[1] - start) / 1e-6 / brakeDuration;
+    assert.ok(Math.abs(initial - velocity) < 0.01, "braking never resets the live velocity");
+    assert.ok(Math.abs(final) < 0.01, "the shape comes to rest before reversing");
+  }
+  const toward = retargetLiquidFrames(130, 202, 0.38, 4000);
+  const towardEases = liquidEasings(toward.values, toward.times, 0.38, 4000);
+  for (const [index, ease] of towardEases.entries()) {
+    for (let step = 0; step <= 100; step += 1) {
+      const value = toward.values[index] + (toward.values[index + 1] - toward.values[index]) * ease(step / 100);
+      assert.ok(value >= 130 && value <= 202, "repeated retargeting cannot throw fast travel past the new destination");
+    }
+  }
+});
+
+test("liquid contents share the moving SDF's center, directional stretch, and rounded clip", () => {
+  const layout = { panelLeft: 258, panelTop: 66, panelWidth: 404, panelHeight: 748 };
+  const rest = liquidContentPose([662, 814, 202, 374, 44, 0, 0], layout);
+  assert.equal(rest.transform, "matrix(1, 0, 0, 1, 0, 0)");
+  assert.equal(rest.clipPath, "inset(0 round 44px / 44px)");
+  for (const [vx, vy] of [[0, 0], [180, 0], [0, -180], [-80, -160], [1700, 900]]) {
+    const hw = 130, hh = 220, radius = 110, right = 640, bottom = 780;
+    const pose = liquidContentPose([right, bottom, hw, hh, radius, vx, vy], layout);
+    const [a, b, c, d, tx, ty] = pose.transform.slice(7, -1).split(",").map(Number);
+    const map = (x, y) => [a * x + c * y + tx + layout.panelLeft, b * x + d * y + ty + layout.panelTop];
+    const center = map(layout.panelWidth / 2, layout.panelHeight / 2);
+    assert.ok(Math.abs(center[0] - (right - hw)) < 1e-8);
+    assert.ok(Math.abs(center[1] - (bottom - hh)) < 1e-8);
+    const speed = Math.hypot(vx, vy), amount = Math.min(speed / 1100, 1);
+    const dx = amount > 0.001 ? vx / speed : 1, dy = amount > 0.001 ? vy / speed : 0;
+    const stretch = 1 + amount * 0.52, squash = 1 / Math.sqrt(stretch);
+    // A rounded corner from the CSS clip must land exactly on the shader's zero contour.
+    const local = [hw - radius + radius / Math.SQRT2, hh - radius + radius / Math.SQRT2];
+    const world = map((local[0] + hw) * layout.panelWidth / (2 * hw), (local[1] + hh) * layout.panelHeight / (2 * hh));
+    const delta = [world[0] - center[0], world[1] - center[1]];
+    const along = (delta[0] * dx + delta[1] * dy) / stretch;
+    const across = (-delta[0] * dy + delta[1] * dx) / squash;
+    const edge = [Math.abs(dx * along - dy * across) - (hw - radius), Math.abs(dy * along + dx * across) - (hh - radius)];
+    assert.ok(Math.abs(Math.hypot(...edge) - radius) < 1e-8, "content cannot slide through the glass edge");
+    assert.equal(pose.clipPath, `inset(0 round ${radius / (2 * hw / layout.panelWidth)}px / ${radius / (2 * hh / layout.panelHeight)}px)`);
+  }
 });
 
 test("switch and slider expose a small size without changing default geometry", () => {
