@@ -6,9 +6,6 @@ import { ControlGallery } from "./demos/ControlGallery";
 import { DisplacementPlayground } from "./demos/DisplacementPlayground";
 import type { Locale } from "./i18n";
 
-const QrGlassDemo = lazy(() =>
-  import("./demos/QrGlassDemo").then((module) => ({ default: module.QrGlassDemo })),
-);
 const VideoGlassDemo = lazy(() =>
   import("./demos/VideoGlassDemo").then((module) => ({ default: module.VideoGlassDemo })),
 );
@@ -36,10 +33,8 @@ const copy = {
     controls: "控件",
     liquid: "流体",
     media: "媒体",
-    qr: "二维码",
     video: "视频",
     experiment: "实验",
-    qrLoading: "正在准备二维码纹理",
     videoLoading: "正在准备视频纹理",
     liquidLoading: "正在准备流体玻璃",
     lightMode: "切换到浅色模式",
@@ -52,10 +47,8 @@ const copy = {
     controls: "Controls",
     liquid: "Liquid",
     media: "Media",
-    qr: "QR code",
     video: "Video",
     experiment: "Experiment",
-    qrLoading: "Preparing QR texture",
     videoLoading: "Preparing video texture",
     liquidLoading: "Preparing liquid glass",
     lightMode: "Switch to light mode",
@@ -116,22 +109,12 @@ export function App() {
 
         <section className="page-section" id="media">
           <SectionHeading title={text.media} />
-          <div className="media-stack">
-            <article className="media-panel media-panel--qr">
-              <DemoLabel title={text.qr} />
-              <div className="media-panel__stage">
-                <Suspense fallback={<div className="media-loading" aria-label={text.qrLoading} />}>
-                  <QrGlassDemo locale={locale} />
-                </Suspense>
-              </div>
-            </article>
-            <article className="media-panel media-panel--video">
-              <DemoLabel title={text.video} />
-              <Suspense fallback={<div className="media-loading media-loading--video" aria-label={text.videoLoading} />}>
-                <VideoGlassDemo locale={locale} />
-              </Suspense>
-            </article>
-          </div>
+          <article className="media-panel media-panel--video">
+            <DemoLabel title={text.video} />
+            <Suspense fallback={<div className="media-loading media-loading--video" aria-label={text.videoLoading} />}>
+              <VideoGlassDemo locale={locale} />
+            </Suspense>
+          </article>
         </section>
 
         <section className="page-section" id="lab">

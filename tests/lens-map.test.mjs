@@ -631,7 +631,6 @@ test("QR demo uses the source procedural geometry and expanding WebGL refraction
   assert.match(qrSource, /Array<\{ slot: number; started: number \}>/);
   assert.match(qrMapSource, /class QrWaveComposer/);
   assert.match(qrPaintSource, /class QrPaintTexture/);
-  assert.match(appSource, /<QrGlassDemo locale=\{locale\} \/>/);
   assert.match(demoStylesSource, /\.dg-qr__icon-rotator[^}]*inset:\s*0/s);
   assert.match(demoStylesSource, /\.dg-qr__icon-face[^}]*inset:\s*0/s);
 });
@@ -955,10 +954,18 @@ test("minimal layout removes the two untracked circular decorations above the he
   assert.doesNotMatch(appSource, /hero__facts|principles|implementation__notes/);
 });
 
-test("button, QR, and experiment grids stay centered within their stages", () => {
+test("button and experiment grids stay centered within their stages", () => {
   assert.match(demoStylesSource, /\.action-demo__surface[\s\S]*?background-position: center/);
   assert.match(demoStylesSource, /\.displacement-playground__background \{[^}]*background-position: center/);
-  assert.match(pageStylesSource, /\.media-panel__stage \{[^}]*background-position: center/);
+});
+
+test("Media keeps only video without importing or mounting the QR demo", () => {
+  const media = appSource.match(/<section className="page-section" id="media">([\s\S]*?)<\/section>/)?.[1];
+  assert.ok(media);
+  assert.equal((media.match(/<article\b/g) ?? []).length, 1);
+  assert.match(media, /<VideoGlassDemo locale=\{locale\} \/>/);
+  assert.doesNotMatch(appSource, /QrGlassDemo|qrLoading|media-panel--qr|text\.qr/);
+  assert.doesNotMatch(pageStylesSource, /media-stack|media-panel--qr|media-panel__stage/);
 });
 
 test("hero stays interactive over a real monochrome photograph", () => {

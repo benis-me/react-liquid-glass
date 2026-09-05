@@ -26,19 +26,8 @@
 }
 .section-heading p { display: none; }
 
-.media-stack { display: flex; flex-direction: column; gap: 88px; }
 .media-panel { background: transparent; overflow: hidden; }
-.media-panel--qr,
 .media-panel--video { border-radius: 0; }
-.media-panel__stage {
-  display: grid;
-  place-items: center;
-  min-height: 480px;
-  padding: 56px;
-  background: var(--demo-bg);
-  background-size: 72px 72px, 72px 72px, auto;
-  background-position: center;
-}
 .media-loading {
   display: grid;
   place-items: center;
@@ -86,6 +75,5 @@
   .hero { padding: 16px 0 20px; }
   .page-section { margin-top: 104px; scroll-margin-top: 18px; }
   .section-heading h2 { font-size: 21px; }
-  .media-panel__stage { min-height: 390px; padding: 30px 18px; }
   .site-footer { margin-top: 104px; }
 }

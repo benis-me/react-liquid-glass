@@ -4,7 +4,7 @@ A reusable React library for real-time liquid-glass refraction on the web.
 
 ## Liquid foundation
 
-The shared Liquid foundation is the Demo's default implementation on `main`: hero, Switch, Slider, Tabs, action button, menu, QR, video and Experiment use the approved Liquid menu material. Control dimensions, gesture handling and motion curves remain independent of the material.
+The shared Liquid foundation is the Demo's default implementation on `main`: hero, Switch, Slider, Tabs, action button, menu, video and Experiment use the approved Liquid menu material. Control dimensions, gesture handling and motion curves remain independent of the material. Media contains only Video; the retained QR reference implementation is no longer imported or mounted by the Demo.
 
 See [Rendering architecture and comparison with Aave Glass](docs/rendering-architecture.md) for the source pipeline, trade-offs, API boundaries and verification status. This is a material/backend migration, not a claim of universal DOM capture, native iOS equivalence or a measured performance win over Aave.
 
@@ -62,7 +62,7 @@ renderer.draw({
 renderer.dispose();
 ```
 
-The imperative API does not start a loop: callers schedule draws and visibility. `LiquidGlassCanvas` batches changes in Motion's render phase and skips hidden/offscreen draws. Sources and premultiplied content textures upload only when their revision/identity changes. Small and DOM surfaces share one WebGL context; video and the menu render directly to avoid full-frame copies. The Demo uses four contexts regardless of the number of experiment controls, bounds render scale, lazily mounts advanced controls, and pauses offscreen video. GPU context restoration recreates resources and invalidates retained uploads.
+The imperative API does not start a loop: callers schedule draws and visibility. `LiquidGlassCanvas` batches changes in Motion's render phase and skips hidden/offscreen draws. Sources and premultiplied content textures upload only when their revision/identity changes. Small and DOM surfaces share one WebGL context; video and the menu render directly to avoid full-frame copies. The Demo uses three contexts regardless of the number of experiment controls, bounds render scale, lazily mounts advanced controls, and pauses offscreen video. GPU context restoration recreates resources and invalidates retained uploads.
 
 Background blur uses CSS pixels, not render pixels. Broad frost is rebuilt only when source pixels, blur radius or source geometry changes; lens travel and output-DPR changes reuse it. It resolves the source to the blur grid before paired horizontal/vertical samples, keeps one shared scratch target, and uses lower resolution for very broad blur. Fine frost/video and opaque resting control thumbs skip that prefilter work. `tintOpacity={1}` means opaque tint; `0` reveals the underlying glass tint. The Switch/Slider use that continuous range to stay white at rest and become glass while active. Tabs retain their own velocity-driven travel/recoil, with optical exit overlapping the low-amplitude tail rather than waiting for exact spring rest.
 
