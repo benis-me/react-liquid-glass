@@ -204,7 +204,11 @@ test("liquid work uses one internal smooth-union compositor for its full lifecyc
   assert.match(liquidCanvasSource, /float shadowFalloff = \.5 \* \(1\. - erfApprox/);
   assert.doesNotMatch(liquidCanvasSource, /exp\(-max\(shadowDistance|highlightInterior/);
   assert.match(liquidCanvasSource, /float align = abs\(dot\(materialUv, light\)\)/);
+  assert.match(liquidCanvasSource, /float edge = uEdgeStrength \* rim/);
   assert.match(liquidCanvasSource, /float specular = min\(1\., glow \+ edge\)/);
+  assert.match(liquidCanvasSource, /float edgeLight = pow\(clamp\(align \/ max\(length\(materialUv\), \.001\), 0\., 1\.\), uEdgeExponent\)/);
+  assert.match(liquidCanvasSource, /float edgeShare = edge \/ max\(glow \+ edge, \.001\)/);
+  assert.match(liquidCanvasSource, /mix\(smoothstep\(\.3, \.7, luminance\), 1\. - edgeLight, edgeShare\)/);
   assert.doesNotMatch(liquidCanvasSource, /sceneNormal|insetRim/);
   assert.match(liquidCanvasSource, /vec3 sampleChroma\(vec2 uv, vec2 displacement\)/);
   assert.match(liquidCanvasSource, /if \(uBlur <= \.001\) return sampleChroma\(uv, displacement\)/);
@@ -256,7 +260,10 @@ test("liquid menu keeps one core-compatible Canvas material over the centered gr
   assert.match(liquidDemoSource, /specularStrength: 0\.72/);
   assert.match(liquidDemoSource, /glowSpread: 0\.72/);
   assert.match(liquidDemoSource, /glowStrength: 0\.3/);
-  assert.equal((liquidDemoSource.match(/edgeStrength: 0,/g) ?? []).length, 2);
+  assert.match(liquidDemoSource, /edgeWidth: 1\.6/);
+  assert.match(liquidDemoSource, /specularRotation: 90/);
+  assert.match(liquidDemoSource, /edgeStrength: 0\.36/);
+  assert.match(liquidDemoSource, /edgeStrength: 0\.42/);
   assert.match(liquidDemoSource, /const MIN_LENS_HALF = 1/);
   assert.doesNotMatch(liquidDemoSource, /BUTTON_MAP_SIZE|buttonLens/);
   assert.match(liquidDemoSource, /const halfWidth = useMotionValue\(MIN_LENS_HALF\)/);

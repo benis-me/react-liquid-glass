@@ -39,27 +39,26 @@ const BASE_MENU_LENS: Partial<LensParams> = {
   scaleX: 0.11,
   chromaAmount: 0.55,
   specularStrength: 0.72,
+  specularRotation: 90,
   glowSpread: 0.72,
   glowExponent: 1.4,
-  edgeWidth: 3.5,
+  edgeWidth: 1.6,
   edgeExponent: 1.2,
 };
 
 const LIGHT_MENU_LENS: Partial<LensParams> = {
   ...BASE_MENU_LENS,
   brightness: 0.015,
-  specularRotation: 36,
   glowStrength: 0.3,
-  edgeStrength: 0,
+  edgeStrength: 0.36,
   specularDark: false,
 };
 
 const DARK_MENU_LENS: Partial<LensParams> = {
   ...BASE_MENU_LENS,
   brightness: 0.035,
-  specularRotation: 45,
   glowStrength: 0.38,
-  edgeStrength: 0,
+  edgeStrength: 0.42,
   specularDark: false,
 };
 

@@ -263,15 +263,19 @@ void main() {
     * pow(clamp((align - glowLo) / glowSpan, 0., 1.), uGlowExponent)
     * falloff;
   float rim = max(0., 1. - inside / max(uEdgeWidth, .001));
-  float edge = uEdgeStrength * rim * pow(align, uEdgeExponent);
+  float edge = uEdgeStrength * rim;
   float specular = min(1., glow + edge);
+  // Opposed highlights follow the light axis, with dark sides across it.
+  // Normalize local direction so the bright lobes peak at each edge's center.
+  float edgeLight = pow(clamp(align / max(length(materialUv), .001), 0., 1.), uEdgeExponent);
+  float edgeShare = edge / max(glow + edge, .001);
   // Video's highlight response preserves contrast on both bright and dark substrates.
   float luminance = dot(refracted, vec3(.299, .587, .114));
   float shine = specular * uSpecular * (127. / 255.);
   refracted = mix(
     refracted + vec3(shine),
     refracted * (1. - shine),
-    smoothstep(.3, .7, luminance)
+    mix(smoothstep(.3, .7, luminance), 1. - edgeLight, edgeShare)
   );
   float brightnessAmount = clamp(abs(uBrightness), 0., 1.);
   vec3 brightnessTarget = uBrightness >= 0. ? vec3(1.) : vec3(0.);
