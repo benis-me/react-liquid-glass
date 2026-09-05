@@ -21,15 +21,30 @@ import {
 } from "lucide-react";
 import {
   animate,
+  cancelFrame,
   cubicBezier,
+  frame,
   motion,
   useMotionValue,
   useReducedMotion,
   useTransform,
+  type MotionValue,
 } from "motion/react";
 import type { Locale } from "../i18n";
 import type { LensParams } from "../lib";
 import { LiquidGlassCanvas } from "../lib/LiquidGlassCanvas";
+import {
+  CLOSE_FUSION_TIMES,
+  OPEN_MORPH_TIMES,
+  closeButtonFrames,
+  closeMenuHeightFrames,
+  closeMenuRadiusFrames,
+  closeMenuWidthFrames,
+  liquidEasings,
+  openHeightFrames,
+  openRadiusFrames,
+  openWidthFrames,
+} from "./liquid-menu-motion";
 
 const TRIGGER_RADIUS = 34;
 const MIN_LENS_HALF = 1;
@@ -65,16 +80,14 @@ const DARK_MENU_LENS: Partial<LensParams> = {
 const OPEN_MORPH_DURATION = 0.38;
 const OPEN_CONTENT_DURATION = 0.34;
 const CLOSE_CONTENT_DURATION = 0.24;
-const OPEN_MORPH_TIMES = [0, 0.1, 0.79, 1];
-const OPEN_MERGE_TIMES = [0, 0.14, 0.82, 1];
+const CONTENT_MORPH_TIMES = [0, 0.1, 0.79, 1];
 const OPEN_MORPH_EASES = [
   cubicBezier(0.42, 0, 0.58, 1),
   cubicBezier(0.32, 0, 0.18, 1),
   cubicBezier(0.22, 0, 0.18, 1),
 ];
 const CLOSE_FUSION_DURATION = 0.42;
-const CLOSE_IMPACT_DISTANCE = 8;
-const CLOSE_FUSION_TIMES = [0, 0.08, 0.41, 0.6, 0.75, 1];
+const CLOSE_IMPACT_DISTANCE = 2;
 const CLOSE_FUSION_EASES = [
   cubicBezier(0.42, 0, 0.58, 1),
   cubicBezier(0.35, 0, 0.7, 0.7),
@@ -84,49 +97,6 @@ const CLOSE_FUSION_EASES = [
 ];
 const PRESS_EASE = cubicBezier(0.3, 0, 0.2, 1);
 const RELEASE_EASE = cubicBezier(0.16, 0.72, 0.18, 1);
-
-function openWidthFrames(start: number, target: number): [number, number, number, number] {
-  return [
-    start,
-    Math.min(28, start * 0.82),
-    target * 1.016,
-    target,
-  ];
-}
-
-function openHeightFrames(start: number, target: number): [number, number, number, number] {
-  return [
-    start,
-    Math.min(28, start * 0.82),
-    target * 1.012,
-    target,
-  ];
-}
-
-function openRadiusFrames(start: number, target: number): [number, number, number, number] {
-  return [
-    start,
-    Math.min(28, start * 0.82),
-    target * 1.055,
-    target,
-  ];
-}
-
-function closeMenuWidthFrames(start: number): [number, number, number, number, number, number] {
-  return [start, start * 1.006, 112, 48, 8, MIN_LENS_HALF];
-}
-
-function closeMenuHeightFrames(start: number): [number, number, number, number, number, number] {
-  return [start, start * 1.004, 180, 72, 10, MIN_LENS_HALF];
-}
-
-function closeMenuRadiusFrames(start: number): [number, number, number, number, number, number] {
-  return [start, start * 1.02, 58, 42, 8, MIN_LENS_HALF];
-}
-
-function closeButtonFrames(start: number): [number, number, number, number, number, number] {
-  return [start, MIN_LENS_HALF, 12, 24, 37, TRIGGER_RADIUS];
-}
 
 const copy = {
   zh: {
@@ -380,6 +350,7 @@ export function LiquidGlassDemo({
   const fusionSourceRef = useRef<HTMLCanvasElement>(null);
   const stageSizeRef = useRef<StageSize>({ width: 1, height: 1 });
   const animations = useRef<AnimationControl[]>([]);
+  const transitionRevision = useRef(0);
   const focusTimer = useRef<number | null>(null);
   const openRef = useRef(false);
   const transitioningRef = useRef(false);
@@ -519,6 +490,7 @@ export function LiquidGlassDemo({
   }, [stageSize.height, stageSize.width, theme]);
 
   const stopAnimations = useCallback(() => {
+    transitionRevision.current += 1;
     animations.current.forEach((control) => control.stop());
     animations.current = [];
   }, []);
@@ -550,6 +522,36 @@ export function LiquidGlassDemo({
     syncCenters();
     return () => unsubscribe.forEach((stop) => stop());
   }, [bottomEdge, halfHeight, halfWidth, rightEdge, syncCenters]);
+
+  useEffect(() => {
+    const updateVelocity = () => {
+      const moving = transitioningRef.current && !reduceMotion;
+      const vx = moving ? rightEdge.getVelocity() - halfWidth.getVelocity() : 0;
+      const vy = moving ? bottomEdge.getVelocity() - halfHeight.getVelocity() : 0;
+      const speed = Math.hypot(vx, vy);
+      const gain = Math.min(openRef.current ? 0.055 : 0.11, 180 / Math.max(1, speed));
+      menuVelocityX.set(vx * gain);
+      menuVelocityY.set(vy * gain);
+      // Absorption deforms the anchored button; the recoil cannot excite a new wave.
+      const absorption = moving && !openRef.current
+        ? Math.min(130, Math.max(0, buttonHalf.getVelocity()) * 0.9)
+        : 0;
+      const layout = menuLayout(stageSizeRef.current.width, stageSizeRef.current.height);
+      const direction = directionToButton(layout);
+      buttonVelocityX.set(direction.x * absorption);
+      buttonVelocityY.set(direction.y * absorption);
+    };
+    const schedule = () => frame.preRender(updateVelocity);
+    const unsubscribe = [rightEdge, bottomEdge, halfWidth, halfHeight, buttonHalf]
+      .map((value) => value.on("change", schedule));
+    return () => {
+      unsubscribe.forEach((stop) => stop());
+      cancelFrame(updateVelocity);
+    };
+  }, [
+    bottomEdge, buttonHalf, buttonVelocityX, buttonVelocityY, halfHeight, halfWidth,
+    menuVelocityX, menuVelocityY, reduceMotion, rightEdge,
+  ]);
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -601,8 +603,10 @@ export function LiquidGlassDemo({
 
   const setExpanded = useCallback((nextOpen: boolean, restoreFocus = false) => {
     if (openRef.current === nextOpen) return;
+    const interrupted = transitioningRef.current;
     clearFocusTimer();
     stopAnimations();
+    const revision = transitionRevision.current;
     openRef.current = nextOpen;
     setOpen(nextOpen);
     if (nextOpen) triggerRef.current?.blur();
@@ -639,8 +643,33 @@ export function LiquidGlassDemo({
           zoom: 1.35,
         };
 
+    const morph = (value: MotionValue<number>, keyframes: number[], positive = false) => {
+      const duration = nextOpen ? OPEN_MORPH_DURATION : CLOSE_FUSION_DURATION;
+      // A reversal starts at the live shape and velocity, not at the press/swell pose.
+      let values = interrupted ? [value.get(), keyframes[keyframes.length - 1]] : keyframes;
+      let times = interrupted ? [0, 1] : nextOpen ? OPEN_MORPH_TIMES : CLOSE_FUSION_TIMES;
+      if (interrupted && value === cornerRadius) {
+        // A reversed shrinking body still gathers into a capsule, not a tiny sharp panel.
+        const roundBody = Math.min(
+          Math.max(halfWidth.get(), target.halfWidth * 0.5),
+          Math.max(halfHeight.get(), target.halfHeight * 0.5),
+        );
+        values = [value.get(), Math.max(value.get(), roundBody * 0.92), target.radius];
+        times = [0, 0.3, 1];
+      }
+      // The initial Hermite tangent peaks at 4/27; keep shrinking extents above zero.
+      const velocity = positive
+        ? Math.max(value.getVelocity(), -(value.get() - MIN_LENS_HALF) * 6.75 / duration)
+        : value.getVelocity();
+      return animate(value, values, {
+        duration,
+        times,
+        ease: liquidEasings(values, times, duration, velocity),
+      });
+    };
+
     const finishTransition = () => {
-      if (openRef.current !== nextOpen) return;
+      if (transitionRevision.current !== revision || openRef.current !== nextOpen) return;
       transitioningRef.current = false;
       menuVelocityX.jump(0);
       menuVelocityY.jump(0);
@@ -683,103 +712,59 @@ export function LiquidGlassDemo({
       const radiusStart = cornerRadius.get();
       const widthFrames = openWidthFrames(widthStart, target.halfWidth);
       const heightFrames = openHeightFrames(heightStart, target.halfHeight);
-      reveal.jump(0);
-      menuVelocityX.jump(0);
-      menuVelocityY.jump(0);
-      buttonVelocityX.jump(0);
-      buttonVelocityY.jump(0);
       animations.current = [
-        animate(rightEdge, [
+        morph(rightEdge, [
           rightEdge.get(),
           layout.triggerCenterX + widthFrames[1],
+          layout.triggerCenterX + Math.min(34, widthFrames[2] * 0.4),
           target.right + 1.5,
           target.right,
-        ], {
-          duration: OPEN_MORPH_DURATION,
-          times: OPEN_MORPH_TIMES,
-          ease: OPEN_MORPH_EASES,
-        }),
-        animate(bottomEdge, [
+        ]),
+        morph(bottomEdge, [
           bottomEdge.get(),
           layout.triggerCenterY + heightFrames[1],
+          layout.triggerCenterY + Math.min(34, heightFrames[2] * 0.4),
           target.bottom + 1.5,
           target.bottom,
-        ], {
-          duration: OPEN_MORPH_DURATION,
-          times: OPEN_MORPH_TIMES,
-          ease: OPEN_MORPH_EASES,
-        }),
-        animate(halfWidth, widthFrames, {
-          duration: OPEN_MORPH_DURATION,
-          times: OPEN_MORPH_TIMES,
-          ease: OPEN_MORPH_EASES,
-        }),
-        animate(halfHeight, heightFrames, {
-          duration: OPEN_MORPH_DURATION,
-          times: OPEN_MORPH_TIMES,
-          ease: OPEN_MORPH_EASES,
-        }),
-        animate(cornerRadius, openRadiusFrames(radiusStart, target.radius), {
-          duration: OPEN_MORPH_DURATION,
-          times: OPEN_MORPH_TIMES,
-          ease: OPEN_MORPH_EASES,
-        }),
+        ]),
+        morph(halfWidth, widthFrames, true),
+        morph(halfHeight, heightFrames, true),
+        morph(cornerRadius, openRadiusFrames(radiusStart, target.radius, target.halfWidth, target.halfHeight), true),
         animate(depth, [depth.get(), 14, 27, target.depth], {
           duration: OPEN_MORPH_DURATION,
-          times: OPEN_MORPH_TIMES,
+          times: CONTENT_MORPH_TIMES,
           ease: OPEN_MORPH_EASES,
         }),
         animate(tintOpacity, [tintOpacity.get(), 0.1, 0.055, target.tint], {
           duration: OPEN_MORPH_DURATION,
-          times: OPEN_MORPH_TIMES,
+          times: CONTENT_MORPH_TIMES,
           ease: OPEN_MORPH_EASES,
         }),
         animate(zoom, [zoom.get(), 1.68, 1.4, target.zoom], {
           duration: OPEN_MORPH_DURATION,
-          times: OPEN_MORPH_TIMES,
+          times: CONTENT_MORPH_TIMES,
           ease: OPEN_MORPH_EASES,
         }),
-        animate(reveal, [0, 0, 0.94, 1], {
+        animate(reveal, [reveal.get(), reveal.get(), Math.max(reveal.get(), 0.94), 1], {
           duration: OPEN_CONTENT_DURATION,
           times: [0, 0.58, 0.84, 1],
           ease: OPEN_MORPH_EASES,
         }),
-        animate(triggerOpacity, [triggerOpacity.get(), 1, 0, 0], {
+        animate(triggerOpacity, [triggerOpacity.get(), triggerOpacity.get(), 0, 0], {
           duration: OPEN_MORPH_DURATION,
-          times: OPEN_MORPH_TIMES,
+          times: CONTENT_MORPH_TIMES,
           ease: OPEN_MORPH_EASES,
         }),
-        animate(triggerScale, [triggerScale.get(), 0.82, 0.74, 0.76], {
-          duration: OPEN_MORPH_DURATION,
-          times: OPEN_MORPH_TIMES,
-          ease: OPEN_MORPH_EASES,
-        }),
-        animate(triggerOffsetX, [triggerOffsetX.get(), 0], {
-          duration: 0.08,
-          ease: RELEASE_EASE,
-        }),
-        animate(triggerOffsetY, [triggerOffsetY.get(), 0], {
-          duration: 0.08,
-          ease: RELEASE_EASE,
-        }),
-        animate(buttonCenterX, layout.triggerCenterX / size.width, {
-          duration: 0.08,
-          ease: RELEASE_EASE,
-        }),
-        animate(buttonCenterY, layout.triggerCenterY / size.height, {
-          duration: 0.08,
-          ease: RELEASE_EASE,
-        }),
-        animate(buttonHalf, buttonTarget.half, { duration: 0.1, ease: PRESS_EASE }),
+        morph(triggerScale, [triggerScale.get(), 0.82, 0.8, 0.76, 0.76]),
+        morph(triggerOffsetX, [triggerOffsetX.get(), 0, 0, 0, 0]),
+        morph(triggerOffsetY, [triggerOffsetY.get(), 0, 0, 0, 0]),
+        morph(buttonCenterX, [buttonCenterX.get(), ...Array(4).fill(layout.triggerCenterX / size.width)]),
+        morph(buttonCenterY, [buttonCenterY.get(), ...Array(4).fill(layout.triggerCenterY / size.height)]),
+        morph(buttonHalf, [buttonHalf.get(), Math.min(28, buttonHalf.get()), 1, 1, 1], true),
         animate(buttonDepth, buttonTarget.depth, { duration: 0.1, ease: PRESS_EASE }),
         animate(buttonTintOpacity, buttonTarget.tint, { duration: 0.1, ease: PRESS_EASE }),
         animate(buttonZoom, buttonTarget.zoom, { duration: 0.1, ease: PRESS_EASE }),
-        animate(mergeDistance, [mergeDistance.get(), 12, 8, 0], {
-          duration: OPEN_MORPH_DURATION,
-          times: OPEN_MERGE_TIMES,
-          ease: OPEN_MORPH_EASES,
-          onComplete: finishTransition,
-        }),
+        morph(mergeDistance, [mergeDistance.get(), 12, 8, 0, 0]),
       ];
     } else {
       transitioningRef.current = true;
@@ -789,63 +774,43 @@ export function LiquidGlassDemo({
       const widthFrames = closeMenuWidthFrames(widthStart);
       const heightFrames = closeMenuHeightFrames(heightStart);
       const buttonFrames = closeButtonFrames(buttonHalf.get());
-      const direction = directionToButton(layout);
       const impact = closeImpactVector(layout);
       const approachCenter = closeContactCenter(
         layout,
         widthFrames[2],
         heightFrames[2],
         buttonFrames[2],
-        18,
+        -12,
       );
       const contactCenter = closeContactCenter(
         layout,
         widthFrames[3],
         heightFrames[3],
         buttonFrames[3],
+        -20,
       );
       const buttonBaseX = layout.triggerCenterX / size.width;
       const buttonBaseY = layout.triggerCenterY / size.height;
       animations.current = [
-        animate(rightEdge, [
+        morph(rightEdge, [
           rightEdge.get(),
-          rightEdge.get() + 1.5,
+          rightEdge.get() - 1,
           approachCenter.x + widthFrames[2],
           contactCenter.x + widthFrames[3],
           layout.triggerCenterX + widthFrames[4] + impact.x,
           target.right,
-        ], {
-          duration: CLOSE_FUSION_DURATION,
-          times: CLOSE_FUSION_TIMES,
-          ease: CLOSE_FUSION_EASES,
-        }),
-        animate(bottomEdge, [
+        ]),
+        morph(bottomEdge, [
           bottomEdge.get(),
-          bottomEdge.get() + 1.5,
+          bottomEdge.get() + 3,
           approachCenter.y + heightFrames[2],
           contactCenter.y + heightFrames[3],
           layout.triggerCenterY + heightFrames[4] + impact.y,
           target.bottom,
-        ], {
-          duration: CLOSE_FUSION_DURATION,
-          times: CLOSE_FUSION_TIMES,
-          ease: CLOSE_FUSION_EASES,
-        }),
-        animate(halfWidth, widthFrames, {
-          duration: CLOSE_FUSION_DURATION,
-          times: CLOSE_FUSION_TIMES,
-          ease: CLOSE_FUSION_EASES,
-        }),
-        animate(halfHeight, heightFrames, {
-          duration: CLOSE_FUSION_DURATION,
-          times: CLOSE_FUSION_TIMES,
-          ease: CLOSE_FUSION_EASES,
-        }),
-        animate(cornerRadius, closeMenuRadiusFrames(radiusStart), {
-          duration: CLOSE_FUSION_DURATION,
-          times: CLOSE_FUSION_TIMES,
-          ease: CLOSE_FUSION_EASES,
-        }),
+        ]),
+        morph(halfWidth, widthFrames, true),
+        morph(halfHeight, heightFrames, true),
+        morph(cornerRadius, closeMenuRadiusFrames(radiusStart, widthStart, heightStart), true),
         animate(depth, [depth.get(), 29, 22, 16, 10, target.depth], {
           duration: CLOSE_FUSION_DURATION,
           times: CLOSE_FUSION_TIMES,
@@ -861,60 +826,36 @@ export function LiquidGlassDemo({
           times: CLOSE_FUSION_TIMES,
           ease: CLOSE_FUSION_EASES,
         }),
-        animate(reveal, [reveal.get(), 0.92, 0.46, 0], {
+        animate(reveal, [reveal.get(), reveal.get() * 0.92, reveal.get() * 0.46, 0], {
           duration: CLOSE_CONTENT_DURATION,
           times: [0, 0.25, 0.72, 1],
           ease: [PRESS_EASE, cubicBezier(0.3, 0, 0.45, 0.7), RELEASE_EASE],
         }),
-        animate(triggerOpacity, [triggerOpacity.get(), 0, 0.18, 0.64, 1, 1], {
+        animate(triggerOpacity, interrupted ? [triggerOpacity.get(), 1] : [triggerOpacity.get(), 0, 0.18, 0.64, 1, 1], {
           duration: CLOSE_FUSION_DURATION,
-          times: CLOSE_FUSION_TIMES,
-          ease: CLOSE_FUSION_EASES,
+          times: interrupted ? [0, 1] : CLOSE_FUSION_TIMES,
+          ease: interrupted ? RELEASE_EASE : CLOSE_FUSION_EASES,
         }),
-        animate(triggerScale, [triggerScale.get(), 0.25, 0.48, 0.74, 1.07, 1], {
-          duration: CLOSE_FUSION_DURATION,
-          times: CLOSE_FUSION_TIMES,
-          ease: CLOSE_FUSION_EASES,
-        }),
-        animate(triggerOffsetX, [triggerOffsetX.get(), 0, 0, 0, impact.x, 0], {
-          duration: CLOSE_FUSION_DURATION,
-          times: CLOSE_FUSION_TIMES,
-          ease: CLOSE_FUSION_EASES,
-        }),
-        animate(triggerOffsetY, [triggerOffsetY.get(), 0, 0, 0, impact.y, 0], {
-          duration: CLOSE_FUSION_DURATION,
-          times: CLOSE_FUSION_TIMES,
-          ease: CLOSE_FUSION_EASES,
-        }),
-        animate(buttonCenterX, [
+        morph(triggerScale, [triggerScale.get(), 0.25, 0.48, 0.82, 1.02, 1]),
+        morph(triggerOffsetX, [triggerOffsetX.get(), 0, 0, 0, impact.x, 0]),
+        morph(triggerOffsetY, [triggerOffsetY.get(), 0, 0, 0, impact.y, 0]),
+        morph(buttonCenterX, [
           buttonCenterX.get(),
           buttonBaseX,
           buttonBaseX,
           buttonBaseX,
           (layout.triggerCenterX + impact.x) / size.width,
           buttonBaseX,
-        ], {
-          duration: CLOSE_FUSION_DURATION,
-          times: CLOSE_FUSION_TIMES,
-          ease: CLOSE_FUSION_EASES,
-        }),
-        animate(buttonCenterY, [
+        ]),
+        morph(buttonCenterY, [
           buttonCenterY.get(),
           buttonBaseY,
           buttonBaseY,
           buttonBaseY,
           (layout.triggerCenterY + impact.y) / size.height,
           buttonBaseY,
-        ], {
-          duration: CLOSE_FUSION_DURATION,
-          times: CLOSE_FUSION_TIMES,
-          ease: CLOSE_FUSION_EASES,
-        }),
-        animate(buttonHalf, buttonFrames, {
-          duration: CLOSE_FUSION_DURATION,
-          times: CLOSE_FUSION_TIMES,
-          ease: CLOSE_FUSION_EASES,
-        }),
+        ]),
+        morph(buttonHalf, buttonFrames, true),
         animate(buttonDepth, [buttonDepth.get(), 10, 14, 18, 22, buttonTarget.depth], {
           duration: CLOSE_FUSION_DURATION,
           times: CLOSE_FUSION_TIMES,
@@ -930,62 +871,11 @@ export function LiquidGlassDemo({
           times: CLOSE_FUSION_TIMES,
           ease: CLOSE_FUSION_EASES,
         }),
-        animate(mergeDistance, [mergeDistance.get(), 0, 16, 40, 4, 0], {
-          duration: CLOSE_FUSION_DURATION,
-          times: CLOSE_FUSION_TIMES,
-          ease: CLOSE_FUSION_EASES,
-          onComplete: finishTransition,
-        }),
-        animate(menuVelocityX, [
-          menuVelocityX.get(),
-          0,
-          direction.x * 160,
-          direction.x * 320,
-          direction.x * 120,
-          0,
-        ], {
-          duration: CLOSE_FUSION_DURATION,
-          times: CLOSE_FUSION_TIMES,
-          ease: CLOSE_FUSION_EASES,
-        }),
-        animate(menuVelocityY, [
-          menuVelocityY.get(),
-          0,
-          direction.y * 160,
-          direction.y * 320,
-          direction.y * 120,
-          0,
-        ], {
-          duration: CLOSE_FUSION_DURATION,
-          times: CLOSE_FUSION_TIMES,
-          ease: CLOSE_FUSION_EASES,
-        }),
-        animate(buttonVelocityX, [
-          buttonVelocityX.get(),
-          0,
-          0,
-          direction.x * 100,
-          direction.x * 220,
-          0,
-        ], {
-          duration: CLOSE_FUSION_DURATION,
-          times: CLOSE_FUSION_TIMES,
-          ease: CLOSE_FUSION_EASES,
-        }),
-        animate(buttonVelocityY, [
-          buttonVelocityY.get(),
-          0,
-          0,
-          direction.y * 100,
-          direction.y * 220,
-          0,
-        ], {
-          duration: CLOSE_FUSION_DURATION,
-          times: CLOSE_FUSION_TIMES,
-          ease: CLOSE_FUSION_EASES,
-        }),
+        morph(mergeDistance, [mergeDistance.get(), 0, 32, 32, 2, 0]),
       ];
     }
+
+    if (!reduceMotion) void Promise.all(animations.current).then(finishTransition);
 
     if (restoreFocus) {
       const focusDelay = reduceMotion
