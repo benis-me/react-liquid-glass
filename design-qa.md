@@ -2,7 +2,10 @@
 
 ## Current status — 2026-09-06
 
-Implementation baseline: `3a99cc8`. The shared Liquid foundation is the Demo's default on `main`. The dated history below is retained as evidence of earlier iterations, not current acceptance criteria.
+Refactor baseline: rewritten `main` at `bf15f53`; implementation on `refactor`. The dated history below is retained as evidence of earlier iterations, not current acceptance criteria.
+
+- `liquid-glass` owns material, fusion, optical geometry and source/resource management. `apple-motion` owns physical integration, continuous trajectories and React motion controllers. Controls compose both; the Demo owns page composition and localized content.
+- Switch and Slider share one thumb-motion implementation. Tabs use the same velocity-deformation solver, retaining their independent impact/recoil calibration. Video uses the shared spring solver and its original spring constants. Analytic integration preserves state across frame-rate changes and interruptions; stationary held deformation sleeps.
 
 - All Demo optics now use the shared WebGL2 material. Legacy SVG `Glass` remains exported, but no Demo switches back to it at rest.
 - Menu open/close are 380ms/380ms. Interrupted opening scales its return clock to 209–380ms from the live body extent, including geometry, material, content attenuation and focus restoration. Normal closing retains the neck, unequal bodies and 34.6px → 34px absorption recovery, with at most 2px directional impact.
@@ -12,9 +15,11 @@ Implementation baseline: `3a99cc8`. The shared Liquid foundation is the Demo's d
 
 Verification:
 
-- `npm run check`, 60 tests, Demo build and library build pass (rechecked 2026-09-06).
-- Prior interaction QA on this implementation: Chrome, 1280 × 1040 desktop and 390 × 844 touch simulation; fast outside dismissal, repeated reversals, Escape, focus return, light/dark states. Ordinary tested paths reported no page exceptions. This is not native iPhone or Safari/Firefox certification.
-- Open: reduced-motion first load can remain on lazy-demo placeholders. A subsequent theme update unblocks it; disabling transitions also unblocked a diagnostic run. The mounted menu's reduced-motion endpoint passed separately. No root-cause fix is claimed.
+- `npm run check`, 68 tests, Demo build and library build pass. New executable checks cover 30/60/120 Hz and dropped-frame equivalence, retarget momentum, damping energy, cancelled completion promises and ESM/CommonJS package entries. The approved renderer body has an unchanged SHA-256.
+- Browser QA: Codex's Chromium browser, 1280 × 1040 desktop and 390 × 844 mobile viewport. The baseline/refactor menu has identical layout and GPU uniforms; matching desktop captures have no differing glass pixels outside text/icon rasterization. Desktop menu size is 404 × 748; mobile is 334 × 690 in this viewport configuration, with 64px sort rows in both.
+- Exercised menu cancellation at 60/120/240ms, normal close, Escape/focus return, selection and scrolling; Switch stationary hold and blur release; Slider continuous drag and off-viewport release; Tabs drag and keyboard selection; paused video seek, horizontal stretch and blur recovery; advanced experiment controls mounting/unmounting; Chinese/English and light/dark states. Stable Switch hold produced zero GPU draws over a 700ms sample after excluding the Hero's 80px visibility margin.
+- Fixed reduced-motion first-load starvation at its source: color probing mutated live content, triggering inherited color transitions, then transition-end capture and another probe. Profiling found repeated source captures and over 100 color-transition events in 400ms. The isolated color probe produces no live-source mutations or transitions; both lazy demos now mount on a fresh reduced-motion reload, and menu endpoints/focus restoration pass. Run the browser regression through Vite with `await import('/tests/browser-core.mjs').then(module => module.verifyColorProbe())`.
+- Screenshots from this run: `/tmp/liquid-refactor-qa/desktop-menu.png`, `desktop-controls.png`, `mobile-menu.png`, `mobile-dark-menu.png`. These are local QA artifacts. Native iPhone, Safari and Firefox have not been certified.
 - Open: missing local `.openai/hosting.json` prevents Sites packaging. `npm run build` completes Demo/library stages but fails during Sites preparation; `npm run test:sites` passes 3 worker cases and fails the artifact case. Hosting/worker/build scripts were not changed to bypass this.
 
 ## Archived QA — before the unified foundation

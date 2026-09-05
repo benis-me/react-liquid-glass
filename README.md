@@ -2,6 +2,31 @@
 
 A reusable React library for real-time liquid-glass refraction on the web.
 
+## Two reusable cores
+
+The `refactor` branch separates the existing implementation into two independently importable cores. Controls compose them; neither core imports the other, the controls, or Demo content.
+
+| Entry | Responsibility |
+| --- | --- |
+| `refractive-glass-react/liquid-glass` | React source adapters, optical geometry and the shared material |
+| `refractive-glass-react/liquid-glass/renderer` | WebGL2 material, merged SDF, frost, foreground refraction and GPU lifecycle; no React dependency |
+| `refractive-glass-react/apple-motion` | Physical spring integration, continuous trajectories, calibrated motion presets and MotionValue utilities |
+| `refractive-glass-react/apple-motion/react` | Interruptible springs, velocity deformation, pointer-release cleanup and the menu motion controller |
+| `refractive-glass-react/controls` | Switch, Slider, Segmented and LiquidMenu views that compose both cores |
+
+All entries provide ESM, CommonJS and TypeScript declarations. The existing root exports remain compatible. Core components require no stylesheet; ready-made controls use the optional `controls.css` export.
+
+Previously, controls repeated deformation integrators, the menu combined choreography, optics and localized content in one Demo, and consumers had to enter through the mixed legacy/current root API. The refactor shares the thumb motion, separates menu motion from optical tracks, moves menu content back to the Demo, and exposes the implementations as package entries. The approved optical kernel and menu trajectories are preserved.
+
+`apple-motion` keeps the current physical calibrations while replacing frame-clamped Euler integration with the exact damped-spring solution. Position and velocity survive retargets and dropped frames; stationary held deformation stops scheduling frames. It uses Motion's existing frame phases and spring animation where appropriate, without another animation dependency. These are project calibrations, not measured Apple parameters.
+
+```ts
+import { stepSpring, PLAY_BUTTON_SPRING } from "refractive-glass-react/apple-motion";
+
+// CSS pixels, pixels/second, and real elapsed seconds. Keep velocity on retarget.
+[position, velocity] = stepSpring(position, velocity, target, PLAY_BUTTON_SPRING, elapsedSeconds);
+```
+
 ## Liquid foundation
 
 The shared Liquid foundation is the Demo's default implementation on `main`: hero, Switch, Slider, Tabs, action button, menu, video and Experiment use the approved Liquid menu material. Control dimensions, gesture handling and motion curves remain independent of the material. Media contains only Video; the retained QR reference implementation is no longer imported or mounted by the Demo.
@@ -12,7 +37,7 @@ This is a material/backend migration, not a claim of universal DOM capture, nati
 - `LiquidGlassCanvas`: React canvas/image/video-source adapter. Accepts up to eight circular or rounded-rectangle `blobs`, with live MotionValues for geometry, velocity and optical parameters.
 - `createLiquidGlassRenderer`: the same renderer without React, for procedural content and video.
 - `LIQUID_GLASS_MATERIAL` / `LIQUID_LENS`: one shared default material, in renderer and LensParams spelling respectively.
-- `GlassSwitch`, `GlassSlider`, `GlassSegmented`: accessible controls now built on `LiquidGlass`. `GlassCanvas` is a compatibility geometry adapter to the new renderer.
+- `GlassSwitch`, `GlassSlider`, `GlassSegmented`: accessible controls built on `LiquidGlass`. `LiquidMenu` composes the menu controller with the same optical material and accepts native menu content. `GlassCanvas` is a compatibility geometry adapter to the new renderer.
 
 The shared WebGL2 kernel owns the merged SDF, spherical-cap refraction, chromatic frost, adaptive glow, thin directional contour/reflection, shadow and optional foreground-ink optics. Fine frost retains the accepted nine-tap endpoint; wider frost uses a cached, separable Gaussian so thin lines soften instead of splitting into repeated strokes. There is no static/dynamic renderer handoff or runtime PNG displacement-map generation in the Demo. WebGL2 is required; the Liquid adapters do not automatically fall back to legacy SVG glass when it is unavailable.
 
@@ -23,7 +48,7 @@ The legacy SVG/PNG `Glass` API and map utilities remain exported for compatibili
 ## Use
 
 ```tsx
-import { LiquidGlass } from "refractive-glass-react";
+import { LiquidGlass } from "refractive-glass-react/liquid-glass";
 
 <LiquidGlass lens={{ lensW: 70, lensH: 60, borderRadius: 28 }}>
   <div style={{ height: 240, background: "#eee", padding: 32 }}>
@@ -32,12 +57,14 @@ import { LiquidGlass } from "refractive-glass-react";
 </LiquidGlass>
 ```
 
-The core components do not require a stylesheet. Import the separate control styles only when using `GlassSwitch`, `GlassSlider`, or `GlassSegmented`:
+Import the separate control styles when using `GlassSwitch`, `GlassSlider`, `GlassSegmented`, or `LiquidMenu`:
 
 ```tsx
-import { GlassSlider } from "refractive-glass-react";
+import { GlassSlider } from "refractive-glass-react/controls";
 import "refractive-glass-react/controls.css";
 ```
+
+`LiquidMenu` accepts `theme`, `menuLabel`, `openLabel`, `trigger`, `onOpenChange` and a `children(open)` render function. Children retain their own selection state and keyboard semantics; use `open` to remove closed items from the tab order. The built-in `dg-liquid-menu__scroll`, heading and row classes preserve the approved layout. For custom geometry or presentation, use `useMenuMotion` with `LiquidGlassCanvas` directly instead of duplicating the controller.
 
 `x` and `y` are normalized lens-center coordinates. Half-extents, radii and velocities use CSS pixels. For fusion, pass multiple intentional bodies to one `LiquidGlassCanvas`; independent DOM surfaces do not merge across canvases.
 
@@ -46,7 +73,7 @@ import "refractive-glass-react/controls.css";
 For direct rendering, keep the source revision unchanged when only the lens moves:
 
 ```ts
-import { createLiquidGlassRenderer } from "refractive-glass-react";
+import { createLiquidGlassRenderer } from "refractive-glass-react/liquid-glass/renderer";
 
 const renderer = createLiquidGlassRenderer(outputCanvas, { onRestore: redraw });
 renderer.draw({
@@ -98,7 +125,7 @@ Sites packaging also needs the environment-owned `.openai/hosting.json`, which i
 ## Notes
 
 - The shared material is WebGL2, not WebGPU or the experimental HTML-in-Canvas API. Desktop mobile emulation is not a native iPhone GPU benchmark.
-- Reduced-motion initial loading has an open issue: lazy demos can remain on their placeholders until another UI update. The mounted menu's reduced-motion close path was checked separately; this does not certify page startup in that mode.
+- Reduced-motion startup is covered by browser QA. CSS color resolution uses an isolated probe so reading source colors cannot trigger a transition/capture feedback loop in the live content.
 - Keep legacy SVG-filtered regions focused if using `Glass`; Safari has practical source-graphic size ceilings.
 - Demo-only Dezin assets under `public/assets` are excluded from the library package.
 

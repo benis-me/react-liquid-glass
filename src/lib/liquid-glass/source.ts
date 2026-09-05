@@ -30,11 +30,24 @@ export const liquidTheme = () => `${document.documentElement.dataset.theme ?? "l
 
 /** Resolve CSS tokens once when a source is prepared, never in an animation loop. */
 export function liquidCssColor(root: HTMLElement, value: string): string {
-  const previous = root.style.color;
-  root.style.color = value;
-  const resolved = getComputedStyle(root).color;
-  root.style.color = previous;
-  return resolved;
+  const css = getComputedStyle(root);
+  const host = document.createElement("span");
+  const probe = document.createElement("span");
+  // Never probe the live source: changing its color starts inherited transitions,
+  // whose transitionend listener captures the source and probes its color again.
+  host.style.cssText = "position:fixed;visibility:hidden;contain:strict;width:0;height:0;pointer-events:none";
+  host.style.color = css.color;
+  host.style.colorScheme = css.colorScheme;
+  for (const property of css) {
+    if (property.startsWith("--")) host.style.setProperty(property, css.getPropertyValue(property));
+  }
+  probe.style.setProperty("transition", "none", "important");
+  probe.style.setProperty("animation", "none", "important");
+  probe.style.color = value;
+  host.appendChild(probe);
+  document.body.appendChild(host);
+  try { return getComputedStyle(probe).color; }
+  finally { host.remove(); }
 }
 
 export function liquidBackground(root: HTMLElement): string {
