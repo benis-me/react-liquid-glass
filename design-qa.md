@@ -1,5 +1,26 @@
 # Design QA — Liquid menu
 
+## Current status — 2026-09-06
+
+Implementation baseline: `3a99cc8`. The shared Liquid foundation is the Demo's default on `main`; see [the rendering architecture and comparison](docs/rendering-architecture.md). The dated history below is retained as evidence of earlier iterations, not current acceptance criteria.
+
+- All Demo optics now use the shared WebGL2 material. Legacy SVG `Glass` remains exported, but no Demo switches back to it at rest.
+- Menu open/close are 380ms/380ms. Interrupted opening scales its return clock to 209–380ms from the live body extent, including geometry, material, content attenuation and focus restoration. Normal closing retains the neck, unequal bodies and 34.6px → 34px absorption recovery, with at most 2px directional impact.
+- Item corners are ordinary circular radii, 31px desktop / 30px mobile. Padding remains uniform at 14px/10px; sort rows remain 64px.
+- Upper/lower inset reflections and the fine directional outer contour remain unchanged by the timing fix. Moving foreground ink refracts and defocuses through the live optical field; there is no static/dynamic material handoff.
+- Switch/Slider stay white at rest, glass while held, with pixel-calibrated small-lens optics. Tabs retain their colored refracted content and independent motion. Slider active fill has a round endcap.
+
+Verification:
+
+- `npm run check`, 60 tests, Demo build and library build pass (rechecked 2026-09-06).
+- Prior interaction QA on this implementation: Chrome, 1280 × 1040 desktop and 390 × 844 touch simulation; fast outside dismissal, repeated reversals, Escape, focus return, light/dark states. Ordinary tested paths reported no page exceptions. This is not native iPhone or Safari/Firefox certification.
+- Open: reduced-motion first load can remain on lazy-demo placeholders. A subsequent theme update unblocks it; disabling transitions also unblocked a diagnostic run. The mounted menu's reduced-motion endpoint passed separately. No root-cause fix is claimed.
+- Open: missing local `.openai/hosting.json` prevents Sites packaging. `npm run build` completes Demo/library stages but fails during Sites preparation; `npm run test:sites` passes 3 worker cases and fails the artifact case. Hosting/worker/build scripts were not changed to bypass this.
+
+## Archived QA — before the unified foundation
+
+All measurements, “passed” findings and checked items below belong to earlier captures. They do not supersede the current status above or the latest user-approved criteria in `AGENTS.md`.
+
 - Structural source: `/var/folders/3w/q39958316yq7bvbyg7ffcsmc0000gp/T/codex-clipboard-d0e7b45d-b537-4137-867c-879735d229ff.png` (768 × 1575 px at 144 dpi).
 - Regression evidence: opening edge frame `codex-clipboard-bea78dd1-588d-4b04-994a-585d5f26f879.png`; closing discontinuity frames `codex-clipboard-392a2c2f-d00f-4110-a288-9799e55f3eb0.png` and `codex-clipboard-a4492c10-3404-4f19-99db-373ba4ccea81.png`.
 - Material reference: Apple WWDC25 “Meet Liquid Glass”, 305.25–305.75s; extracted reference frames `/tmp/glass2-ios-ref.ZgWzkx/menu-016.jpg` through `/tmp/glass2-ios-ref.ZgWzkx/menu-021.jpg` (640 × 360 px). The latest direct user instruction is authoritative for motion timing.
@@ -96,4 +117,4 @@
 - [x] Uniform padding and fixed sort-row height
 - [x] Desktop motion sampling and interaction QA
 
-final result: passed
+historical result: passed for that earlier iteration; current open items are listed above.

@@ -4,7 +4,9 @@ A reusable React library for real-time liquid-glass refraction on the web.
 
 ## Liquid foundation
 
-The experimental `codex/liquid-glass-foundation` branch uses the approved Liquid menu material throughout the Demo: hero, Switch, Slider, Tabs, action button, menu, QR, video and Experiment. Control dimensions, gesture handling and motion curves remain independent of the material.
+The shared Liquid foundation is the Demo's default implementation on `main`: hero, Switch, Slider, Tabs, action button, menu, QR, video and Experiment use the approved Liquid menu material. Control dimensions, gesture handling and motion curves remain independent of the material.
+
+See [Rendering architecture and comparison with Aave Glass](docs/rendering-architecture.md) for the source pipeline, trade-offs, API boundaries and verification status. This is a material/backend migration, not a claim of universal DOM capture, native iOS equivalence or a measured performance win over Aave.
 
 - `LiquidGlass`: React DOM-source adapter, with native interactive children and a retained source texture.
 - `LiquidGlassCanvas`: React canvas/image/video-source adapter. Accepts up to eight circular or rounded-rectangle `blobs`, with live MotionValues for geometry, velocity and optical parameters.
@@ -12,7 +14,7 @@ The experimental `codex/liquid-glass-foundation` branch uses the approved Liquid
 - `LIQUID_GLASS_MATERIAL` / `LIQUID_LENS`: one shared default material, in renderer and LensParams spelling respectively.
 - `GlassSwitch`, `GlassSlider`, `GlassSegmented`: accessible controls now built on `LiquidGlass`. `GlassCanvas` is a compatibility geometry adapter to the new renderer.
 
-The shared WebGL2 kernel owns the merged SDF, spherical-cap refraction, chromatic frost, adaptive glow, thin directional contour/reflection, shadow and optional foreground-ink optics. Fine frost retains the accepted nine-tap endpoint; wider frost uses a cached, separable Gaussian so thin lines soften instead of splitting into repeated strokes. There is no static/dynamic renderer handoff or runtime PNG displacement-map generation in the Demo. WebGL2 is required for this experimental material.
+The shared WebGL2 kernel owns the merged SDF, spherical-cap refraction, chromatic frost, adaptive glow, thin directional contour/reflection, shadow and optional foreground-ink optics. Fine frost retains the accepted nine-tap endpoint; wider frost uses a cached, separable Gaussian so thin lines soften instead of splitting into repeated strokes. There is no static/dynamic renderer handoff or runtime PNG displacement-map generation in the Demo. WebGL2 is required; the Liquid adapters do not automatically fall back to legacy SVG glass when it is unavailable.
 
 The legacy SVG/PNG `Glass` API and map utilities remain exported for compatibility; the Demo no longer uses them. Legacy SVG-specific flags, map size, region transforms and inset-shadow controls are not supported by the Liquid renderer. Experiment exposes the actual new optical parameters and its right pane visualizes the live GPU displacement/coverage field.
 
@@ -39,7 +41,7 @@ import "refractive-glass-react/controls.css";
 
 `x` and `y` are normalized lens-center coordinates. Half-extents, radii and velocities use CSS pixels. For fusion, pass multiple intentional bodies to one `LiquidGlassCanvas`; independent DOM surfaces do not merge across canvases.
 
-`LiquidGlass` snapshots the existing DOM only at content, font, theme, scroll and resize boundaries. Its bounded adapter supports this Demo's solid surfaces, centered grids, text, SVG icons and images; it is not a general-purpose DOM screenshot engine. Cross-origin images require CORS. Use `sourceFactory` plus `sourceValues` for procedural MotionValue-driven content such as control tracks, or provide a real canvas/image/video source for complex or continuously changing content.
+`LiquidGlass` reads layout/styles and redraws supported DOM content into a retained 2D canvas at content, font, theme, scroll and resize boundaries. It does not capture the browser's exact composited DOM pixels or sample arbitrary content behind the component. Its bounded adapter supports this Demo's solid surfaces, centered grids, text, SVG icons and images; it is not a general-purpose DOM screenshot engine. Arbitrary CSS, multiline text layout, selection painting and continuously animated DOM are not fully reproduced. Native children retain interaction, but the optical overlay is a separate pixel layer. Cross-origin images require CORS. Use `sourceFactory` plus `sourceValues` for procedural MotionValue-driven content such as control tracks, or provide a real canvas/image/video source for complex or continuously changing content.
 
 For direct rendering, keep the source revision unchanged when only the lens moves:
 
@@ -76,10 +78,15 @@ The trigger's rest center is 38px inward from the panel's right/bottom edges. Co
 npm run dev       # Demo
 npm run check     # TypeScript
 npm test          # Legacy optics, motion regressions, shared renderer lifecycle
-npm run build     # Demo + ESM/CJS library + declarations
+npm run build:demo # Demo only
+npm run build:lib  # ESM/CJS library + declarations
+npm run build     # Both builds + Sites packaging (requires local hosting config)
+npm run test:sites # Worker behavior + Sites build artifacts
 ```
 
 Library output is written to `dist/library`; the Sites-ready Demo is written to `dist/client`.
+
+Sites packaging also needs the environment-owned `.openai/hosting.json`, which is ignored by Git. In the 2026-09-06 checkout it is absent: Demo and library builds pass, but `npm run build` stops at packaging and the Sites artifact test fails. No hosting configuration is fabricated, and the packaging script/worker remain unchanged. See [current QA status](design-qa.md).
 
 ## Demo structure
 
@@ -90,7 +97,8 @@ Library output is written to `dist/library`; the Sites-ready Demo is written to 
 
 ## Notes
 
-- The experimental material is WebGL2, not WebGPU. Desktop mobile emulation is not a native iPhone GPU benchmark.
+- The shared material is WebGL2, not WebGPU or the experimental HTML-in-Canvas API. Desktop mobile emulation is not a native iPhone GPU benchmark.
+- Reduced-motion initial loading has an open issue: lazy demos can remain on their placeholders until another UI update. The mounted menu's reduced-motion close path was checked separately; this does not certify page startup in that mode.
 - Keep legacy SVG-filtered regions focused if using `Glass`; Safari has practical source-graphic size ceilings.
 - Demo-only Dezin assets under `public/assets` are excluded from the library package.
 
