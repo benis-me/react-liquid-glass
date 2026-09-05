@@ -1,9 +1,9 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import type { Locale } from "../i18n";
-import { GlassSlider, GlassSwitch } from "../lib/components";
-import { motionValue } from "../lib/motion";
-import { LiquidGlass as Glass, LIQUID_LENS } from "../lib/LiquidGlass";
-import { LIQUID_GLASS_MATERIAL as material } from "../lib/liquid-glass-renderer";
+import { GlassSlider, GlassSwitch } from "../lib/controls";
+import { motionValue } from "../lib/shared/values";
+import { LiquidGlass as Glass, LIQUID_LENS } from "../lib/liquid-glass/LiquidGlass";
+import { LIQUID_GLASS_MATERIAL as material } from "../lib/liquid-glass/renderer";
 import type { LensParams } from "../lib/types";
 
 const ranges = {

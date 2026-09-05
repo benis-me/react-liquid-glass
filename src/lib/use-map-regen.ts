@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { createMapGenerator, type MapGenerator } from "./displacement-map";
-import { isMotionValue, readMotion, type MotionInput } from "./motion";
+import { isMotionValue, readMotion, type MotionInput } from "./shared/values";
 import type { GenerationStats } from "./types";
 
 export interface MapRegenOptions {

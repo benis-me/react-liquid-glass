@@ -12,7 +12,32 @@
       "import": "./dist/library/index.js",
       "require": "./dist/library/index.cjs"
     },
-    "./controls.css": "./dist/library/controls.css"
+    "./controls.css": "./dist/library/controls.css",
+    "./liquid-glass": {
+      "types": "./dist/library/liquid-glass/index.d.ts",
+      "import": "./dist/library/liquid-glass.js",
+      "require": "./dist/library/liquid-glass.cjs"
+    },
+    "./liquid-glass/renderer": {
+      "types": "./dist/library/liquid-glass/renderer.d.ts",
+      "import": "./dist/library/liquid-glass-renderer.js",
+      "require": "./dist/library/liquid-glass-renderer.cjs"
+    },
+    "./apple-motion": {
+      "types": "./dist/library/apple-motion/index.d.ts",
+      "import": "./dist/library/apple-motion.js",
+      "require": "./dist/library/apple-motion.cjs"
+    },
+    "./apple-motion/react": {
+      "types": "./dist/library/apple-motion/react.d.ts",
+      "import": "./dist/library/apple-motion-react.js",
+      "require": "./dist/library/apple-motion-react.cjs"
+    },
+    "./controls": {
+      "types": "./dist/library/controls/index.d.ts",
+      "import": "./dist/library/controls.js",
+      "require": "./dist/library/controls.cjs"
+    }
   },
   "files": [
     "dist/library"

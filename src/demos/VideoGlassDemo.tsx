@@ -1,3 +1,4 @@
+import { stepSpring, SIDE_BUTTON_SPRING, PLAY_BUTTON_SPRING, BAR_DRAG_SPRING, BUTTON_HOVER_SCALE } from "../lib/apple-motion";
 import {
   useCallback,
   useEffect,
@@ -10,8 +11,8 @@ import rewindSvg from "../assets/video/rewind.svg?raw";
 import forwardSvg from "../assets/video/forward.svg?raw";
 import playSvg from "../assets/video/play.svg?raw";
 import type { Locale } from "../i18n";
-import { createLiquidGlassRenderer, type LiquidGlassBlob } from "../lib/liquid-glass-renderer";
-import { usePointerReleaseFallback } from "../lib/use-pointer-release-fallback";
+import { createLiquidGlassRenderer, type LiquidGlassBlob } from "../lib/liquid-glass/renderer";
+import { usePointerReleaseFallback } from "../lib/apple-motion/use-pointer-release-fallback";
 
 function SourceVideoIcon({ source }: { source: string }) {
   return <span className="dg-video-player__source-icon" aria-hidden="true" dangerouslySetInnerHTML={{ __html: source }} />;
@@ -45,11 +46,6 @@ type VideoFrameApi = {
   cancelVideoFrameCallback?: (handle: number) => void;
 };
 
-const SIDE_BUTTON_SPRING = { stiffness: 1000, damping: 40, mass: 1.5 };
-const PLAY_BUTTON_SPRING = { stiffness: 500, damping: 32, mass: 1 };
-const BAR_DRAG_SPRING = { stiffness: 550, damping: 35, mass: 1 };
-const BUTTON_HOVER_SCALE = 1.045;
-
 const copy = {
   zh: {
     poster: "花田视频画面",
@@ -77,28 +73,6 @@ function seekRubberBand(distance: number, limit: number) {
   const magnitude = Math.abs(distance);
   if (magnitude === 0) return 0;
   return Math.sign(distance) * limit * (1 - 1 / (magnitude / limit + 1));
-}
-
-function stepSpring(
-  value: number,
-  velocity: number,
-  target: number,
-  config: { stiffness: number; damping: number; mass: number },
-  elapsed: number,
-) {
-  const steps = Math.max(1, Math.ceil(elapsed / 0.008));
-  const dt = elapsed / steps;
-  let nextValue = value;
-  let nextVelocity = velocity;
-  for (let index = 0; index < steps; index += 1) {
-    const acceleration = (-config.stiffness * (nextValue - target) - config.damping * nextVelocity) / config.mass;
-    nextVelocity += acceleration * dt;
-    nextValue += nextVelocity * dt;
-  }
-  if (Math.abs(nextValue - target) < 0.0005 && Math.abs(nextVelocity) < 0.005) {
-    return [target, 0] as const;
-  }
-  return [nextValue, nextVelocity] as const;
 }
 
 export function VideoGlassDemo({ locale }: { locale: Locale }) {

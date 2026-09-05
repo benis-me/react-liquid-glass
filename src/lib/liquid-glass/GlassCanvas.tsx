@@ -1,8 +1,8 @@
 import { useEffect, useRef, type CSSProperties, type RefObject } from "react";
 import { LiquidGlassCanvas } from "./LiquidGlassCanvas";
 import { LIQUID_LENS } from "./LiquidGlass";
-import { motionValue } from "./motion";
-import type { LensParams } from "./types";
+import { motionValue } from "../shared/values";
+import type { LensParams } from "../types";
 
 export interface GlassCanvasProps {
   sourceRef: RefObject<HTMLCanvasElement | HTMLImageElement | HTMLVideoElement | null>;

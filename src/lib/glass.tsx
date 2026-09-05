@@ -12,7 +12,7 @@ import {
 } from "react";
 import { GlassContext, type TargetRect } from "./context";
 import { generateDisplacementMap } from "./displacement-map";
-import { isMotionValue, readMotion, type MotionInput, type MotionValueLike } from "./motion";
+import { isMotionValue, readMotion, type MotionInput, type MotionValueLike } from "./shared/values";
 import { DEFAULT_LENS_PARAMS } from "./presets";
 import { axisScaleMatrix, roundedRectUri, TRANSPARENT_PIXEL } from "./rounded-rect";
 import type { FilterStats, GenerationStats, LensParams } from "./types";

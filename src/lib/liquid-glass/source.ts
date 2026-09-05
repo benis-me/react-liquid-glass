@@ -1,4 +1,4 @@
-import { readMotion, type MotionInput } from "./motion";
+import { readMotion, type MotionInput } from "../shared/values";
 
 export type LiquidSourcePainter = (context: CanvasRenderingContext2D) => void;
 export type LiquidSourceFactory = (root: HTMLElement, width: number, height: number) => LiquidSourcePainter;

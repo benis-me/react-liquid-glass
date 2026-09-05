@@ -2,7 +2,7 @@
 
 ## Current status — 2026-09-06
 
-Implementation baseline: `3a99cc8`. The shared Liquid foundation is the Demo's default on `main`; see [the rendering architecture and comparison](docs/rendering-architecture.md). The dated history below is retained as evidence of earlier iterations, not current acceptance criteria.
+Implementation baseline: `3a99cc8`. The shared Liquid foundation is the Demo's default on `main`. The dated history below is retained as evidence of earlier iterations, not current acceptance criteria.
 
 - All Demo optics now use the shared WebGL2 material. Legacy SVG `Glass` remains exported, but no Demo switches back to it at rest.
 - Menu open/close are 380ms/380ms. Interrupted opening scales its return clock to 209–380ms from the live body extent, including geometry, material, content attenuation and focus restoration. Normal closing retains the neck, unequal bodies and 34.6px → 34px absorption recovery, with at most 2px directional impact.

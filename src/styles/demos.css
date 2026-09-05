@@ -102,188 +102,8 @@
 .action-demo__button span { display: block; line-height: 1; }
 .action-demo__button:active { transform: translate(-50%, -50%) scale(.98); }
 
-.dg-liquid-glass {
-  --dg-liquid-menu-radius: 44px;
-  --dg-liquid-item-radius: 31px;
-  --dg-liquid-grid:
-    linear-gradient(rgb(0 0 0 / .075) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(0 0 0 / .075) 1px, transparent 1px),
-    #ebebe8;
-  isolation: isolate;
-  width: 100%;
-  height: 880px;
-  background: var(--dg-liquid-grid);
-  background-size: 72px 72px, 72px 72px, auto;
-  background-position: center;
-  border-radius: 3px;
-  position: relative;
-  overflow: hidden;
-}
-.dg-liquid-menu__fusion-layer {
-  width: 100%;
-  height: 100%;
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 2;
-  overflow: hidden;
-}
-.dg-liquid-menu__fusion-canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-.dg-liquid-menu__fusion-source { display: none; }
-.dg-liquid-glass,
-.liquid-loading,
-.dg-liquid-menu__panel,
-.dg-liquid-menu__scroll::-webkit-scrollbar-thumb {
-  corner-shape: squircle;
-}
-.dg-liquid-menu__dismiss {
-  z-index: 3;
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-.dg-liquid-menu__dismiss[data-open="true"] { pointer-events: auto; }
-.dg-liquid-menu__trigger {
-  z-index: 5;
-  display: grid;
-  place-items: center;
-  width: 68px;
-  height: 68px;
-  padding: 0;
-  color: var(--text);
-  background: transparent;
-  border: 0;
-  border-radius: 50%;
-  corner-shape: round;
-  cursor: pointer;
-  touch-action: manipulation;
-  user-select: none;
-  position: absolute;
-  transform-origin: center;
-}
-.dg-liquid-menu__trigger svg {
-  width: 25px;
-  height: 25px;
-  stroke-width: 2;
-}
-.dg-liquid-menu__trigger:focus-visible,
-.dg-liquid-menu__sort-row:focus-visible,
-.dg-liquid-menu__filter-row:focus-visible {
-  outline: 2px solid var(--text);
-  outline-offset: 3px;
-}
-.dg-liquid-menu__panel {
-  z-index: 4;
-  color: var(--text);
-  background: transparent;
-  position: absolute;
-  overflow: hidden;
-  pointer-events: none;
-  will-change: opacity, transform, filter, clip-path;
-}
-.dg-liquid-menu__panel[data-open="true"] { pointer-events: auto; }
-.dg-liquid-menu__scroll {
-  box-sizing: border-box;
-  height: 100%;
-  padding: 14px;
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-color: var(--fg-3) transparent;
-  scrollbar-width: thin;
-}
-.dg-liquid-menu__scroll::-webkit-scrollbar { width: 5px; }
-.dg-liquid-menu__scroll::-webkit-scrollbar-track { background: transparent; }
-.dg-liquid-menu__scroll::-webkit-scrollbar-thumb {
-  background: var(--fg-3);
-  border-radius: 999px;
-}
-.dg-liquid-menu__heading {
-  margin: 0 0 13px 47px;
-  color: var(--soft);
-  font-size: 15px;
-  font-weight: 580;
-  line-height: 1.2;
-  letter-spacing: -.01em;
-}
-.dg-liquid-menu__section { display: flex; flex-direction: column; }
-.dg-liquid-menu__sort-row,
-.dg-liquid-menu__filter-row {
-  box-sizing: border-box;
-  width: 100%;
-  padding: 0;
-  color: inherit;
-  text-align: left;
-  background: transparent;
-  border: 0;
-  border-radius: var(--dg-liquid-item-radius);
-  corner-shape: round;
-  cursor: pointer;
-  font: inherit;
-  transition: background-color .16s ease;
-}
-.dg-liquid-menu__sort-row:hover,
-.dg-liquid-menu__filter-row:hover { background: var(--border-1); }
-.dg-liquid-menu__sort-row:active,
-.dg-liquid-menu__filter-row:active { background: var(--border-2); }
-.dg-liquid-menu__sort-row {
-  display: grid;
-  grid-template-columns: 42px minmax(0, 1fr);
-  align-items: center;
-  height: 64px;
-  min-height: 64px;
-  font-size: 21px;
-  line-height: 1.15;
-  letter-spacing: -.025em;
-}
-.dg-liquid-menu__check {
-  display: grid;
-  place-items: center;
-  width: 42px;
-  height: 42px;
-}
-.dg-liquid-menu__check svg { width: 23px; height: 23px; stroke-width: 2.35; }
-.dg-liquid-menu__label-block { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-.dg-liquid-menu__label-block small {
-  color: var(--soft);
-  font-size: 14px;
-  font-weight: 520;
-  line-height: 1.05;
-  letter-spacing: -.01em;
-}
-.dg-liquid-menu__divider {
-  height: 1px;
-  margin: 17px 8px 25px;
-  background: var(--border-2);
-}
-.dg-liquid-menu__filter-row {
-  display: grid;
-  grid-template-columns: 31px minmax(0, 1fr) 24px;
-  align-items: center;
-  gap: 17px;
-  min-height: 61px;
-  padding: 0 8px 0 47px;
-  font-size: 20px;
-  line-height: 1.1;
-  letter-spacing: -.022em;
-}
-.dg-liquid-menu__filter-row > svg:first-child {
-  width: 27px;
-  height: 27px;
-  stroke-width: 1.8;
-}
-.dg-liquid-menu__filter-row[data-active="true"] > svg:first-child { stroke-width: 2.15; }
-.dg-liquid-menu__chevron {
-  width: 20px;
-  height: 20px;
-  justify-self: end;
-  stroke-width: 2.3;
-}
 .liquid-loading {
+  corner-shape: squircle;
   width: 100%;
   height: 880px;
   background: var(--demo-bg);
@@ -291,12 +111,6 @@
   background-position: center;
   border-radius: 3px;
   animation: loading-pulse 1.2s ease-in-out infinite alternate;
-}
-html[data-theme="dark"] .dg-liquid-glass {
-  --dg-liquid-grid:
-    linear-gradient(rgb(255 255 255 / .085) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(255 255 255 / .085) 1px, transparent 1px),
-    #1a1a1a;
 }
 
 .dg-qr-tilt { width: 348px; max-width: 100%; perspective: 50rem; display: inline-block; }
@@ -415,15 +229,7 @@ html[data-theme="dark"] .dg-liquid-glass {
   .control-plinth .dg-tabs__item svg { display: none; }
   .action-demo,
   .action-demo__surface { min-height: 280px; }
-  .dg-liquid-glass,
   .liquid-loading { height: 800px; }
-  .dg-liquid-glass {
-    --dg-liquid-menu-radius: 40px;
-    --dg-liquid-item-radius: 30px;
-  }
-  .dg-liquid-menu__scroll { padding: 10px; }
-  .dg-liquid-menu__heading { margin-left: 45px; }
-  .dg-liquid-menu__filter-row { padding-left: 45px; padding-right: 6px; }
   .dg-qr-stage { border-radius: 44px; }
   .displacement-playground__previews { display: block; height: 280px; position: relative; }
   .displacement-playground__stage { clip-path: inset(0 calc(100% - var(--split, 50%)) 0 0); border-radius: 22px 0 0 22px; min-height: 280px; position: absolute; inset: 0; }

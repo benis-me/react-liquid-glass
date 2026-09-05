@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import { cancelFrame, frame } from "motion";
 import { LiquidGlassCanvas } from "./LiquidGlassCanvas";
-import { LIQUID_GLASS_MATERIAL, type LiquidGlassFrame } from "./liquid-glass-renderer";
-import { captureLiquidSource, liquidRgb, liquidTheme, subscribeLiquidTheme, type LiquidSourceFactory, type LiquidSourcePainter } from "./liquid-source";
-import { isMotionValue, motionValue, readMotion, type MotionInput } from "./motion";
-import type { LensParams } from "./types";
+import { LIQUID_GLASS_MATERIAL, type LiquidGlassFrame } from "./renderer";
+import { captureLiquidSource, liquidRgb, liquidTheme, subscribeLiquidTheme, type LiquidSourceFactory, type LiquidSourcePainter } from "./source";
+import { isMotionValue, motionValue, readMotion, type MotionInput } from "../shared/values";
+import type { LensParams } from "../types";
 
 /** LensParams spelling for callers migrating from Glass. No second optical preset. */
 export const LIQUID_LENS: Partial<LensParams> = {

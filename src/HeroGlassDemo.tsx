@@ -1,3 +1,4 @@
+import { tween } from "./lib/apple-motion";
 import {
   useCallback,
   useEffect,
@@ -6,29 +7,15 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { PLAYGROUND_DEFAULTS } from "./lib/presets";
-import { motionValue, type WritableMotionValue } from "./lib/motion";
+import { motionValue } from "./lib/shared/values";
 import type { LensParams } from "./lib/types";
-import { LiquidGlass as Glass, LIQUID_LENS } from "./lib/LiquidGlass";
+import { LiquidGlass as Glass, LIQUID_LENS } from "./lib/liquid-glass/LiquidGlass";
 
 interface HeroGlassDemoProps {
   variant?: "primary" | "secondary";
   interactive?: boolean;
   backgroundImage?: string;
   lens?: Partial<LensParams>;
-}
-
-function tween(value: WritableMotionValue<number>, target: number, duration = 200) {
-  const start = value.get();
-  const startedAt = performance.now();
-  let frame = 0;
-  const tick = (now: number) => {
-    const progress = Math.min(1, (now - startedAt) / duration);
-    const eased = 1 - (1 - progress) ** 3;
-    value.set(start + (target - start) * eased);
-    if (progress < 1) frame = requestAnimationFrame(tick);
-  };
-  frame = requestAnimationFrame(tick);
-  return () => cancelAnimationFrame(frame);
 }
 
 function useMobileScale() {

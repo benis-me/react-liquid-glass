@@ -6,7 +6,7 @@ A reusable React library for real-time liquid-glass refraction on the web.
 
 The shared Liquid foundation is the Demo's default implementation on `main`: hero, Switch, Slider, Tabs, action button, menu, video and Experiment use the approved Liquid menu material. Control dimensions, gesture handling and motion curves remain independent of the material. Media contains only Video; the retained QR reference implementation is no longer imported or mounted by the Demo.
 
-See [Rendering architecture and comparison with Aave Glass](docs/rendering-architecture.md) for the source pipeline, trade-offs, API boundaries and verification status. This is a material/backend migration, not a claim of universal DOM capture, native iOS equivalence or a measured performance win over Aave.
+This is a material/backend migration, not a claim of universal DOM capture, native iOS equivalence or a measured performance win over Aave.
 
 - `LiquidGlass`: React DOM-source adapter, with native interactive children and a retained source texture.
 - `LiquidGlassCanvas`: React canvas/image/video-source adapter. Accepts up to eight circular or rounded-rectangle `blobs`, with live MotionValues for geometry, velocity and optical parameters.

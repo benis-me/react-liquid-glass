@@ -20,12 +20,19 @@ export default defineConfig({
     emptyOutDir: true,
     cssCodeSplit: false,
     lib: {
-      entry: resolve(import.meta.dirname, "src/lib/index.ts"),
+      entry: {
+        index: resolve(import.meta.dirname, "src/lib/index.ts"),
+        "liquid-glass": resolve(import.meta.dirname, "src/lib/liquid-glass/index.ts"),
+        "liquid-glass-renderer": resolve(import.meta.dirname, "src/lib/liquid-glass/renderer.ts"),
+        "apple-motion": resolve(import.meta.dirname, "src/lib/apple-motion/index.ts"),
+        "apple-motion-react": resolve(import.meta.dirname, "src/lib/apple-motion/react.ts"),
+        controls: resolve(import.meta.dirname, "src/lib/controls/index.ts"),
+      },
       formats: ["es", "cjs"],
-      fileName: (format) => (format === "es" ? "index.js" : "index.cjs"),
+      fileName: (format, name) => `${name}.${format === "es" ? "js" : "cjs"}`,
     },
     rollupOptions: {
-      external: ["react", "react/jsx-runtime", "motion/react"],
+      external: ["react", "react/jsx-runtime", "motion", "motion/react"],
     },
   },
 });

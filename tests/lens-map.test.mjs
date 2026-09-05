@@ -1,3 +1,4 @@
+import { liquidContentPose, liquidContentOptics } from "../dist/library/liquid-glass.js";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
@@ -14,10 +15,8 @@ import {
   closeMenuHeightFrames,
   closeMenuRadiusFrames,
   closeButtonFrames,
-  liquidContentPose,
-  liquidContentOptics,
   retargetLiquidFrames,
-} from "../src/demos/liquid-menu-motion.ts";
+} from "../dist/library/apple-motion.js";
 import {
   DEFAULT_LENS_PARAMS,
   PLAYGROUND_DEFAULTS,
@@ -40,28 +39,34 @@ const readmeSource = readFileSync(new URL("../README.md", import.meta.url), "utf
 const controlGallerySource = readFileSync(new URL("../src/demos/ControlGallery.tsx", import.meta.url), "utf8");
 const playgroundSource = readFileSync(new URL("../src/demos/DisplacementPlayground.tsx", import.meta.url), "utf8");
 const additionalDemosSource = readFileSync(new URL("../src/demos/AdditionalGlassDemos.tsx", import.meta.url), "utf8");
-const liquidDemoSource = readFileSync(new URL("../src/demos/LiquidGlassDemo.tsx", import.meta.url), "utf8");
-const liquidCanvasUrl = new URL("../src/lib/LiquidGlassCanvas.tsx", import.meta.url);
-const liquidRendererSource = readFileSync(new URL("../src/lib/liquid-glass-renderer.ts", import.meta.url), "utf8");
-const liquidAdapterSource = readFileSync(new URL("../src/lib/LiquidGlass.tsx", import.meta.url), "utf8");
+const liquidDemoSource = [
+  "demos/LiquidGlassDemo.tsx", "lib/controls/LiquidMenu.tsx", "lib/apple-motion/use-menu-motion.ts",
+  "lib/controls/use-menu-material.ts", "lib/apple-motion/menu.ts",
+].map(path => readFileSync(new URL(`../src/${path}`, import.meta.url), "utf8")).join("\n");
+const liquidCanvasUrl = new URL("../src/lib/liquid-glass/LiquidGlassCanvas.tsx", import.meta.url);
+const liquidRendererSource = readFileSync(new URL("../src/lib/liquid-glass/renderer.ts", import.meta.url), "utf8");
+const liquidAdapterSource = readFileSync(new URL("../src/lib/liquid-glass/LiquidGlass.tsx", import.meta.url), "utf8");
 const liquidCanvasSource = readFileSync(liquidCanvasUrl, "utf8") + liquidRendererSource;
 const indexSource = readFileSync(new URL("../index.html", import.meta.url), "utf8");
-const heroSource = readFileSync(new URL("../src/HeroGlassDemo.tsx", import.meta.url), "utf8");
+const heroSource = readFileSync(new URL("../src/HeroGlassDemo.tsx", import.meta.url), "utf8") + readFileSync(new URL("../src/lib/apple-motion/tween.ts", import.meta.url), "utf8");
 const stylesSource = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
-const demoStylesSource = readFileSync(new URL("../src/styles/demos.css", import.meta.url), "utf8");
+const demoStylesSource = readFileSync(new URL("../src/styles/demos.css", import.meta.url), "utf8") + readFileSync(new URL("../src/lib/controls.css", import.meta.url), "utf8");
 const pageStylesSource = readFileSync(new URL("../src/styles/page.css", import.meta.url), "utf8");
 const baseStylesSource = readFileSync(new URL("../src/styles/base.css", import.meta.url), "utf8");
 const libraryStylesSource = readFileSync(new URL("../src/lib/controls.css", import.meta.url), "utf8");
 const regenSource = readFileSync(new URL("../src/lib/use-map-regen.ts", import.meta.url), "utf8");
 const contextSource = readFileSync(new URL("../src/lib/context.ts", import.meta.url), "utf8");
-const componentSource = readFileSync(new URL("../src/lib/components.tsx", import.meta.url), "utf8");
-const pointerFallbackSource = readFileSync(new URL("../src/lib/use-pointer-release-fallback.ts", import.meta.url), "utf8");
+const componentSource = [
+  "apple-motion/react.ts", "controls/use-thumb-motion.ts", "controls/GlassSwitch.tsx",
+  "apple-motion/presets.ts", "controls/GlassSlider.tsx", "controls/GlassSegmented.tsx",
+].map(path => readFileSync(new URL(`../src/lib/${path}`, import.meta.url), "utf8")).join("\n");
+const pointerFallbackSource = readFileSync(new URL("../src/lib/apple-motion/use-pointer-release-fallback.ts", import.meta.url), "utf8");
 const qrSource = readFileSync(new URL("../src/demos/QrGlassDemo.tsx", import.meta.url), "utf8");
 const qrGeometrySource = readFileSync(new URL("../src/demos/qr-geometry.ts", import.meta.url), "utf8");
 const qrRendererSource = readFileSync(new URL("../src/demos/qr-renderer.ts", import.meta.url), "utf8");
 const qrMapSource = readFileSync(new URL("../src/demos/qr-map.ts", import.meta.url), "utf8");
 const qrPaintSource = readFileSync(new URL("../src/demos/qr-paint.ts", import.meta.url), "utf8");
-const videoSource = readFileSync(new URL("../src/demos/VideoGlassDemo.tsx", import.meta.url), "utf8");
+const videoSource = readFileSync(new URL("../src/demos/VideoGlassDemo.tsx", import.meta.url), "utf8") + readFileSync(new URL("../src/lib/apple-motion/spring.ts", import.meta.url), "utf8") + readFileSync(new URL("../src/lib/apple-motion/presets.ts", import.meta.url), "utf8");
 const gitignoreSource = readFileSync(new URL("../.gitignore", import.meta.url), "utf8");
 const sha256 = (value) => createHash("sha256").update(value).digest("hex");
 
@@ -287,8 +292,8 @@ test("liquid uses the shared smooth-union compositor for its full lifecycle", ()
 
 test("liquid menu keeps one core-compatible Canvas material over the centered grid", () => {
   assert.doesNotMatch(liquidDemoSource, /buildQrGeometry|QR_SIZE|QR_GEOMETRY|occupancy|MENU_ACTIONS/);
-  assert.match(liquidDemoSource, /import type \{ LensParams \} from "\.\.\/lib"/);
-  assert.match(liquidDemoSource, /import \{ LiquidGlassCanvas \} from "\.\.\/lib\/LiquidGlassCanvas"/);
+  assert.match(liquidDemoSource, /import type \{ LensParams \} from "\.\.\/types"/);
+  assert.match(liquidDemoSource, /import \{ LiquidGlassCanvas \} from "\.\.\/liquid-glass\/LiquidGlassCanvas"/);
   assert.doesNotMatch(liquidDemoSource, /<Glass|coreOpacity|fusionOpacity/);
   assert.match(liquidDemoSource, /const BASE_MENU_LENS = LIQUID_LENS/);
   assert.match(liquidDemoSource, /const LIGHT_MENU_LENS: Partial<LensParams>/);
@@ -446,7 +451,7 @@ test("liquid content refraction and blur follow shape, with a neutral settled en
     assert.ok(optics.blur >= 0 && optics.blur <= 2.4);
   }
   assert.match(liquidDemoSource, /contentRevision\.set\(contentRevision\.get\(\) \+ 1\)/);
-  assert.match(liquidDemoSource, /!reduceMotion && !interrupted/);
+  assert.match(liquidDemoSource, /!reducedMotion && !interrupted/);
   assert.match(liquidDemoSource, /contentActive\.jump\(0\)/);
   assert.match(liquidDemoSource, /Math\.max\(contentOptics\.get\(\)\.blur, closingBlur\.get\(\)\)/);
   assert.match(liquidDemoSource, /animate\(closingBlur, 3\.2, \{ duration: 0\.08/);
@@ -758,7 +763,7 @@ test("the optical exit requires sustained geometric rest, not one zero crossing"
     now += ms;
     for (const [key, timer] of timers) if (timer.at <= now) { timers.delete(key); timer.fn(); }
   };
-  const source = componentSource.slice(componentSource.indexOf("function waitForRest("), componentSource.indexOf("function useDerivedMotion("));
+  const source = componentSource.slice(componentSource.indexOf("function waitForRest("), componentSource.indexOf("export function useDerivedMotion("));
   const wait = new Function("window", `${stripTypeScriptTypes(source)}; return waitForRest;`)(clock);
   const geometry = motionValue(5);
   let ended = false;
@@ -772,7 +777,8 @@ test("the optical exit requires sustained geometric rest, not one zero crossing"
 test("the retained material supports opaque control rests without covering refracted ink", () => {
   assert.match(liquidAdapterSource, /base \+ \(1 - base\) \* Math\.max\(0, Math\.min\(1, readMotion\(props\.tintOpacity \?\? 0\)\)\)/);
   assert.match(liquidAdapterSource, /ref=\{contentRef\} style=\{\{ position: "relative", zIndex: 0 \}\}/);
-  assert.equal((componentSource.match(/const tintOpacity = useMotionValue\(1\)/g) ?? []).length, 2);
+  assert.equal((componentSource.match(/const tintOpacity = useMotionValue\(1\)/g) ?? []).length, 1, "Switch and Slider share one thumb material controller");
+  assert.equal((componentSource.match(/= useThumbMotion\(/g) ?? []).length, 2);
   assert.match(additionalDemosSource, /const tintStrength = useMotionValue\(0\.1846\)/, "the approved action tint is not made opaque with the controls");
 });
 
@@ -1000,7 +1006,7 @@ test("control optics use a size-independent pixel gain without changing menu or 
 });
 
 test("Slider's refracted fill retains a moving round cap at every progress", () => {
-  const source = readFileSync(new URL("../src/lib/liquid-source.ts", import.meta.url), "utf8");
+  const source = readFileSync(new URL("../src/lib/liquid-glass/source.ts", import.meta.url), "utf8");
   const painterCode = source.slice(source.indexOf("export function liquidTrackSource"), source.indexOf("const svgImages"));
   const trackSource = new Function("readMotion", "liquidBackground", "liquidCssColor",
     `${stripTypeScriptTypes(painterCode).replace("export function", "function")}\nreturn liquidTrackSource;`,

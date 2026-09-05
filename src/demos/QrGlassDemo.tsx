@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import { ScanQrCode } from "lucide-react";
 import type { Locale } from "../i18n";
 import { buildQrGeometry, QR_SIZE } from "./qr-geometry";
-import { createLiquidGlassRenderer, type LiquidGlassBlob } from "../lib/liquid-glass-renderer";
+import { createLiquidGlassRenderer, type LiquidGlassBlob } from "../lib/liquid-glass/renderer";
 import { QrPaintTexture } from "./qr-paint";
 import { QrWebglRenderer } from "./qr-renderer";
 

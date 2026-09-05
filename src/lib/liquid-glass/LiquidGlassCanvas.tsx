@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, type CSSProperties, type RefObject } from "react";
 import { cancelFrame, frame } from "motion";
-import { isMotionValue, readMotion, type MotionInput } from "./motion";
-import { createLiquidGlassRenderer, type LiquidGlassFrame, type LiquidGlassSource } from "./liquid-glass-renderer";
+import { isMotionValue, readMotion, type MotionInput } from "../shared/values";
+import { createLiquidGlassRenderer, type LiquidGlassFrame, type LiquidGlassSource } from "./renderer";
 
-export type { LiquidGlassBlob } from "./liquid-glass-renderer";
+export type { LiquidGlassBlob } from "./renderer";
 export interface LiquidGlassCanvasProps extends Omit<LiquidGlassFrame, "source" | "content" | "sourceRevision" | "contentRevision"> {
   sourceRef: RefObject<LiquidGlassSource | null>;
   contentRef?: RefObject<HTMLCanvasElement | null>;

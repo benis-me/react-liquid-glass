@@ -1,5 +1,5 @@
-import { computeDomeConstants } from "./math";
-import { readMotion, type MotionInput } from "./motion";
+import { computeDomeConstants } from "../math";
+import { readMotion, type MotionInput } from "../shared/values";
 
 const MAX_BLOBS = 8;
 export interface LiquidGlassBlob {

@@ -1,5 +1,5 @@
 import { createContext } from "react";
-import type { MotionValueLike } from "./motion";
+import type { MotionValueLike } from "./shared/values";
 
 export interface SharedLens {
   x?: MotionValueLike;

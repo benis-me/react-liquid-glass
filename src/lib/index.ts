@@ -7,8 +7,8 @@ export {
   createMapGenerator,
   type MapGenerator,
 } from "./displacement-map";
-export { motionValue, isMotionValue, readMotion } from "./motion";
-export type { MotionInput, MotionValueLike, WritableMotionValue } from "./motion";
+export { motionValue, isMotionValue, readMotion } from "./shared/values";
+export type { MotionInput, MotionValueLike, WritableMotionValue } from "./shared/values";
 export { axisScaleMatrix, roundedRectUri, TRANSPARENT_PIXEL } from "./rounded-rect";
 export {
   DEFAULT_LENS_PARAMS,
@@ -43,16 +43,18 @@ export const Glass: GlassWithStatics = Object.assign(GlassComponent, {
 /** Alias matching the original export name. */
 export const DezinGlass = Glass;
 
-export { GlassCanvas } from "./GlassCanvas";
-export type { GlassCanvasProps } from "./GlassCanvas";
-export { GlassSegmented, GlassSlider, GlassSwitch } from "./components";
-export type { GlassSegmentedProps, GlassSliderProps, GlassSwitchProps } from "./components";
+export { GlassCanvas } from "./liquid-glass/GlassCanvas";
+export type { GlassCanvasProps } from "./liquid-glass/GlassCanvas";
+export { GlassSegmented, GlassSlider, GlassSwitch } from "./controls";
+export type { GlassSegmentedProps, GlassSliderProps, GlassSwitchProps } from "./controls";
 export type GlassLens = Partial<import("./types").LensParams>;
 
-export { LiquidGlass, LIQUID_LENS } from "./LiquidGlass";
-export type { LiquidGlassProps } from "./LiquidGlass";
-export { LiquidGlassCanvas } from "./LiquidGlassCanvas";
-export type { LiquidGlassCanvasProps } from "./LiquidGlassCanvas";
-export { createLiquidGlassRenderer, LIQUID_GLASS_MATERIAL } from "./liquid-glass-renderer";
-export type { LiquidGlassBlob, LiquidGlassFrame, LiquidGlassSource, LiquidRendererStats } from "./liquid-glass-renderer";
-export type { LiquidSourceFactory, LiquidSourcePainter } from "./liquid-source";
+export { LiquidGlass, LIQUID_LENS } from "./liquid-glass/LiquidGlass";
+export type { LiquidGlassProps } from "./liquid-glass/LiquidGlass";
+export { LiquidGlassCanvas } from "./liquid-glass/LiquidGlassCanvas";
+export type { LiquidGlassCanvasProps } from "./liquid-glass/LiquidGlassCanvas";
+export { createLiquidGlassRenderer, LIQUID_GLASS_MATERIAL } from "./liquid-glass/renderer";
+export type { LiquidGlassBlob, LiquidGlassFrame, LiquidGlassSource, LiquidRendererStats } from "./liquid-glass/renderer";
+export type { LiquidSourceFactory, LiquidSourcePainter } from "./liquid-glass/source";
+
+export { LiquidMenu, type LiquidMenuProps } from "./controls";

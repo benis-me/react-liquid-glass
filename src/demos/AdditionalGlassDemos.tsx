@@ -1,5 +1,5 @@
 import { animate, useMotionValue } from "motion/react";
-import { LiquidGlass as Glass, LIQUID_LENS } from "../lib/LiquidGlass";
+import { LiquidGlass as Glass, LIQUID_LENS } from "../lib/liquid-glass/LiquidGlass";
 import type { LensParams } from "../lib/types";
 
 const ACTION_LENS: Partial<LensParams> = {
