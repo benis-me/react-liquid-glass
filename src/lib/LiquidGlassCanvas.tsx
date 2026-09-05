@@ -272,8 +272,9 @@ void main() {
   // Video's highlight response preserves contrast on both bright and dark substrates.
   float luminance = dot(refracted, vec3(.299, .587, .114));
   float shine = specular * uSpecular * (127. / 255.);
+  // Lift the fine bright lobes without thickening the rim or darkening its sides.
   refracted = mix(
-    refracted + vec3(shine),
+    refracted + vec3(shine + edge * edgeLight * uSpecular * .35),
     refracted * (1. - shine),
     mix(smoothstep(.3, .7, luminance), 1. - edgeLight, edgeShare)
   );

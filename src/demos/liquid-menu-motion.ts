@@ -53,15 +53,19 @@ export function openRadiusFrames(start: number, target: number, width: number, h
 }
 
 export function closeMenuWidthFrames(start: number) {
-  return [start, start * 0.96, start * 0.6, 38, 34.6, 34];
+  return [start, start * 0.994, start * 0.6, 38, 6, 1];
 }
 
 export function closeMenuHeightFrames(start: number) {
-  return [start, start * 1.006, start * 0.38, 48, 33.4, 34];
+  return [start, start * 1.012, start * 0.38, 48, 6, 1];
 }
 
 export function closeMenuRadiusFrames(start: number, width: number, height: number) {
-  return [start, Math.min(width * 0.3, height * 0.3), Math.min(width * 0.6, height * 0.38) * 0.96, 38, 33.4, 34];
+  return [start, Math.min(width * 0.46, height * 0.46), Math.min(width * 0.6, height * 0.38) * 0.96, 38, 6, 1];
+}
+
+export function closeButtonFrames(start: number) {
+  return [start, 1, 6, 28, 34.6, 34];
 }
 
 /** Map the panel's content and clip into the same moving rounded body as the SDF. */
