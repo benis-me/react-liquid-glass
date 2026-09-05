@@ -278,13 +278,13 @@ void main() {
   // One SDF, two edge profiles: a fine dark contour, then an inset bright crest.
   // The bright crest must not erase the faint top/bottom contour underneath it.
   float edgeWidth = max(uEdgeWidth, .001);
-  float contour = 1. - smoothstep(0., edgeWidth * .65, inside);
+  float contour = 1. - smoothstep(0., edgeWidth * mix(.52, .65, edgeLight), inside);
   float reflection = smoothstep(edgeWidth * .45, edgeWidth * .85, inside)
     * (1. - smoothstep(edgeWidth * .85, edgeWidth * 2., inside));
   // Confine the fine reflection to the upper/lower arcs, not the sidewalls.
   float reflectionLight = smoothstep(.75, .98, edgeLight);
   float edgeGain = max(uEdgeStrength * uSpecular, 0.);
-  float contourStrength = min(.85, edgeGain * 3.2) * mix(1., .24, edgeLight);
+  float contourStrength = min(.85, edgeGain * 3.2) * mix(.9, .24, edgeLight);
   refracted *= 1. - contour * contourStrength;
   refracted += vec3(reflection * reflectionLight * edgeGain * .22);
   float brightnessAmount = clamp(abs(uBrightness), 0., 1.);
