@@ -202,6 +202,7 @@ void main() {
     return;
   }
 
+  vec2 edgeGradient = vec2(dFdx(distance), dFdy(distance));
   float aa = max(fwidth(distance), .0001);
   float coverage = 1. - smoothstep(-aa, aa, distance);
   // Blur the signed silhouette instead of leaving a solid offset umbra.
@@ -262,22 +263,30 @@ void main() {
   float glow = uGlowStrength
     * pow(clamp((align - glowLo) / glowSpan, 0., 1.), uGlowExponent)
     * falloff;
-  float rim = max(0., 1. - inside / max(uEdgeWidth, .001));
-  float edge = uEdgeStrength * rim;
-  float specular = min(1., glow + edge);
-  // Opposed highlights follow the light axis, with dark sides across it.
-  // Normalize local direction so the bright lobes peak at each edge's center.
-  float edgeLight = pow(clamp(align / max(length(materialUv), .001), 0., 1.), uEdgeExponent);
-  float edgeShare = edge / max(glow + edge, .001);
+  float specular = min(1., glow);
+  // Reuse the SDF's screen derivatives: straight sidewalls must not inherit
+  // a bright rim from their position above/below the body's center.
+  float edgeLight = pow(clamp(abs(dot(edgeGradient, light)) / max(length(edgeGradient), .001), 0., 1.), uEdgeExponent);
   // Video's highlight response preserves contrast on both bright and dark substrates.
   float luminance = dot(refracted, vec3(.299, .587, .114));
   float shine = specular * uSpecular * (127. / 255.);
-  // Lift the fine bright lobes without thickening the rim or darkening its sides.
   refracted = mix(
-    refracted + vec3(shine + edge * edgeLight * uSpecular * .35),
+    refracted + vec3(shine),
     refracted * (1. - shine),
-    mix(smoothstep(.3, .7, luminance), 1. - edgeLight, edgeShare)
+    smoothstep(.3, .7, luminance)
   );
+  // One SDF, two edge profiles: a fine dark contour, then an inset bright crest.
+  // The bright crest must not erase the faint top/bottom contour underneath it.
+  float edgeWidth = max(uEdgeWidth, .001);
+  float contour = 1. - smoothstep(0., edgeWidth * .65, inside);
+  float reflection = smoothstep(edgeWidth * .45, edgeWidth * .85, inside)
+    * (1. - smoothstep(edgeWidth * .85, edgeWidth * 2., inside));
+  // Confine the fine reflection to the upper/lower arcs, not the sidewalls.
+  float reflectionLight = smoothstep(.75, .98, edgeLight);
+  float edgeGain = max(uEdgeStrength * uSpecular, 0.);
+  float contourStrength = min(.85, edgeGain * 3.2) * mix(1., .24, edgeLight);
+  refracted *= 1. - contour * contourStrength;
+  refracted += vec3(reflection * reflectionLight * edgeGain * .22);
   float brightnessAmount = clamp(abs(uBrightness), 0., 1.);
   vec3 brightnessTarget = uBrightness >= 0. ? vec3(1.) : vec3(0.);
   refracted = mix(refracted, brightnessTarget, brightnessAmount);
