@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Bookmark, Check, Copy, SlidersHorizontal, Minus, Plus, AlignLeft, AlignCenter, AlignRight } from "lucide-react";
 import {
-  GlassActionButton,
   GlassAccordion,
   GlassAlert,
   GlassAvatar,
@@ -12,11 +11,11 @@ import {
   GlassCheckbox,
   GlassDialog,
   GlassDropdownMenu,
+  GlassMorphMenu,
   GlassInput,
   GlassPopover,
   GlassProgress,
   GlassRadioGroup,
-  GlassSegmented,
   GlassSelect,
   GlassSheet,
   GlassSlider,
@@ -29,7 +28,6 @@ import {
   GlassTooltip,
   GlassVideo,
 } from "refractive-glass-react/controls";
-import { LiquidGlassDemo } from "../demos/LiquidGlassDemo";
 import type { Locale } from "../i18n";
 import type { ComponentId } from "./catalog";
 export const PHOTO =
@@ -60,14 +58,6 @@ export function ComponentExample({
   ];
   const closeLabel = t("Close", "关闭");
   switch (id) {
-    case "liquid-button":
-      return (
-        <GlassActionButton onClick={() => setCount(count + 1)}>
-          {count
-            ? t(`Pressed ${count}`, `点击 ${count} 次`)
-            : t("Hold and pull", "按住并拖动")}
-        </GlassActionButton>
-      );
     case "button":
       return (
         <div className="example-stack">
@@ -123,42 +113,8 @@ export function ComponentExample({
           <output className="example-status">{amount}%</output>
         </div>
       );
-    case "segmented":
-      return (
-        <GlassSegmented
-          items={options}
-          value={choice}
-          onValueChange={setChoice}
-          ariaLabel={t("Workspace view", "工作区视图")}
-        />
-      );
     case "tabs":
-      return (
-        <GlassTabs
-          label={t("Project sections", "项目内容")}
-          items={options.map((option) => ({
-            ...option,
-            content: (
-              <p>
-                {option.value === "design"
-                  ? t(
-                      "A shared visual language, in every detail.",
-                      "每一个细节，都使用同一种视觉语言。",
-                    )
-                  : option.value === "motion"
-                    ? t(
-                        "Springs keep their momentum when interrupted.",
-                        "弹簧在被打断后，仍保留连续的动量。",
-                      )
-                    : t(
-                        "Import only the pieces you need.",
-                        "只导入需要的组件。",
-                      )}
-              </p>
-            ),
-          }))}
-        />
-      );
+      return <GlassTabs label={t("Project sections", "项目内容")} items={options} value={choice} onValueChange={setChoice} />;
     case "input":
       return (
         <div className="example-form">
@@ -225,8 +181,8 @@ export function ComponentExample({
     case "toggle":
       return (
         <GlassToggle pressed={enabled} onPressedChange={setEnabled}>
-          <Bookmark size={16} fill={enabled ? "currentColor" : "none"} />
-          {enabled ? t("Saved", "已收藏") : t("Bookmark", "收藏")}
+          <Bookmark size={16} fill="currentColor" style={{ fillOpacity: enabled ? 1 : 0 }} />
+          {t("Bookmark", "收藏")}
         </GlassToggle>
       );
     case "card":
@@ -295,10 +251,8 @@ export function ComponentExample({
     case "dialog":
       return (
         <>
-          <GlassButton onClick={() => setOpen(true)}>
-            {t("Edit profile", "编辑资料")}
-          </GlassButton>
           <GlassDialog
+            trigger={<GlassButton>{t("Edit profile", "编辑资料")}</GlassButton>}
             open={open}
             onOpenChange={setOpen}
             title={t("Edit profile", "编辑资料")}
@@ -331,11 +285,8 @@ export function ComponentExample({
     case "sheet":
       return (
         <>
-          <GlassButton onClick={() => setOpen(true)}>
-            <SlidersHorizontal />
-            {t("Settings", "设置")}
-          </GlassButton>
           <GlassSheet
+            trigger={<GlassButton><SlidersHorizontal />{t("Settings", "设置")}</GlassButton>}
             open={open}
             onOpenChange={setOpen}
             title={t("Your preferences", "你的偏好")}
@@ -441,8 +392,12 @@ export function ComponentExample({
           ]}
         />
       );
-    case "liquid-menu":
-      return <LiquidGlassDemo locale={locale} theme={theme} />;
+    case "morph-menu":
+      return <GlassMorphMenu trigger={t("Actions", "操作")} label={t("Actions", "操作")} items={[
+        { label: t("Duplicate", "创建副本"), onSelect: () => setCount(count + 1) },
+        { label: t("Share", "分享"), onSelect: () => setCount(count + 1) },
+        { label: t("Archive", "归档"), onSelect: () => setCount(0) },
+      ]} />;
     case "spotlight":
       return (
         <GlassSpotlight

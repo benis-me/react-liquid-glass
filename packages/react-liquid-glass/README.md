@@ -33,15 +33,19 @@ export function Settings() {
 }
 ```
 
-An empty `material={{}}` preserves every control's calibrated defaults. Nested providers inherit parent overrides. Settings affect the actual shared renderer, including live video. Component motion remains independent of optical tuning.
+An empty `material={{}}` preserves every control's calibrated defaults. Ordinary UI uses the exported `PRISM_MATERIAL`; large popups retain stronger size-adaptive frost, while small thumb lenses keep their scale calibration and opaque white rest state. Nested providers inherit parent overrides. Settings affect the shared renderer; component motion remains independent of optical tuning.
+
+HDR defaults to enabled on supported displays. Set `material={{ hdr: false }}` on `LiquidGlassProvider` to disable the extended highlights globally, or pass `hdr={false}` to an individual `LiquidGlass` / `LiquidGlassCanvas`. An explicit instance flag wins over the provider. The Playground HDR switch persists and shares with the other material settings. Selecting a preset preserves this flag; Reset restores the default.
 
 ## Components
 
-`GlassButton`, `GlassButtonGroup`, `GlassActionButton`, `GlassSwitch`, `GlassSlider`, `GlassSegmented`, `GlassTabs`, `GlassInput`, `GlassTextarea`, `GlassCheckbox`, `GlassRadioGroup`, `GlassSelect`, `GlassToggle`, `GlassCard`, `GlassBadge`, `GlassAvatar`, `GlassProgress`, `GlassAlert`, `GlassToast`, `GlassDialog`, `GlassSheet`, `GlassPopover`, `GlassDropdownMenu`, `GlassTooltip`, `GlassAccordion`, `LiquidMenu`, `GlassSpotlight`, `GlassVideo`.
+`GlassButton`, `GlassButtonGroup`, `GlassSwitch`, `GlassSlider`, `GlassTabs`, `GlassInput`, `GlassTextarea`, `GlassCheckbox`, `GlassRadioGroup`, `GlassSelect`, `GlassToggle`, `GlassCard`, `GlassBadge`, `GlassAvatar`, `GlassProgress`, `GlassAlert`, `GlassToast`, `GlassDialog`, `GlassSheet`, `GlassPopover`, `GlassDropdownMenu`, `GlassMorphMenu`, `GlassTooltip`, `GlassAccordion`, `GlassSpotlight`, `GlassVideo`.
 
 `GlassSurface` and `GlassStage` support custom compositions. Anchored Select, Popover, DropdownMenu and Tooltip share a native popover and one liquid compositor for the trigger, panel and fusion neck. Inputs use native form semantics. Dialogs use native modal focus handling; popovers use the browser top layer. Supply meaningful labels and native button/form props. `GlassPopover.trigger` is button content, not another button. `GlassTooltip` expects a focusable child. `GlassToast` is an inline live region; place it where notifications belong in your layout.
 
-`GlassTabs` accepts `{ value, label, content }` items; `GlassSegmented` also accepts custom icons and colors. Controlled callbacks preserve the original drag, click and keyboard behavior. The action button retains its original optical/physical expansion in a 320px-high presentation area with the shared backdrop.
+`GlassTabs` accepts `{ value, label, icon?, color?, content? }` items. Content panels are optional; controlled callbacks preserve drag, click and keyboard behavior. The former `GlassActionButton`, `GlassSegmented` and `LiquidMenu` exports remain available for compatibility, without duplicate catalog entries.
+
+`GlassMorphMenu` accepts the same items as `GlassDropdownMenu`. Its trigger dissolves into the panel; Dropdown's trigger remains visible. Both share the Popover capsule-growth and two-body absorption model. Dialog and Sheet reuse that model for longer travel (500ms open, up to 280ms close), with a concurrent mask fade. Pass `trigger={<GlassButton>Open</GlassButton>}` to originate at the click; keyboard activation uses the button center. Controlled dialogs without this prop originate at the active element, or viewport center.
 
 ## Independent motion
 

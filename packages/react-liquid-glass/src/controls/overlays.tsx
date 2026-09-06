@@ -1,108 +1,15 @@
 import {
-  useEffect,
   useId,
-  useLayoutEffect,
-  useRef,
   useState,
   type ReactElement,
   type ComponentProps,
   type ReactNode,
 } from "react";
-import {
-  motion,
-  useMotionValue,
-  useReducedMotion,
-  useTransform,
-} from "motion/react";
-import { springTo } from "../apple-motion/react";
-import { SEGMENTED_RELEASE_SPRING } from "../apple-motion/presets";
 import { LiquidPopover, useClosePopover } from "./LiquidPopover";
-import { GlassSurface } from "./GlassSurface";
 import { GlassButton } from "./primitives";
 import { GlassSegmented, type GlassSegmentItem } from "./GlassSegmented";
 
-export interface GlassDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  title: string;
-  description?: string;
-  children?: ReactNode;
-  closeLabel?: string;
-}
-export function GlassDialog({
-  open,
-  onOpenChange,
-  title,
-  description,
-  children,
-  closeLabel = "Close",
-  placement = "dialog",
-}: GlassDialogProps & { placement?: "dialog" | "sheet" }) {
-  const dialog = useRef<HTMLDialogElement>(null);
-  const id = useId();
-  const reduce = useReducedMotion();
-  const progress = useMotionValue(0);
-  const y = useTransform(progress, (value) => (1 - value) * 18);
-  const current = useRef(open);
-  current.current = open;
-  useLayoutEffect(() => {
-    const element = dialog.current;
-    if (!element) return;
-    if (open && !element.open) element.showModal();
-    if (reduce) {
-      progress.jump(open ? 1 : 0);
-      if (!open) element.close();
-      return;
-    }
-    const run = springTo(progress, open ? 1 : 0, SEGMENTED_RELEASE_SPRING);
-    void run.finished.then(() => {
-      if (!current.current) element.close();
-    });
-    return () => run.stop();
-  }, [open, progress, reduce]);
-  return (
-    <motion.dialog
-      ref={dialog}
-      className={`dg-dialog dg-dialog--${placement}`}
-      style={{ opacity: progress, y }}
-      aria-labelledby={`${id}-title`}
-      aria-describedby={description ? `${id}-description` : undefined}
-      onCancel={(event) => {
-        event.preventDefault();
-        onOpenChange(false);
-      }}
-      onClose={() => {
-        if (current.current) onOpenChange(false);
-      }}
-      onClick={(event) => {
-        if (event.target === event.currentTarget) onOpenChange(false);
-      }}
-    >
-      <GlassSurface radius={28}>
-        <header>
-          <h2 id={`${id}-title`}>{title}</h2>
-          <button
-            className="dg-dismiss"
-            type="button"
-            aria-label={closeLabel}
-            onClick={() => onOpenChange(false)}
-          >
-            ×
-          </button>
-        </header>
-        {description && (
-          <p id={`${id}-description`} className="dg-dialog__description">
-            {description}
-          </p>
-        )}
-        {children}
-      </GlassSurface>
-    </motion.dialog>
-  );
-}
-export function GlassSheet(props: GlassDialogProps) {
-  return <GlassDialog {...props} placement="sheet" />;
-}
+export { GlassDialog, GlassSheet, type GlassDialogProps } from "./LiquidDialog";
 
 export interface GlassPopoverProps {
   trigger: ReactNode;
@@ -124,13 +31,15 @@ export function GlassDropdownMenu({
   trigger,
   label = "Actions",
   items,
+  morphTrigger = false,
 }: {
   trigger: ReactNode;
   label?: string;
   items: { label: string; disabled?: boolean; onSelect: () => void }[];
+  morphTrigger?: boolean;
 }) {
   return (
-    <GlassPopover trigger={trigger} label={label} role="menu">
+    <LiquidPopover trigger={<GlassButton>{trigger}</GlassButton>} label={label} role="menu" morphTrigger={morphTrigger}>
       <div
         className="dg-dropdown"
         onKeyDown={(event) => {
@@ -160,8 +69,12 @@ export function GlassDropdownMenu({
       >
         {items.map((item, i) => <MenuItem key={i} item={item} />)}
       </div>
-    </GlassPopover>
+    </LiquidPopover>
   );
+}
+/** The trigger dissolves into the menu and returns through the same liquid neck. */
+export function GlassMorphMenu(props: Omit<ComponentProps<typeof GlassDropdownMenu>, "morphTrigger">) {
+  return <GlassDropdownMenu {...props} morphTrigger />;
 }
 export function GlassTooltip({ label, children }: {
   label: string;
@@ -170,7 +83,7 @@ export function GlassTooltip({ label, children }: {
   return <LiquidPopover trigger={children} label={label} role="tooltip" tooltip>{label}</LiquidPopover>;
 }
 export interface GlassTabsProps {
-  items: (GlassSegmentItem & { content: ReactNode })[];
+  items: (GlassSegmentItem & { content?: ReactNode })[];
   value?: string;
   defaultValue?: string;
   onValueChange?: (value: string) => void;
@@ -189,6 +102,7 @@ export function GlassTabs({
     ? candidate
     : items[0]?.value;
   const id = useId();
+  const hasContent = items.some(item => item.content != null);
   return (
     <div className="dg-tab-panels">
       <GlassSegmented
@@ -200,9 +114,9 @@ export function GlassTabs({
         }}
         ariaLabel={label}
         tablist
-        idPrefix={id}
+        idPrefix={hasContent ? id : undefined}
       />
-      {items.map((item) => (
+      {hasContent && items.map((item) => (
         <div
           key={item.value}
           role="tabpanel"

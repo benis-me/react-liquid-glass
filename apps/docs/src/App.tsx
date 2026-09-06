@@ -8,7 +8,7 @@ import {
   X,
 } from "lucide-react";
 import { GlassButtonGroup, GlassSheet } from "refractive-glass-react/controls";
-import { catalog, groups, groupZh, type ComponentId } from "./site/catalog";
+import { catalog, groups, groupZh, componentAliases, type ComponentId } from "./site/catalog";
 import {
   Catalog,
   ComponentPage,
@@ -40,8 +40,10 @@ function saved(key: string) {
   }
 }
 export function App() {
-  const path = usePath(),
-    previousPath = useRef(path),
+  const requestedPath = usePath();
+  const path = requestedPath.replace(/^\/components\/([^/]+)$/, (_, id: string) => `/components/${componentAliases[id] ?? id}`);
+  useEffect(() => { if (path !== requestedPath) history.replaceState(null, "", path + location.search + location.hash); }, [path, requestedPath]);
+  const previousPath = useRef(path),
     main = useRef<HTMLElement>(null);
   const [theme, setTheme] = useState<"light" | "dark">(() =>
     saved("glass-theme") === "dark"
@@ -312,45 +314,30 @@ export function App() {
             >
               GitHub <ArrowUpRight size={12} />
             </Link>
-            <button type="button"
-              className="icon-button mobile-menu-button"
-              aria-label={zh ? "导航菜单" : "Navigation menu"}
-              aria-expanded={mobileOpen}
-              aria-controls="mobile-navigation"
-              onClick={() => setMobileOpen(!mobileOpen)}
+            <GlassSheet
+              trigger={<button type="button" className="icon-button mobile-menu-button" aria-label={zh ? "导航菜单" : "Navigation menu"}>
+                {mobileOpen ? <X size={18} /> : <Menu size={18} />}
+              </button>}
+              open={mobileOpen} onOpenChange={setMobileOpen}
+              title={zh ? "导航" : "Navigation"} closeLabel={zh ? "关闭导航" : "Close navigation"}
             >
-              {mobileOpen ? <X size={18} /> : <Menu size={18} />}
-            </button>
+              <nav id="mobile-navigation" className="mobile-navigation" aria-label={zh ? "移动导航" : "Mobile navigation"}>
+                <div className="mobile-top-links">
+                  {nav.map((item) => (
+                    <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)}>
+                      {zh ? item.zh : item.en}
+                    </Link>
+                  ))}
+                </div>
+                <div onClick={(event) => { if ((event.target as HTMLElement).closest("a")) setMobileOpen(false); }}>
+                  {sidebar}
+                </div>
+              </nav>
+            </GlassSheet>
           </div>
         </div>
       </header>
-      <GlassSheet open={mobileOpen} onOpenChange={setMobileOpen} title={zh ? "导航" : "Navigation"} closeLabel={zh ? "关闭导航" : "Close navigation"}>
-        <nav
-          id="mobile-navigation"
-          className="mobile-navigation"
-          aria-label={zh ? "移动导航" : "Mobile navigation"}
-        >
-          <div className="mobile-top-links">
-          {nav.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setMobileOpen(false)}
-            >
-              {zh ? item.zh : item.en}
-            </Link>
-          ))}
-          </div>
-          <div
-            onClick={(event) => {
-              if ((event.target as HTMLElement).closest("a"))
-                setMobileOpen(false);
-            }}
-          >
-            {sidebar}
-          </div>
-        </nav>
-      </GlassSheet>
+
       <div className={isHome ? "site-container" : "site-container docs-layout"}>
         {!isHome && (
           <aside className="docs-sidebar">

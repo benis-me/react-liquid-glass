@@ -414,7 +414,7 @@ html[data-theme="dark"] .dg-tabs__item:not([data-selected]):hover { background: 
 .dg-surface__optics { position: absolute; inset: -14px; pointer-events: none; z-index: -1; }
 .dg-surface__content { position: relative; display: block; min-width: 0; }
 .dg-button, .dg-action__button { touch-action: none; }
-.dg-button { appearance: none; display: inline-block; color: inherit; font: inherit; line-height: 1; background: transparent; border: 0; padding: 0; cursor: pointer; border-radius: 16px; vertical-align: middle; -webkit-tap-highlight-color: transparent; }
+.dg-button { appearance: none; display: inline-block; color: inherit; font: inherit; font-size: 13px; font-weight: 650; line-height: 1; background: transparent; border: 0; padding: 0; cursor: pointer; border-radius: 16px; vertical-align: middle; -webkit-tap-highlight-color: transparent; }
 .dg-button > .dg-surface > .dg-surface__content { min-height: 42px; padding: 0 18px; display: flex; align-items: center; justify-content: center; gap: 8px; }
 .dg-button[data-size="small"] > .dg-surface > .dg-surface__content { min-height: 34px; padding: 0 12px; font-size: 12px; }
 .dg-button[data-size="large"] > .dg-surface > .dg-surface__content { min-height: 50px; padding: 0 24px; }
@@ -423,6 +423,9 @@ html[data-theme="dark"] .dg-tabs__item:not([data-selected]):hover { background: 
 .dg-button[data-variant="ghost"] .dg-surface__optics { opacity: .5; }
 .dg-button:disabled, .dg-choice:has(input:disabled), .dg-field:has(:disabled) { opacity: .45; cursor: not-allowed; }
 .dg-button[aria-pressed="true"] .dg-surface__content { background: color-mix(in srgb, currentColor 12%, transparent); border-radius: inherit; }
+.dg-toggle > .dg-surface > .dg-surface__content { border-radius: inherit; transition: background-color 180ms ease; }
+.dg-toggle svg { transition: fill-opacity 180ms ease; }
+@media (prefers-reduced-motion: reduce) { .dg-toggle > .dg-surface > .dg-surface__content, .dg-toggle svg { transition: none; } }
 .dg-button svg { width: 16px; height: 16px; flex-shrink: 0; }
 .dg-button-group { display: inline-block; max-width: 100%; vertical-align: middle; }
 .dg-button-group__items { display: flex; align-items: stretch; padding: 4px; gap: 1px; }
@@ -475,14 +478,15 @@ html[data-theme="dark"] .dg-tabs__item:not([data-selected]):hover { background: 
 .dg-accordion__heading button { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 16px; padding: 17px 20px; color: inherit; background: transparent; border: 0; border-radius: 18px; text-align: left; font: inherit; font-size: 13px; cursor: pointer; }
 .dg-accordion__mark { font-size: 18px; }
 .dg-accordion__body { padding: 0 20px 20px; font-size: 13px; line-height: 1.7; }
-.dg-dialog { border: 0; padding: 0; background: transparent; color: inherit; overflow: visible; width: min(440px, calc(100vw - 40px)); max-height: calc(100dvh - 48px); }
-.dg-dialog::backdrop { background: #0007; }
-.dg-dialog > .dg-surface > .dg-surface__content { padding: 28px; max-height: calc(100dvh - 48px); overflow: auto; box-sizing: border-box; }
+.dg-dialog { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; border: 0; padding: 0; background: transparent; color: inherit; overflow: hidden; }
+.dg-dialog::backdrop { background: transparent; }
+.dg-dialog__mask { position: absolute; inset: 0; background: #0007; }
+.dg-dialog__optics { position: absolute; pointer-events: none; }
+.dg-dialog__body { position: absolute; width: min(440px, calc(100vw - 40px)); max-height: calc(100dvh - 48px); padding: 28px; overflow: auto; box-sizing: border-box; overscroll-behavior: contain; }
 .dg-dialog header { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 14px; }
 .dg-dialog h2 { margin: 0; font: inherit; font-size: 20px; font-weight: 600; }
-.dg-dialog__description { margin: 0 0 24px; font-size: 13px; line-height: 1.6; opacity: .6; }
-.dg-dialog--sheet { margin: 16px 16px 16px auto; height: calc(100dvh - 32px); max-height: none; }
-.dg-dialog--sheet > .dg-surface, .dg-dialog--sheet > .dg-surface > .dg-surface__content { height: 100%; max-height: none; }
+.dg-dialog__description { margin: 0 0 24px; font-size: 13px; line-height: 1.6; color: inherit; }
+.dg-dialog--sheet .dg-dialog__body { height: calc(100dvh - 32px); max-height: calc(100dvh - 32px); }
 .dg-dismiss { flex-shrink: 0; display: grid; place-items: center; width: 28px; height: 28px; color: inherit; background: transparent; border: 0; border-radius: 50%; cursor: pointer; font: inherit; font-size: 20px; line-height: 1; }
 .dg-dropdown { min-width: 160px; display: grid; gap: 4px; margin: -10px; }
 .dg-dropdown button { text-align: left; padding: 10px 14px; border-radius: 12px; background: transparent; border: 0; color: inherit; cursor: pointer; font: inherit; font-size: 13px; }

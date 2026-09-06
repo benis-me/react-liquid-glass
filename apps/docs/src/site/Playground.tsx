@@ -12,7 +12,7 @@ import {
   GlassSurface,
   type GlassBackground,
 } from "refractive-glass-react/controls";
-import { catalog, type ComponentId } from "./catalog";
+import { catalog, componentAliases, type ComponentId } from "./catalog";
 import { ComponentExample } from "./ComponentExample";
 import { CodeBlock, PageHeading, type PageProps } from "./Pages";
 import { Link } from "./router";
@@ -20,10 +20,11 @@ import { MaterialControls } from "./MaterialControls";
 import { sanitizeMaterial } from "./material";
 export function Playground({ locale, theme }: PageProps) {
   const [component, setComponent] = useState<ComponentId | "all">(() => {
-    const id = new URLSearchParams(location.search).get("component");
+    const requested = new URLSearchParams(location.search).get("component");
+    const id = componentAliases[requested ?? ""] ?? requested;
     return id === "all" || catalog.some((item) => item.id === id)
       ? (id as ComponentId | "all")
-      : "segmented";
+      : "tabs";
   });
   const [material, setMaterial] = useState<GlassMaterial>(() => {
     try {

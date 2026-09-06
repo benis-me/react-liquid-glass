@@ -61,7 +61,7 @@ See the [package README](packages/react-liquid-glass/README.md) for entry points
 
 - `/components` — searchable, filterable live catalog.
 - `/components/:component` — individual previews, complete copyable examples and API reference.
-- `/playground` — 21 numeric renderer parameters plus the live optical field; presets, per-component/all-component views, local persistence, reset, copied code and shareable URLs.
+- `/playground` — 21 numeric renderer parameters, an HDR switch and the live optical field; presets, per-component/all-component views, local persistence, reset, copied code and shareable URLs.
 - `/showcase/focus` — a deadline-based focus timer with local notes.
 - `/showcase/sequencer` — an eight-step, four-note Web Audio instrument.
 - `/showcase/orbit` — direct manipulation, velocity-preserving springs and shared-SDF fusion.

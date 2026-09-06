@@ -9,7 +9,7 @@ export interface PopoverLayout {
 }
 
 /** The menu's capsule growth and two-body absorption, calibrated to any trigger size. */
-export function popoverFrames(layout: PopoverLayout, open: boolean) {
+export function popoverFrames(layout: PopoverLayout, open: boolean, morphTrigger = false) {
   const { triggerX: tx, triggerY: ty, triggerWidth: tw, triggerHeight: th, panelX: px, panelY: py, panelWidth: pw, panelHeight: ph, panelRadius: pr } = layout;
   const dx = tx - px, dy = ty - py, length = Math.hypot(dx, dy) || 1;
   const ux = dx / length, uy = dy / length;
@@ -23,7 +23,7 @@ export function popoverFrames(layout: PopoverLayout, open: boolean) {
     w: openWidthFrames(tw * .4, pw / 2),
     h: openHeightFrames(th * .4, ph / 2),
     radius: openRadiusFrames(Math.min(tw, th) * .4, pr, pw / 2, ph / 2),
-    trigger: [1, .94, .96, 1.015, 1],
+    trigger: morphTrigger ? [1, .94, .35, 0, 0] : [1, .94, .96, 1.015, 1],
     merge: [0, neck, neck, neck * .5, 0],
     reveal: [0, 0, .48, .96, 1],
   };
@@ -39,7 +39,7 @@ export function popoverFrames(layout: PopoverLayout, open: boolean) {
     y: [py, py + dy * .12, ty - uy * middle, ty - uy * lobe, ty, ty],
     w, h,
     radius: [pr, Math.min(w[1], h[1], pr * 1.25), Math.min(w[2], h[2]), Math.min(w[3], h[3]), 1, 1],
-    trigger: [1, .985, .975, 1.035, 1.018, 1],
+    trigger: morphTrigger ? [0, 0, .65, 1.035, 1.018, 1] : [1, .985, .975, 1.035, 1.018, 1],
     merge: [0, 0, neck, neck * .85, 0, 0],
     reveal: [1, .5, .025, 0, 0, 0],
   };
@@ -53,12 +53,12 @@ export function usePopoverMotion() {
   const runs = useRef<ReturnType<typeof animate>[]>([]);
   const stop = () => { runs.current.forEach(run => run.stop()); runs.current = []; };
   useEffect(() => () => { token.current++; stop(); }, []);
-  const transition = (layout: PopoverLayout, open: boolean, done: () => void) => {
+  const transition = (layout: PopoverLayout, open: boolean, done: () => void, options: { morphTrigger?: boolean; duration?: number } = {}) => {
     const interrupted = running.current;
     const revision = ++token.current;
     stop();
-    const frames = popoverFrames(layout, open);
-    const duration = open ? OPEN_MORPH_DURATION : .28 * Math.max(.55, Math.min(1, h.get() * 2 / layout.panelHeight));
+    const frames = popoverFrames(layout, open, options.morphTrigger);
+    const duration = open ? options.duration ?? OPEN_MORPH_DURATION : .28 * Math.max(.55, Math.min(1, h.get() * 2 / layout.panelHeight));
     const values: Record<string, MotionValue<number>> = { x, y, w, h, radius, trigger, merge, reveal };
     running.current = !reduce;
     for (const [key, value] of Object.entries(values)) {

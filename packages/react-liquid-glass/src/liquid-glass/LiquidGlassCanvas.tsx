@@ -15,6 +15,8 @@ export interface LiquidGlassCanvasProps extends Omit<LiquidGlassFrame, "source" 
   shared?: boolean;
   /** Interaction adapters resolve the provider before composing their live state. */
   inheritMaterial?: boolean;
+  /** Enable extended highlights on supported HDR displays. Default: true. */
+  hdr?: boolean;
   className?: string;
   style?: CSSProperties;
   ariaLabel?: string;
@@ -22,7 +24,7 @@ export interface LiquidGlassCanvasProps extends Omit<LiquidGlassFrame, "source" 
 
 export function LiquidGlassCanvas(props: LiquidGlassCanvasProps) {
   const material = useGlassMaterial();
-  props = props.inheritMaterial === false ? props : { ...props, ...material };
+  props = props.inheritMaterial === false ? props : { ...props, ...material, hdr: props.hdr ?? material.hdr };
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const config = useRef(props);
   config.current = props;
@@ -47,7 +49,7 @@ export function LiquidGlassCanvas(props: LiquidGlassCanvasProps) {
       const contact = p.blobs.some(blob => readMotion(blob.contactStrength ?? 0) > .001);
       const reflection = readMotion(p.specularStrength ?? LIQUID_GLASS_MATERIAL.specularStrength) * (p.edgeStrength ?? LIQUID_GLASS_MATERIAL.edgeStrength) > .001;
       const lit = (contact || reflection) && readMotion(p.tintStrength ?? 0) < .999 && readMotion(p.opacity ?? 1) > .001;
-      const highRange = !p.debug && dynamicRange.matches;
+      const highRange = p.hdr !== false && !p.debug && dynamicRange.matches;
       if (lit && highRange && !requestedHDR) {
         requestedHDR = true;
         void createHighlightHDR(canvas).then(next => { if (disposed) next?.dispose(); else { hdr = next; if (next) scheduleDraw(); } });

@@ -1,7 +1,7 @@
 import { memo, type Dispatch, type SetStateAction, type ReactNode } from "react";
 import { RotateCcw } from "lucide-react";
 import { GlassAccordion, GlassButton, GlassButtonGroup, GlassSlider, GlassSwitch } from "refractive-glass-react/controls";
-import type { GlassMaterial } from "refractive-glass-react/liquid-glass";
+import { PRISM_MATERIAL, type GlassMaterial } from "refractive-glass-react/liquid-glass";
 import type { Locale } from "../i18n";
 import { materialFields } from "./material";
 const presets: {
@@ -37,13 +37,7 @@ const presets: {
     id: "prism",
     en: "Prism",
     zh: "棱镜",
-    material: {
-      blurStrength: 0.2,
-      chromaAmount: 1.2,
-      refractionStrength: 0.2,
-      specularStrength: 0.9,
-      tintStrength: 0.02,
-    },
+    material: PRISM_MATERIAL,
   },
 ];
 
@@ -88,9 +82,11 @@ export function MaterialControls({ locale, material, setMaterial, children }: {
   locale: Locale; material: GlassMaterial; setMaterial: Dispatch<SetStateAction<GlassMaterial>>; children?: ReactNode;
 }) {
   const zh = locale === "zh";
+  const { hdr: _hdr, ...optics } = material;
   const activePreset =
     presets.find(
-      (preset) => JSON.stringify(preset.material) === JSON.stringify(material),
+      (preset) => Object.keys(preset.material).length === Object.keys(optics).length &&
+        Object.entries(preset.material).every(([key, value]) => optics[key as keyof typeof optics] === value),
     )?.id ?? "custom";
   const fieldControl = (field: (typeof materialFields)[number]) => (
     <MaterialField key={field.key} field={field} value={material[field.key]} zh={zh} setMaterial={setMaterial} />
@@ -114,7 +110,7 @@ export function MaterialControls({ locale, material, setMaterial, children }: {
               <GlassButton size="small"
                 key={preset.id}
                 aria-pressed={activePreset === preset.id}
-                onClick={() => setMaterial(preset.material)}
+                onClick={() => setMaterial(current => ({ ...preset.material, ...(current.hdr === undefined ? {} : { hdr: current.hdr }) }))}
               >
                 {zh ? preset.zh : preset.en}
               </GlassButton>
@@ -126,6 +122,11 @@ export function MaterialControls({ locale, material, setMaterial, children }: {
               : "Defaults stay local. Adjustments apply to all."}
           </p>
           <div className="material-fields">
+            <div className="debug-field">
+              <span>HDR</span>
+              <GlassSwitch size="small" ariaLabel="HDR" checked={material.hdr !== false}
+                onCheckedChange={hdr => setMaterial(current => ({ ...current, hdr }))} />
+            </div>
             {materialFields.slice(0, 11).map(fieldControl)}
           </div>
           <div className="material-advanced">

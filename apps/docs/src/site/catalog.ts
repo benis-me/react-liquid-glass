@@ -1,22 +1,6 @@
 export type ComponentId = (typeof catalog)[number]["id"];
 export const catalog = [
   {
-    id: "liquid-button",
-    name: "Liquid Button",
-    zh: "液态按钮",
-    group: "Actions",
-    description:
-      "Contact light, elastic pull, and a soft return.",
-    summary: "按压点亮，拖拽拉伸，松手回弹。",
-    api: "GlassActionButton",
-    props: [
-      ["children", "ReactNode", "button label"],
-      ["onClick", "MouseEventHandler", "—"],
-      ["disabled", "boolean", "false"],
-    ],
-    code: "<GlassActionButton onClick={() => setCount(count + 1)}>Hold and pull</GlassActionButton>",
-  },
-  {
     id: "button",
     name: "Button",
     zh: "按钮",
@@ -81,36 +65,20 @@ export const catalog = [
     code: '<GlassSlider value={volume} onValueChange={setVolume} ariaLabel="Volume" />',
   },
   {
-    id: "segmented",
-    name: "Segmented",
-    zh: "分段选择",
-    group: "Navigation",
-    description: "Glass navigation with elastic selection.",
-    summary: "玻璃底座与弹性选中态。",
-    api: "GlassSegmented",
-    props: [
-      ["items", "GlassSegmentItem[]", "built-in items"],
-      ["value", "string", "first item"],
-      ["onValueChange", "(value: string) => void", "—"],
-      ["ariaLabel", "string", '"Options"'],
-    ],
-    code: '<GlassSegmented items={[{ value: "day", label: "Day" }, { value: "week", label: "Week" }]} value={period} onValueChange={setPeriod} />',
-  },
-  {
     id: "tabs",
     name: "Tabs",
     zh: "标签页",
     group: "Navigation",
-    description: "Liquid navigation with accessible, linked content panels.",
-    summary: "液态导航，配有语义完整的独立内容面板。",
+    description: "Liquid navigation with optional content panels.",
+    summary: "液态导航，可选内容面板。",
     api: "GlassTabs",
     props: [
-      ["items", "(GlassSegmentItem & { content: ReactNode })[]", "required"],
+      ["items", "(GlassSegmentItem & { content?: ReactNode })[]", "required"],
       ["value / defaultValue", "string", "first item"],
       ["onValueChange", "(value: string) => void", "—"],
       ["label", "string", '"Sections"'],
     ],
-    code: '<GlassTabs items={[{ value: "design", label: "Design", content: <p>Make it feel right.</p> }, { value: "code", label: "Code", content: <p>Make it reusable.</p> }]} />',
+    code: '<GlassTabs items={[{ value: "design", label: "Design" }, { value: "motion", label: "Motion" }, { value: "code", label: "Code" }]} />',
   },
   {
     id: "input",
@@ -306,28 +274,30 @@ export const catalog = [
     summary: "聚焦一个任务，支持原生焦点约束与 Escape 退出。",
     api: "GlassDialog",
     props: [
+      ["trigger", "ReactElement<button props>", "optional; sets motion origin"],
       ["open", "boolean", "required"],
       ["onOpenChange", "(open: boolean) => void", "required"],
       ["title / description", "string", "title required"],
       ["children", "ReactNode", "—"],
     ],
-    code: '<GlassDialog open={open} onOpenChange={setOpen} title="Edit profile"><GlassInput label="Name" /><GlassButton onClick={() => setOpen(false)}>Save</GlassButton></GlassDialog>',
+    code: '<GlassDialog trigger={<GlassButton>Open dialog</GlassButton>} open={open} onOpenChange={setOpen} title="Edit profile"><GlassInput label="Name" /><GlassButton onClick={() => setOpen(false)}>Save</GlassButton></GlassDialog>',
   },
   {
     id: "sheet",
     name: "Sheet",
     zh: "侧边面板",
     group: "Overlays",
-    description: "A little extra space, arriving from the edge.",
-    summary: "从边缘展开，为当前任务留出更多空间。",
+    description: "A glass panel that grows from its trigger to the edge.",
+    summary: "从触发器生长至屏幕边缘的玻璃面板。",
     api: "GlassSheet",
     props: [
+      ["trigger", "ReactElement<button props>", "optional; sets motion origin"],
       ["open", "boolean", "required"],
       ["onOpenChange", "(open: boolean) => void", "required"],
       ["title / description", "string", "title required"],
       ["children", "ReactNode", "—"],
     ],
-    code: '<GlassSheet open={open} onOpenChange={setOpen} title="Settings"><GlassSwitch ariaLabel="Notifications" /></GlassSheet>',
+    code: '<GlassSheet trigger={<GlassButton>Open settings</GlassButton>} open={open} onOpenChange={setOpen} title="Settings"><GlassSwitch ariaLabel="Notifications" /></GlassSheet>',
   },
   {
     id: "popover",
@@ -390,22 +360,20 @@ export const catalog = [
     code: '<GlassAccordion items={[{ title: "How does it work?", content: "One shared WebGL2 material." }]} />',
   },
   {
-    id: "liquid-menu",
-    name: "Liquid Menu",
-    zh: "液态菜单",
+    id: "morph-menu",
+    name: "Morph Menu",
+    zh: "融变菜单",
     group: "Overlays",
-    description: "A button becomes a menu. Two bodies fuse on the way home.",
-    summary: "按钮成为菜单，关闭时通过液态融合回到原点。",
-    api: "LiquidMenu",
+    description: "A trigger that becomes its menu.",
+    summary: "触发器融成菜单，关闭后复原。",
+    api: "GlassMorphMenu",
     props: [
-      ["theme", '"light" | "dark"', "required"],
-      ["openLabel / menuLabel", "string", "required"],
       ["trigger", "ReactNode", "required"],
-      ["children", "(open: boolean) => ReactNode", "required"],
+      ["label", "string", '"Actions"'],
+      ["items", "{ label, onSelect, disabled? }[]", "required"],
     ],
-    code: '<LiquidMenu theme="light" openLabel="Open menu" menuLabel="Actions" trigger="•••">{open => <div className="dg-liquid-menu__scroll"><button className="dg-liquid-menu__sort-row" role="menuitem" tabIndex={open ? 0 : -1}>Your action</button></div>}</LiquidMenu>',
-  },
-  {
+    code: '<GlassMorphMenu trigger="Actions" items={[{ label: "Duplicate", onSelect: () => {} }, { label: "Archive", onSelect: () => {} }]} />',
+  },  {
     id: "spotlight",
     name: "Spotlight",
     zh: "折射镜片",
@@ -457,12 +425,10 @@ export const groupZh: Record<string, string> = {
 };
 
 const setup: Partial<Record<ComponentId, string>> = {
-  "liquid-button": "const [count, setCount] = useState(0);",
   button: "const [count, setCount] = useState(0);",
   "button-group": "const [zoom, setZoom] = useState(100);",
   switch: "const [enabled, setEnabled] = useState(false);",
   slider: "const [volume, setVolume] = useState(50);",
-  segmented: 'const [period, setPeriod] = useState("day");',
   input: 'const [name, setName] = useState("");',
   toggle: "const [saved, setSaved] = useState(false);",
   toast: "const [visible, setVisible] = useState(false);",
@@ -478,10 +444,6 @@ export function exampleCode(id: ComponentId) {
     content =
       "<GlassButton onClick={() => setVisible(true)}>Notify me</GlassButton>\n      " +
       content;
-  if (id === "dialog" || id === "sheet")
-    content =
-      "<GlassButton onClick={() => setOpen(true)}>Open</GlassButton>\n      " +
-      content;
   if (id === "button") content += "\n      <output>{count} clicks</output>";
   if (id === "dropdown-menu")
     content += "\n      <output>{copies} copies</output>";
@@ -493,3 +455,5 @@ export function exampleCode(id: ComponentId) {
   );
   return `${setup[id] ? 'import { useState } from "react";\n' : ""}import { ${imports.join(", ")} } from "refractive-glass-react/controls";\nimport "refractive-glass-react/controls.css";\n\nexport default function Example() {\n  ${setup[id] ? setup[id] + "\n  " : ""}return (\n    <GlassStage>\n      ${content}\n    </GlassStage>\n  );\n}`;
 }
+
+export const componentAliases: Partial<Record<string, ComponentId>> = { "liquid-button": "button", segmented: "tabs", "liquid-menu": "morph-menu" };

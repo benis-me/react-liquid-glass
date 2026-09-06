@@ -14,7 +14,9 @@ async function resources() {
     }
     @fragment fn fragment(@builtin(position) point: vec4f) -> @location(0) vec4f {
       let light = textureLoad(mask, vec2i(point.xy), 0).rg;
-      return vec4f(vec3f(light.r * 2.4 + light.g * 4.), light.r * .35 + light.g * .12);
+      // WebGL emits contact in red and the fine edge reflection in green.
+      let edge = light.g * .26;
+      return vec4f(vec3f(light.r * 2.4 + edge * 4.), light.r * .35 + edge * .12);
     }
   ` });
   const pipeline = await device.createRenderPipelineAsync({ layout: "auto", vertex: { module, entryPoint: "vertex" }, fragment: { module, entryPoint: "fragment", targets: [{ format: "rgba16float" }] } });

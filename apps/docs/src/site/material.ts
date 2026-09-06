@@ -7,7 +7,7 @@ export const materialFields = [
     min: 0,
     max: 0.4,
     step: 0.01,
-    initial: 0.11,
+    initial: 0.2,
   },
   {
     key: "blurStrength",
@@ -16,7 +16,7 @@ export const materialFields = [
     min: 0,
     max: 16,
     step: 0.1,
-    initial: 0.4,
+    initial: 0.2,
   },
   {
     key: "chromaAmount",
@@ -25,7 +25,7 @@ export const materialFields = [
     min: 0,
     max: 1.5,
     step: 0.01,
-    initial: 0.24,
+    initial: 1.2,
   },
   {
     key: "magnification",
@@ -43,7 +43,7 @@ export const materialFields = [
     min: 0,
     max: 1.5,
     step: 0.01,
-    initial: 0.72,
+    initial: 0.9,
   },
   {
     key: "specularRotation",
@@ -79,7 +79,7 @@ export const materialFields = [
     min: 0,
     max: 0.6,
     step: 0.005,
-    initial: 0.025,
+    initial: 0.02,
   },
   {
     key: "edgeDepth",
@@ -200,5 +200,7 @@ export function sanitizeMaterial(value: unknown): GlassMaterial {
   }
   if (typeof (value as Record<string, unknown>).debug === "boolean")
     result.debug = (value as { debug: boolean }).debug;
+  if (typeof (value as Record<string, unknown>).hdr === "boolean")
+    result.hdr = (value as { hdr: boolean }).hdr;
   return result;
 }

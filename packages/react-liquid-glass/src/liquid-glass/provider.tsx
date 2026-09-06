@@ -25,7 +25,13 @@ export type GlassMaterial = Partial<
     | "mergeDistance",
     number
   >
-> & { debug?: boolean };
+> & { debug?: boolean; hdr?: boolean };
+
+/** Clear, chromatic UI glass. Large surfaces supply their own frost. */
+export const PRISM_MATERIAL = {
+  blurStrength: .2, chromaAmount: 1.2, refractionStrength: .2,
+  specularStrength: .9, tintStrength: .02,
+} as const satisfies GlassMaterial;
 
 const MaterialContext = createContext<GlassMaterial>({});
 

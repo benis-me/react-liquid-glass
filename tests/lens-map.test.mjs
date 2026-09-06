@@ -38,7 +38,7 @@ const packageSource = readFileSync(new URL("../packages/react-liquid-glass/packa
 const readmeSource = readFileSync(new URL("../README.md", import.meta.url), "utf8");
 const additionalDemosSource = readFileSync(new URL("../packages/react-liquid-glass/src/controls/GlassActionButton.tsx", import.meta.url), "utf8");
 const liquidDemoSource = [
-  "demos/LiquidGlassDemo.tsx", "lib/controls/LiquidMenu.tsx", "lib/apple-motion/use-menu-motion.ts",
+  "lib/controls/LiquidMenu.tsx", "lib/apple-motion/use-menu-motion.ts",
   "lib/controls/use-menu-material.ts", "lib/apple-motion/menu.ts",
 ].map(path => readFileSync(new URL(`../${path.startsWith("lib/") ? "packages/react-liquid-glass/src/" + path.slice(4) : "apps/docs/src/" + path}`, import.meta.url), "utf8")).join("\n");
 const liquidCanvasUrl = new URL("../packages/react-liquid-glass/src/liquid-glass/LiquidGlassCanvas.tsx", import.meta.url);
@@ -384,12 +384,8 @@ test("liquid menu keeps one core-compatible Canvas material over the shared back
   assert.match(liquidDemoSource, /aria-expanded=\{open\}/);
   assert.match(liquidDemoSource, /pointerEvents: open \? "none" : "auto"/);
   assert.match(liquidDemoSource, /role="menu"/);
-  assert.match(liquidDemoSource, /role="menuitemradio"/);
-  assert.match(liquidDemoSource, /role="menuitemcheckbox"/);
   assert.match(liquidDemoSource, /event\.key !== "Escape"/);
   assert.match(liquidDemoSource, /window\.addEventListener\("keydown", closeOnEscape\)/);
-  assert.match(liquidDemoSource, /最近玩过的游戏/);
-  assert.match(liquidDemoSource, /筛选/);
   assert.match(liquidDemoSource, /createLiquidBackdrop\(owner/);
   assert.doesNotMatch(demoStylesSource, /--dg-liquid-grid/);
   assert.doesNotMatch(demoStylesSource, /dg-liquid-menu__grid|dg-liquid-menu__core-layer/);

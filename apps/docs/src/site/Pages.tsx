@@ -145,7 +145,7 @@ export function Home({ locale, theme }: PageProps) {
         <div className="home-controls">
           <Preview id="switch" locale={locale} theme={theme} />
           <Preview id="slider" locale={locale} theme={theme} />
-          <Preview id="segmented" locale={locale} theme={theme} />
+          <Preview id="tabs" locale={locale} theme={theme} />
         </div>
         <div className="home-control-labels">
           <Link href="/components/switch">
@@ -154,8 +154,8 @@ export function Home({ locale, theme }: PageProps) {
           <Link href="/components/slider">
             Slider <ArrowRight size={13} />
           </Link>
-          <Link href="/components/segmented">
-            Segmented <ArrowRight size={13} />
+          <Link href="/components/tabs">
+            Tabs <ArrowRight size={13} />
           </Link>
         </div>
       </section>
@@ -386,10 +386,6 @@ const keyboardNotes: Partial<Record<ComponentId, [string, string]>> = {
   slider: [
     "Use the arrow keys to adjust, Home / End to jump to the bounds. Click the track or drag the thumb.",
     "方向键微调，Home / End 跳到边界。点击轨道或直接拖动滑块。",
-  ],
-  segmented: [
-    "Drag across options, or use the arrow keys and Home / End. Space selects the focused option.",
-    "可跨选项拖动，也可使用方向键和 Home / End。空格选择当前焦点选项。",
   ],
   tabs: [
     "Arrow keys move between tabs. Each tab is linked to its panel with aria-controls.",

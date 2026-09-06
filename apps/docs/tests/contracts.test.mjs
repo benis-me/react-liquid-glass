@@ -9,11 +9,15 @@ import { execFileSync } from 'node:child_process';
 import * as library from 'refractive-glass-react/controls';
 const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
 const load = path => import(`data:text/javascript;base64,${Buffer.from(stripTypeScriptTypes(read(path))).toString('base64')}`);
-const { catalog, exampleCode } = await load('../src/site/catalog.ts');
+const { catalog, exampleCode, componentAliases } = await load('../src/site/catalog.ts');
 const { sanitizeMaterial, materialFields } = await load('../src/site/material.ts');
 
 test('every catalog entry has a real exported component and a type-correct standalone example', () => {
   assert.equal(new Set(catalog.map(item => item.id)).size, catalog.length);
+  for (const [oldId, currentId] of Object.entries(componentAliases)) {
+    assert.ok(!catalog.some(item => item.id === oldId), `${oldId} should not duplicate the catalog`);
+    assert.ok(catalog.some(item => item.id === currentId), `${oldId} needs a current destination`);
+  }
   const folder = mkdtempSync(join(tmpdir(), 'liquid-examples-'));
   try {
     symlinkSync(fileURLToPath(new URL('../../../node_modules', import.meta.url)), join(folder, 'node_modules'), 'dir');
@@ -32,6 +36,9 @@ test('every catalog entry has a real exported component and a type-correct stand
 
 test('shared material links accept only finite renderer settings and clamp extreme values', () => {
   assert.deepEqual(sanitizeMaterial(null), {}); assert.deepEqual(sanitizeMaterial([]), {});
+  assert.deepEqual(sanitizeMaterial({ hdr: false }), { hdr: false });
+  assert.deepEqual(sanitizeMaterial({ hdr: true }), { hdr: true });
+  assert.deepEqual(sanitizeMaterial({ hdr: 'false' }), {});
   assert.deepEqual(sanitizeMaterial({ blurStrength: '4', chromaAmount: NaN, debug: 'true', unknown: 1 }), {});
   assert.deepEqual(sanitizeMaterial({ blurStrength: 99, refractionStrength: -20, debug: true }), { refractionStrength: 0, blurStrength: 16, debug: true });
   for (const field of materialFields) {

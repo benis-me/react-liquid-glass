@@ -20,12 +20,13 @@ import { contactTransform } from "../apple-motion/contact";
 import { SURFACE_PRESS_SPRING } from "../apple-motion/presets";
 import { LiquidGlassCanvas } from "../liquid-glass/LiquidGlassCanvas";
 import { createLiquidBackdrop } from "../liquid-glass/backdrop";
+import { PRISM_MATERIAL } from "../liquid-glass/provider";
 
 export type GlassBackground = "grid" | "lines" | "plain";
 // Compact controls need less broad shading than the original, deep menu lens.
 export const SURFACE_MATERIAL = {
+  ...PRISM_MATERIAL,
   glowStrength: .1, glowSpread: .6, edgeStrength: .26, edgeWidth: 1.2,
-  chromaAmount: .24, blurStrength: .4, tintStrength: .025,
   shadowStrength: .055, shadowBlur: 14, shadowOffset: 4,
 } as const;
 export const StageContext = createContext(false);
@@ -206,7 +207,6 @@ function OpticalSurface({
             ]}
             domeDepth={Math.min(18, size.height * 0.25)}
             edgeDepth={Math.min(12, size.height * 0.12)}
-            refractionStrength={0.11}
             refractionRatio={[(size.width + 28) / (size.width + 80), (size.height + 28) / (size.height + 80)]}
             transparentOutside
             style={{ width: "100%", height: "100%" }}

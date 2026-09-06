@@ -177,7 +177,7 @@ td code { font-size: 10px; }
 
 @media (max-width: 640px) {
   .playground-main { position: sticky; top: 0; z-index: 3; background: var(--bg); padding-top: 10px; }
-  .playground-main:has(.playground-all, .component-preview--liquid-menu, .playground-code:has([aria-expanded="true"])) { position: static; }
+  .playground-main:has(.playground-all, .playground-code:has([aria-expanded="true"])) { position: static; }
   .playground-code { margin: 0 0 12px; }
   .playground-inspector { z-index: 1; }
 }

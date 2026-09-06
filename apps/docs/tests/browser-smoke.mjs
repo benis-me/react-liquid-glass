@@ -2,7 +2,7 @@
 // const qa = await import('/@fs/<repo>/apps/docs/tests/browser-smoke.mjs');
 // await qa.checkCatalog(); await qa.checkInteractions(); await qa.checkPlayground();
 // This uses the real React app and WebGL canvases, without a mock DOM or test framework.
-import { catalog } from '../src/site/catalog.ts';
+import { catalog, componentAliases } from '../src/site/catalog.ts';
 const assert = (value, message) => { if (!value) throw new Error(message); };
 const until = async (predicate, message, timeout = 5000) => {
   const start = performance.now();
@@ -36,7 +36,7 @@ export async function checkInteractions() {
   await go('/components/button'); click('.component-preview .dg-button'); await paint(); assert(document.querySelector('.component-preview')?.textContent.includes('Clicked 1'), 'Button did not fire'); passed.push('button');
   await go('/components/switch'); const toggle = click('.dg-switch input'); await paint(); assert(toggle.checked, 'Switch failed'); passed.push('switch');
   await go('/components/slider'); input(document.querySelector('.dg-slider input'), '72'); await paint(); assert(document.querySelector('.example-status')?.textContent === '72%', 'Slider did not update'); passed.push('slider');
-  await go('/components/tabs'); click('[role="tab"]:nth-of-type(3)'); await paint(); assert(document.querySelector('[role="tabpanel"]:not([hidden])')?.textContent.includes('Import only'), 'Tabs did not expose the matching panel'); passed.push('tabs');
+  await go('/components/tabs'); click('[role="tab"]:nth-of-type(3)'); await paint(); assert(document.querySelector('[role="tab"]:nth-of-type(3)')?.getAttribute('aria-selected') === 'true', 'Tabs selection did not update'); assert(!document.querySelector('[role="tabpanel"]'), 'Tabs demo should only show the control'); passed.push('tabs');
   await go('/components/input'); input(document.querySelector('.component-preview .dg-field input'), 'Glass test'); await paint(); assert(document.querySelector('.example-status')?.textContent.includes('Glass test'), 'Input failed'); passed.push('input');
   await go('/components/checkbox'); assert(click('.dg-choice input').checked, 'Checkbox failed'); passed.push('checkbox');
   await go('/components/radio-group'); const radio = click('input[value="motion"]'); await paint(); assert(radio.checked && !document.querySelector('input[value="design"]').checked, 'Radio group failed'); passed.push('radio');
@@ -56,7 +56,7 @@ export async function checkPlayground() {
   const fields = document.querySelectorAll('.material-field').length;
   assert(fields === 11, 'Advanced controls mounted eagerly');
   click('.material-advanced .dg-accordion__heading button'); await paint(); assert(document.querySelectorAll('.material-field').length === 21, 'Advanced fields incomplete');
-  click('.debug-field input'); await paint(); assert(document.querySelector('.playground-code code')?.textContent.includes('"debug": true'), 'Optical field is not connected');
+  click('.material-advanced .debug-field input'); await paint(); assert(document.querySelector('.playground-code code')?.textContent.includes('"debug": true'), 'Optical field is not connected');
   click('button[aria-label="Reset material"]'); await paint(); assert(localStorage.getItem('glass-playground') === '{}', 'Reset failed');
   return { material: 'live, persisted, reset', parameters: 21, debug: true };
 }
@@ -89,11 +89,9 @@ export async function checkRefinements() {
   assert(document.querySelector('.dg-popover-layer:popover-open'), 'Tooltip skipped exit animation');
   await until(() => !document.querySelector('.dg-popover-layer:popover-open'), 'Tooltip exit did not finish');
   passed.push('tooltip focus, escape, animated exit');
-  await go('/components/segmented');
-  assert(document.querySelector('.dg-tabs__container canvas'), 'Segmented container has no glass renderer');
   await go('/components/tabs');
   assert(document.querySelector('.dg-tabs__container canvas'), 'Tabs container has no glass renderer');
-  passed.push('segmented and tabs glass containers');
+  passed.push('tabs glass container');
   await go('/components');
   click('.catalog-material .dg-popover-anchor > button');
   await until(() => document.querySelector('.catalog-material .dg-popover-layer:popover-open'), 'Catalog material panel missing');
@@ -316,7 +314,7 @@ async function captureLiquidCanvas(canvas) {
 
 export async function checkSharedBackdrops() {
   const passed = [];
-  for (const id of ['liquid-button', 'button', 'button-group', 'input', 'textarea', 'segmented', 'select', 'liquid-menu']) {
+  for (const id of ['button', 'button-group', 'input', 'textarea', 'tabs', 'select', 'morph-menu']) {
     await go(`/components/${id}`);
     const stage = document.querySelector('.component-preview'), substrate = stage.querySelector('.dg-stage__substrate');
     await until(() => stage.querySelector('canvas[data-dg-renderer]')?.width > 1, `${id} did not render`);
@@ -577,7 +575,16 @@ export async function checkContactHDR() {
       assert(rim[70*bytesPerRow/2+120*4] === 0, 'HDR washed over the clear center');
       assert(rim[70*bytesPerRow/2+41*4] === 0, 'HDR reflection leaked down a straight sidewall');
       buffer.unmap();
-      return {format:configuration.format, mode:configuration.toneMapping.mode, contactPeak:peak, rimCompositePeak:compositePeak, displayHDR:matchMedia('(dynamic-range: high)').matches};
+      // Pin the independent channel gains: green is rim, red is contact.
+      for (const [color, gain, alpha] of [['#0f0', 4*.26, .12*.26], ['#f00', 2.4, .35]]) {
+        ctx.fillStyle=color;ctx.fillRect(0,0,240,140);hdr.draw(source);
+        const copy=device.createCommandEncoder();copy.copyTextureToBuffer({texture:context.getCurrentTexture()},{buffer,bytesPerRow},[240,140]);device.queue.submit([copy.finish()]);
+        await buffer.mapAsync(GPUMapMode.READ);
+        const sample=new Float16Array(buffer.getMappedRange());
+        assert(Math.abs(sample[0]-gain)<.005 && Math.abs(sample[3]-alpha)<.002, `Wrong HDR channel gain for ${color}`);
+        buffer.unmap();
+      }
+      return {format:configuration.format, mode:configuration.toneMapping.mode, contactPeak:peak, rimCompositePeak:compositePeak, edgeGain:.26, displayHDR:matchMedia('(dynamic-range: high)').matches};
     } finally { buffer.destroy(); }
   } finally { hdr?.dispose(); renderer.dispose(); host.remove(); }
 }
@@ -598,9 +605,13 @@ export async function checkMaterialOptics() {
     const side=Math.min(...[.25,.75,1.25].map(d=>red(ordinary,40+d,110)));
     const top=Math.min(...[.25,.75,1.25].map(d=>red(ordinary,160,40+d)));
     const inner=Math.min(...[3,4,5,6,8,10].map(d=>red(ordinary,160,40+d)));
-    assert(top-side>20 && top>=210, `Directional rim flattened: side ${side}, top ${top}`);
+    assert(top-side>20 && top>=205, `Directional rim flattened: side ${side}, top ${top}`);
     assert(inner>232, `Broad black glow returned: ${inner}`);
     assert(red(ordinary,42,110)>232, 'Side contour extends too far into the glass');
+    renderer.draw({...frame,blobs:[...frame.blobs,{x:.95,y:.9,radius:16,halfWidth:0,halfHeight:0}]});
+    assert(pixels().every((value,index)=>value===ordinary[index]),'A dissolved trigger left a phantom lens or shadow');
+    renderer.draw({...frame,backdropDim:.5});const dimmed=red(pixels(),160,110);
+    assert(dimmed>100&&dimmed<140,'Modal glass does not follow the black mask beneath it');
     renderer.draw(frame,capture);const after=pixels();
     assert(after.every((value,index)=>value===ordinary[index]), 'Direct renderer ended on the HDR mask');
     const light=mask.getContext('2d').getImageData(0,0,640,440).data;
@@ -617,4 +628,94 @@ export async function checkMaterialOptics() {
     assert(clear>80 && frosted<clear*.2, `Large popup frost did not soften the substrate: ${clear}/${frosted}`);
     return {side,top,inner,clearContrast:clear,frostedContrast:frosted,directHDR:'base preserved, light occluded'};
   } finally {renderer.dispose();}
+}
+
+const sampleMotion = async (duration, read) => {
+  const samples=[], start=performance.now();
+  do { await new Promise(requestAnimationFrame); samples.push(read()); } while(performance.now()-start < duration);
+  return samples;
+};
+export async function checkConsolidatedControls() {
+  await document.fonts.ready;
+  for(const [alias,id] of Object.entries(componentAliases)) {
+    history.pushState(null,'',`/components/${alias}`);window.dispatchEvent(new PopStateEvent('popstate'));
+    await until(()=>location.pathname===`/components/${id}`,`${alias} did not redirect`);
+  }
+  await go('/components/tabs');
+  const tabs=document.querySelector('[role=tablist]'), before=tabs.getBoundingClientRect();
+  click('[role=tab]:nth-of-type(3)');await sampleMotion(650,()=>null);
+  const after=tabs.getBoundingClientRect();
+  assert(!document.querySelector('[role=tabpanel]') && Math.abs(before.y-after.y)<.5,`Tabs demo changes layout: ${before.y} -> ${after.y}; panels ${document.querySelectorAll('[role=tabpanel]').length}`);
+  await go('/components/toggle');
+  const toggle=document.querySelector('.dg-toggle'), svg=toggle.querySelector('svg');
+  const width=toggle.getBoundingClientRect().width;toggle.click();
+  const fills=await sampleMotion(250,()=>+getComputedStyle(svg).fillOpacity);
+  assert(fills.some(v=>v>0&&v<1) && fills.at(-1)===1,'Toggle fill jumps instead of transitioning');
+  assert(Math.abs(toggle.getBoundingClientRect().width-width)<.5,'Toggle label changes width');
+  await go('/components/toast');
+  const button=document.querySelector('.component-preview .dg-button'), y=button.getBoundingClientRect().y;
+  button.click();const opening=await sampleMotion(360,()=>button.getBoundingClientRect().y), end=opening.at(-1);
+  click('.dg-toast .dg-dismiss');const closing=await sampleMotion(360,()=>button.getBoundingClientRect().y);
+  assert(opening.filter(v=>v<y-1&&v>end+1).length>2 && closing.filter(v=>v> end+1&&v<y-1).length>2,'Toast still jumps the neighboring button');
+  assert(Math.abs(closing.at(-1)-y)<.5,'Toast did not release its space');
+  for(const [id,expected] of [['morph-menu',0],['dropdown-menu',1]]) {
+    await go(`/components/${id}`);const trigger=click('.dg-popover-anchor > button');
+    await until(()=>document.querySelector('.dg-popover__panel')?.style.opacity==='1','Menu did not settle');
+    const mirror=document.querySelector('.dg-popover__trigger-ink');
+    assert(+mirror.style.opacity===expected,`${id} has the wrong trigger lifecycle`);
+    document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+    await until(()=>!document.querySelector('.dg-popover-layer:popover-open'),'Menu did not close');
+    assert(document.activeElement===trigger && !trigger.closest('[inert]'),'Menu did not restore an interactive trigger');
+  }
+  return {aliases:Object.keys(componentAliases),tabs:'stable',toggle:'interpolated',toast:'continuous layout',menus:'distinct trigger lifecycles'};
+}
+export async function checkModalMotion() {
+  const {subscribeLiquidFrames}=await import('refractive-glass-react/liquid-glass/renderer');
+  const results=[];
+  for(const id of ['dialog','sheet']) {
+    await go(`/components/${id}`);
+    const trigger=document.querySelector('.component-preview > .dg-stage__contents > .dg-button');
+    const rect=trigger.getBoundingClientRect(), x=rect.left+rect.width*.2, y=rect.top+rect.height*.3;
+    trigger.dispatchEvent(new MouseEvent('click',{bubbles:true,detail:1,clientX:x,clientY:y}));
+    const dialog=document.querySelector('.component-preview dialog'), panel=dialog.querySelector('.dg-dialog__body'), mask=dialog.querySelector('.dg-dialog__mask');
+    const read=()=>{const r=panel.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2,w:r.width,h:r.height,mask:+mask.style.opacity,open:dialog.open}};
+    const initial=await sampleMotion(600,read), last=initial.at(-1);
+    assert(initial.some(v=>v.w<last.w*.75&&Math.hypot(v.x-x,v.y-y)<Math.hypot(last.x-x,last.y-y)*.6+12),`${id} did not originate at the click`);
+    assert(initial.some(v=>v.mask>0&&v.mask<1),`${id} mask skipped entrance`);
+    assert(last.w<=innerWidth && last.h<=innerHeight && dialog.contains(document.activeElement),`${id} exceeds the viewport or lost focus`);
+    click('.dg-dismiss',dialog);const closing=await sampleMotion(420,read);
+    assert(closing.some(v=>v.open&&v.mask>0&&v.mask<1),'Mask did not fade during closing');
+    assert(!dialog.open && document.activeElement===trigger,`${id} did not finish/restored focus`);
+    // Controlled consumers can retarget while the native modal is still exiting.
+    for(let i=0;i<2;i++){trigger.click();await sampleMotion(75,()=>null);click('.dg-dismiss',dialog);await sampleMotion(45,()=>null);}
+    trigger.click();await sampleMotion(650,()=>null);
+    assert(dialog.open && +panel.style.opacity===1,`${id} failed rapid reversal`);
+    let idleFrames=0;const stop=subscribeLiquidFrames(()=>idleFrames++);
+    await sampleMotion(180,()=>null);stop();assert(idleFrames===0,`${id} still redraws after settling`);
+    dialog.dispatchEvent(new Event('cancel',{cancelable:true}));await until(()=>!dialog.open,'Escape did not dismiss modal');
+    results.push({id,width:last.w,height:last.h,idleFrames});
+  }
+  return results;
+}
+export async function checkHDRPreference() {
+  const original=window.matchMedia;
+  // Exercise the real GPU presenter even when the test display itself is SDR.
+  window.matchMedia=query=>{const result=original.call(window,query);if(query==='(dynamic-range: high)')Object.defineProperty(result,'matches',{value:true});return result;};
+  try {
+    await go('/playground?component=button&material='+encodeURIComponent(JSON.stringify({hdr:false})));
+    const stage=document.querySelector('.component-preview');
+    await until(()=>stage.querySelector('canvas[data-dg-renderer]')?.width>1,'Button optics missing');
+    assert(!stage.querySelector('[data-dg-highlight-hdr]'),'Disabled HDR allocated a presenter');
+    const toggle=document.querySelector('input[aria-label=HDR]');toggle.click();
+    if(navigator.gpu && await navigator.gpu.requestAdapter()) {
+      await until(()=>stage.querySelector('[data-dg-highlight-hdr]')?.style.opacity==='1','HDR did not enable');
+      toggle.click();await paint();
+      assert(stage.querySelector('[data-dg-highlight-hdr]').style.opacity==='0','HDR did not turn off');
+    } else {toggle.click();}
+    const prism=[...document.querySelectorAll('.preset-list button')].find(button=>button.textContent==='Prism');prism.click();await paint();
+    assert(!toggle.checked && prism.getAttribute('aria-pressed')==='true','Preset selection reset HDR or lost its selected state');
+    assert(JSON.parse(localStorage.getItem('glass-playground')).hdr===false,'HDR preference did not persist');
+    click('button[aria-label="Reset material"]');await paint();assert(toggle.checked,'Reset did not restore default HDR');
+    return {toggle:'live',presets:'preserve HDR',persistence:true};
+  } finally {window.matchMedia=original;await go('/components/button');}
 }

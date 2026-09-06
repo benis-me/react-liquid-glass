@@ -44,7 +44,9 @@ export interface LiquidGlassProps {
   refractionPixels?: number;
   zoom?: MotionInput; depth?: MotionInput;
   debug?: boolean;
-  material?: Partial<LiquidGlassFrame>;
+  /** Enable extended highlights on supported HDR displays. Default: true. */
+  hdr?: boolean;
+  material?: Partial<LiquidGlassFrame> & { hdr?: boolean };
   contact?: Pick<LiquidGlassBlob, "contactX" | "contactY" | "anchorX" | "anchorY" | "contactStrength" | "pullX" | "pullY">;
   className?: string; style?: CSSProperties;
 }
@@ -228,6 +230,7 @@ export function LiquidGlass(props: LiquidGlassProps) {
       magnification={props.zoom}
       transparentOutside={!props.debug} debug={props.debug}
       {...material}
+      hdr={props.hdr ?? material.hdr}
       refractionStrength={props.refractionPixels !== undefined && material.refractionStrength !== undefined ? scale * readMotion(material.refractionStrength) / .11 : material.refractionStrength ?? scale}
       // Provider tuning changes the optical material, not the opaque rest endpoint.
       tintStrength={tintStrength} blurStrength={blur}

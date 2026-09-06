@@ -279,6 +279,7 @@ export function GlassToggle({
   defaultPressed = false,
   onPressedChange,
   children,
+  className = "",
   ...props
 }: GlassButtonProps & {
   pressed?: boolean;
@@ -290,6 +291,7 @@ export function GlassToggle({
   return (
     <GlassButton
       {...props}
+      className={`dg-toggle ${className}`}
       aria-pressed={active}
       onClick={(event) => {
         props.onClick?.(event);
@@ -429,10 +431,11 @@ export function GlassToast({
     return () => clearTimeout(timer);
   }, [open, duration]);
   return (
-    <div className="dg-toast" role="status" aria-live="polite">
+    <motion.div className="dg-toast" role="status" aria-live="polite" initial={false}
+      animate={{ height: open ? "auto" : 0 }} transition={{ duration: reduce ? 0 : .24, ease: [.32, 0, .2, 1] }}>
       <AnimatePresence initial={false}>
       {open && (
-        <motion.div key="toast" initial={reduce ? false : { opacity: 0, y: 16, scale: .96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: .98 }} transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 380, damping: 32 }}>
+        <motion.div key="toast" initial={reduce ? false : { opacity: 0, transform: "translateY(16px) scale(.96)" }} animate={{ opacity: 1, transform: "translateY(0px) scale(1)" }} exit={{ opacity: 0, transform: "translateY(16px) scale(.96)" }} transition={{ duration: reduce ? 0 : .24, ease: [.23, 1, .32, 1] }}>
         <GlassSurface radius={20}>
           <div>
             <strong>{title}</strong>
@@ -450,6 +453,6 @@ export function GlassToast({
         </motion.div>
       )}
       </AnimatePresence>
-    </div>
+    </motion.div>
   );
 }
