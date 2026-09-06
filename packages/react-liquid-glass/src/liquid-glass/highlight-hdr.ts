@@ -17,7 +17,7 @@ async function resources() {
       return vec4f(vec3f(light.r * 2.4 + light.g * 4.), light.r * .35 + light.g * .12);
     }
   ` });
-  const pipeline = device.createRenderPipeline({ layout: "auto", vertex: { module, entryPoint: "vertex" }, fragment: { module, entryPoint: "fragment", targets: [{ format: "rgba16float" }] } });
+  const pipeline = await device.createRenderPipelineAsync({ layout: "auto", vertex: { module, entryPoint: "vertex" }, fragment: { module, entryPoint: "fragment", targets: [{ format: "rgba16float" }] } });
   const presenters = new Set<() => void>();
   void device.lost.then(() => { shared = undefined; for (const dispose of presenters) dispose(); });
   return { device, pipeline, presenters };
@@ -55,6 +55,7 @@ export async function createHighlightHDR(canvas: HTMLCanvasElement) {
         const pass = commands.beginRenderPass({ colorAttachments: [{ view: context.getCurrentTexture().createView(), loadOp: "clear", storeOp: "store", clearValue: [0, 0, 0, 0] }] });
         pass.setPipeline(pipeline); pass.setBindGroup(0, group!); pass.draw(3); pass.end(); device.queue.submit([commands.finish()]);
       },
+      show() { overlay.style.opacity = "1"; },
       hide() { overlay.style.opacity = "0"; },
       dispose,
     };

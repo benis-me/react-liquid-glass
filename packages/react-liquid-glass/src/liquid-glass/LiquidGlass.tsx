@@ -83,6 +83,9 @@ export function LiquidGlass(props: LiquidGlassProps) {
         root.style.translate = `${alignment.x}px ${alignment.y}px`;
       }
       const width = root.clientWidth, height = root.clientHeight;
+      // A hidden native popover reports zero. Keep its measured surface and GPU
+      // resources for the next opening; IntersectionObserver pauses the canvas.
+      if (!width || !height) return;
       setSize(old => old.width === width && old.height === height ? old : { width, height });
     };
     measure();

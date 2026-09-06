@@ -68,6 +68,14 @@ test("Liquid shares a device, retains textures, recovers loss and disposes per o
     source.width = 200; source.height = 120;
     before = draws(); first.draw(frostFrame);
     assert.equal(draws() - before, 4, "a 2x source resolves to the blur grid before paired taps");
+    second.draw({ ...frostFrame, width: 60, height: 40 });
+    const allocations = () => calls.filter(([name]) => name === "texImage2D").length;
+    const warmAllocations = allocations();
+    for (const blurStrength of [4.1, 5.5, 8, 12, 8, 4]) {
+      first.draw({ ...frostFrame, blurStrength });
+      second.draw({ ...frostFrame, width: 60, height: 40, blurStrength });
+    }
+    assert.equal(allocations(), warmAllocations, "continuous popup frost and alternating small controls reuse texture storage");
     first.draw({ ...frame, width: 300, height: 500, pixelRatio: 2 });
     const buffer = first.context.canvas;
     let emissionRegion;
@@ -78,6 +86,13 @@ test("Liquid shares a device, retains textures, recovers loss and disposes per o
     const ratios = calls.findLast(([name, uniform]) => name === "uniform2fv" && uniform === "uBlobRefractionRatio[0]")[2];
     assert.ok(Math.abs(ratios[0] - .4) < 1e-6 && Math.abs(ratios[1] - .6) < 1e-6);
     assert.equal(second.draw({ ...frame, blobs: [{ x: .5, y: .5, radius: 20, refractionRatio: [NaN, 1] }] }), false);
+    const present = () => {};
+    second.draw(frame, present);
+    const lightDraws = second.stats.emissionDraws;
+    second.draw({ ...frame, sourceRevision: 3 }, present);
+    assert.equal(second.stats.emissionDraws, lightDraws, "background-only scroll updates reuse the HDR mask");
+    second.draw({ ...frame, contentRevision: 3 }, present);
+    assert.equal(second.stats.emissionDraws, lightDraws + 1, "changed foreground occlusion refreshes HDR");
     const lost = new Event("webglcontextlost", { cancelable: true });
     first.context.canvas.dispatchEvent(lost);
     assert.equal(lost.defaultPrevented, true);

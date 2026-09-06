@@ -225,7 +225,7 @@ test("liquid uses the shared smooth-union compositor for its full lifecycle", ()
   assert.equal((liquidCanvasSource.match(/= sceneSdf\(/g) ?? []).length, 3, "edge profiles reuse the existing SDF distances");
   assert.match(liquidCanvasSource, /vec3 sampleChroma\(sampler2D source, vec2 uv, vec2 displacement\)/);
   assert.match(liquidCanvasSource, /if \(uBlur <= \.001\) return sampleChroma\(uSource, uv, displacement\)/);
-  assert.match(liquidCanvasSource, /if \(uBlur >= \.75\) return sampleChroma\(uFrostSource, uv, displacement\)/);
+  assert.match(liquidCanvasSource, /if \(uBlur >= \.75\) return sampleFrost\(uv, displacement\)/);
   assert.match(liquidCanvasSource, /vec2 stepSize = vec2\(uBlur \* 1\.34\) \/ uSourceSize/);
   assert.equal((liquidCanvasSource.match(/frosted \+= sampleChroma/g) ?? []).length, 8);
   assert.match(liquidCanvasSource, /smoothstep\(\.5, \.75, uBlur\)\) : frosted/);

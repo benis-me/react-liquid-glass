@@ -113,6 +113,7 @@ out vec4 outputColor;
 
 uniform sampler2D uSource;
 uniform sampler2D uFrostSource;
+uniform vec4 uFrostUv;
 uniform sampler2D uContent;
 uniform float uContentOpacity;
 uniform float uContentRefraction;
@@ -229,9 +230,20 @@ vec3 sampleChroma(sampler2D source, vec2 uv, vec2 displacement) {
   );
 }
 
+vec2 frostUv(vec2 uv) {
+  return clamp(uv * uFrostUv.xy, uFrostUv.zw, uFrostUv.xy - uFrostUv.zw);
+}
+vec3 sampleFrost(vec2 uv, vec2 displacement) {
+  return vec3(
+    texture(uFrostSource, frostUv(uv - displacement * (1. + .2 * uChroma))).r,
+    texture(uFrostSource, frostUv(uv - displacement * (1. + .1 * uChroma))).g,
+    texture(uFrostSource, frostUv(uv - displacement)).b
+  );
+}
+
 vec3 sampleGlass(vec2 uv, vec2 displacement) {
   if (uBlur <= .001) return sampleChroma(uSource, uv, displacement);
-  if (uBlur >= .75) return sampleChroma(uFrostSource, uv, displacement);
+  if (uBlur >= .75) return sampleFrost(uv, displacement);
   // Keep core Glass's chroma offsets inside every sample of the frost
   // instead of replacing them with one achromatic blur.
   vec2 stepSize = vec2(uBlur * 1.34) / uSourceSize;
@@ -245,7 +257,7 @@ vec3 sampleGlass(vec2 uv, vec2 displacement) {
   frosted += sampleChroma(uSource, uv + vec2(stepSize.x, -stepSize.y), displacement) * .08;
   frosted += sampleChroma(uSource, uv + vec2(-stepSize.x, stepSize.y), displacement) * .08;
   // Keep the fine-frost endpoint exact, with no optical step during a morph.
-  return uBlur > .5 ? mix(frosted, sampleChroma(uFrostSource, uv, displacement), smoothstep(.5, .75, uBlur)) : frosted;
+  return uBlur > .5 ? mix(frosted, sampleFrost(uv, displacement), smoothstep(.5, .75, uBlur)) : frosted;
 }
 
 vec4 sampleContent(vec2 uv) {
@@ -412,19 +424,24 @@ precision highp float;
 in vec2 vUv;
 out vec4 outputColor;
 uniform sampler2D uInput;
+uniform vec2 uInputScale;
 uniform vec2 uAxis;
 uniform vec2 uKernel[8];
 uniform int uCount;
 uniform bool uCopy;
+vec4 sampleInput(vec2 uv) {
+  vec2 texel = .5 / vec2(textureSize(uInput, 0));
+  return texture(uInput, clamp(uv * uInputScale, texel, uInputScale - texel));
+}
 void main() {
   // FBO textures keep their row order; only the final canvas flips the HTML UV.
   vec2 uv = vec2(vUv.x, 1. - vUv.y);
-  if (uCopy) { outputColor = texture(uInput, uv); return; }
-  vec4 color = texture(uInput, uv) * uKernel[0].y;
+  if (uCopy) { outputColor = sampleInput(uv); return; }
+  vec4 color = sampleInput(uv) * uKernel[0].y;
   for (int i = 1; i < 8; i++) {
     if (i >= uCount) break;
     vec2 offset = uAxis * uKernel[i].x;
-    color += (texture(uInput, uv + offset) + texture(uInput, uv - offset)) * uKernel[i].y;
+    color += (sampleInput(uv + offset) + sampleInput(uv - offset)) * uKernel[i].y;
   }
   outputColor = color;
 }`;
@@ -455,7 +472,7 @@ function createTexture(gl: WebGL2RenderingContext) {
 
 
 const uniformNames = [
-  "uSource", "uFrostSource", "uContent", "uContentOpacity", "uContentRefraction", "uContentBlur",
+  "uSource", "uFrostSource", "uFrostUv", "uContent", "uContentOpacity", "uContentRefraction", "uContentBlur",
   "uSourceSize", "uBlobs[0]", "uHalfSize[0]", "uCornerRadius[0]", "uVelocity[0]",
   "uContact[0]", "uContactInverse[0]", "uContactOffset[0]", "uEmissionOnly",
   "uDome[0]", "uBlobRefractionRatio[0]", "uBlobCount", "uMergeDistance", "uRefraction", "uRefractionRatio",
@@ -505,7 +522,7 @@ function createResources(gl: WebGL2RenderingContext) {
   gl.attachShader(frostProgram, vertex); gl.attachShader(frostProgram, frostFragment);
   gl.linkProgram(frostProgram);
   if (!gl.getProgramParameter(frostProgram, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(frostProgram) ?? "Liquid frost link failed");
-  const frostUniforms = Object.fromEntries(["uInput", "uAxis", "uKernel[0]", "uCount", "uCopy"].map(name => [name, gl.getUniformLocation(frostProgram, name)]));
+  const frostUniforms = Object.fromEntries(["uInput", "uInputScale", "uAxis", "uKernel[0]", "uCount", "uCopy"].map(name => [name, gl.getUniformLocation(frostProgram, name)]));
   const scratch = createTexture(gl);
   return { program, buffer, vao, vertex, fragment, uniforms, frostProgram, frostFragment, frostUniforms, scratch, framebuffer, scratchWidth: 0, scratchHeight: 0 };
 }
@@ -541,6 +558,7 @@ function destroyDevice(device: Device) {
   gl.deleteFramebuffer(device.framebuffer);
   device.canvas.removeEventListener("webglcontextlost", device.lost);
   device.canvas.removeEventListener("webglcontextrestored", device.restored);
+  gl.getExtension("WEBGL_lose_context")?.loseContext();
 }
 
 /**
@@ -574,9 +592,12 @@ export function createLiquidGlassRenderer(
   let sourceRevision: number | undefined;
   let sourceWidth = 0, sourceHeight = 0;
   let lastBlur = NaN, frostWidth = 0, frostHeight = 0;
+  let frostViewWidth = 0, frostViewHeight = 0;
   const kernel = new Float32Array(16);
   let lastContent: HTMLCanvasElement | undefined;
   let contentRevision: number | undefined;
+  const highlightState: number[] = [];
+  let lastHighlight: unknown, highlightContent: HTMLCanvasElement | null | undefined, highlightRevision: number | undefined;
   let disposed = false;
   const stats: LiquidRendererStats = { draws: 0, emissionDraws: 0, sourceUploads: 0, contentUploads: 0 };
 
@@ -602,6 +623,7 @@ export function createLiquidGlassRenderer(
       frostTexture = createTexture(gl);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
       lastBlur = NaN; frostWidth = frostHeight = 0;
+      lastHighlight = undefined;
       version = device.version;
     }
     const requestedRatio = p.pixelRatio ?? window.devicePixelRatio ?? 1;
@@ -635,7 +657,7 @@ export function createLiquidGlassRenderer(
     const fw = Math.max(1, Math.round(p.width * frostScale)), fh = Math.max(1, Math.round(p.height * frostScale));
     const requestedTint = readMotion(p.tintStrength ?? LIQUID_GLASS_MATERIAL.tintStrength);
     const visibleFrost = !p.debug && (Number.isFinite(requestedTint) ? requestedTint : LIQUID_GLASS_MATERIAL.tintStrength) < 1;
-    if (visibleFrost && blur > .5 && (lastBlur !== blur || frostWidth !== fw || frostHeight !== fh)) {
+    if (visibleFrost && blur > .5 && (lastBlur !== blur || frostViewWidth !== fw || frostViewHeight !== fh)) {
       const sigma = Math.min(4, blur * frostScale);
       const pairs = Math.ceil(Math.ceil(sigma * 3) / 2);
       kernel.fill(0); kernel[1] = 1;
@@ -650,29 +672,37 @@ export function createLiquidGlassRenderer(
       gl.useProgram(device.frostProgram);
       const f = device.frostUniforms;
       gl.uniform1i(f.uInput, 0); gl.uniform1i(f.uCount, pairs + 1);
+      gl.uniform2f(f.uInputScale, 1, 1);
       gl.uniform2fv(f["uKernel[0]"], kernel);
       gl.bindFramebuffer(gl.FRAMEBUFFER, device.framebuffer);
       gl.viewport(0, 0, fw, fh);
       gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, frostTexture);
-      if (frostWidth !== fw || frostHeight !== fh) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, fw, fh, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+      // Retain storage at CSS resolution; the active blur viewport still shrinks
+      // continuously. Morphs must not reallocate two textures on every frame.
+      if (frostWidth < fw || frostHeight < fh) {
+        frostWidth = Math.max(frostWidth, Math.ceil(p.width)); frostHeight = Math.max(frostHeight, Math.ceil(p.height));
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, frostWidth, frostHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+      }
       if (fw !== sw || fh !== sh) {
         // Paired bilinear taps require adjacent INPUT texels. Resolve the source
         // to the blur grid first, otherwise 2x DOM ink develops alternating bands.
         gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, frostTexture, 0);
         gl.uniform1i(f.uCopy, 1); gl.drawArrays(gl.TRIANGLES, 0, 6);
         gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, frostTexture);
+        gl.uniform2f(f.uInputScale, fw / frostWidth, fh / frostHeight);
       }
       gl.uniform1i(f.uCopy, 0);
       gl.activeTexture(gl.TEXTURE2);
       gl.bindTexture(gl.TEXTURE_2D, device.scratch);
-      if (device.scratchWidth !== fw || device.scratchHeight !== fh) {
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, fw, fh, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-        device.scratchWidth = fw; device.scratchHeight = fh;
+      if (device.scratchWidth < fw || device.scratchHeight < fh) {
+        device.scratchWidth = Math.max(device.scratchWidth, Math.ceil(p.width)); device.scratchHeight = Math.max(device.scratchHeight, Math.ceil(p.height));
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, device.scratchWidth, device.scratchHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
       }
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, device.scratch, 0);
       gl.uniform2f(f.uAxis, 1 / fw, 0);
       gl.drawArrays(gl.TRIANGLES, 0, 6);
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, device.scratch);
+      gl.uniform2f(f.uInputScale, fw / device.scratchWidth, fh / device.scratchHeight);
       gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, frostTexture);
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, frostTexture, 0);
       gl.uniform2f(f.uAxis, 0, 1 / fh);
@@ -680,7 +710,7 @@ export function createLiquidGlassRenderer(
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       gl.useProgram(device.program);
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texture);
-      frostWidth = fw; frostHeight = fh; lastBlur = blur;
+      frostViewWidth = fw; frostViewHeight = fh; lastBlur = blur;
     }
     gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, frostTexture);
     gl.activeTexture(gl.TEXTURE1);
@@ -724,6 +754,7 @@ export function createLiquidGlassRenderer(
     }
     gl.viewport(0, 0, width, height);
     gl.uniform2f(u.uSourceSize, p.width, p.height);
+    gl.uniform4f(u.uFrostUv, fw / Math.max(1, frostWidth), fh / Math.max(1, frostHeight), .5 / Math.max(1, frostWidth), .5 / Math.max(1, frostHeight));
     gl.uniform3fv(u["uBlobs[0]"], blobs);
     gl.uniform2fv(u["uHalfSize[0]"], sizes);
     gl.uniform1fv(u["uCornerRadius[0]"], corners);
@@ -750,9 +781,19 @@ export function createLiquidGlassRenderer(
     // Copy the mask before the normal draw so direct canvases also end on their
     // visible material. Both paths share textures, frost and the merged SDF.
     if (presentHighlightHDR && !p.debug) {
-      gl.uniform1i(u.uEmissionOnly, 1); gl.drawArrays(gl.TRIANGLES, 0, 6);
-      presentHighlightHDR(device.canvas, { x: 0, y: sourceTop, width, height }); stats.emissionDraws++;
-    }
+      // Scrolling changes the substrate, not the SDF's emitted light. Retain the
+      // HDR mask until geometry, material or foreground occlusion actually changes.
+      let index = 0, changed = lastHighlight !== presentHighlightHDR || highlightContent !== p.content || highlightRevision !== p.contentRevision;
+      const record = (value: number) => { if (!Object.is(highlightState[index], value)) changed = true; highlightState[index++] = value; };
+      for (const values of [blobs, sizes, corners, velocities, contacts, contactInverses, contactOffsets, domes, refractionRatios]) for (const value of values) record(value);
+      for (const key of scalarKeys) record(readMotion(p[key] ?? LIQUID_GLASS_MATERIAL[key]));
+      for (const value of [width, height, p.width, p.height, count, ...refraction, readMotion(p.contentOpacity ?? 0), readMotion(p.contentRefraction ?? 0), readMotion(p.contentBlur ?? 0)]) record(value);
+      if (changed) {
+        gl.uniform1i(u.uEmissionOnly, 1); gl.drawArrays(gl.TRIANGLES, 0, 6);
+        presentHighlightHDR(device.canvas, { x: 0, y: sourceTop, width, height }); stats.emissionDraws++;
+        lastHighlight = presentHighlightHDR; highlightContent = p.content; highlightRevision = p.contentRevision;
+      }
+    } else lastHighlight = undefined;
     gl.uniform1i(u.uEmissionOnly, 0);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
     if (output) {

@@ -94,14 +94,18 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
     if (!button || !anchor.current || !host || !element) return;
     const rect = button.getBoundingClientRect();
     const showing = topLayer.current?.matches(":popover-open") ?? false;
-    if (role === "listbox") element.style.minWidth = `${Math.min(innerWidth - 24, rect.width)}px`;
+    const viewport = window.visualViewport;
+    const vl = viewport?.offsetLeft ?? 0, vt = viewport?.offsetTop ?? 0;
+    const vw = viewport?.width ?? innerWidth, vh = viewport?.height ?? innerHeight;
+    const layerOrigin = showing ? topLayer.current!.getBoundingClientRect() : { left: 0, top: 0 };
+    if (role === "listbox") element.style.minWidth = `${Math.min(vw - 24, rect.width)}px`;
     // Retain the opened frame at rest. Resizing its last bitmap down to the trigger
     // before Motion draws the next frame caused a one-frame closing flash.
     const pw = showing ? element.offsetWidth : layoutRef.current?.panelWidth ?? 1;
     const ph = showing ? element.offsetHeight : layoutRef.current?.panelHeight ?? 1;
-    let left = Math.max(12, Math.min(innerWidth - pw - 12, tooltip ? rect.left + (rect.width - pw) / 2 : rect.left));
+    let left = Math.max(vl + 12, Math.min(vl + vw - pw - 12, tooltip ? rect.left + (rect.width - pw) / 2 : rect.left));
     const below = rect.bottom + 10, above = rect.top - ph - 10;
-    let top = tooltip && above >= 12 ? above : below + ph <= innerHeight - 12 ? below : Math.max(12, above);
+    let top = tooltip && above >= vt + 12 ? above : below + ph <= vt + vh - 12 ? below : Math.max(vt + 12, above);
     if (!showing && !hasOpened.current) { left = rect.left; top = rect.top; }
     const fl = Math.floor(Math.min(left, rect.left) - padding), ft = Math.floor(Math.min(top, rect.top) - padding);
     const fw = Math.ceil(Math.max(left + pw, rect.right) + padding - fl), fh = Math.ceil(Math.max(top + ph, rect.bottom) + padding - ft);
@@ -117,7 +121,7 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
       model.w.jump(pw / 2); model.h.jump(ph / 2); model.radius.jump(layout.panelRadius);
     }
     if (changed) { frameRef.current = nextFrame; setFrame(nextFrame); }
-    element.style.left = `${left}px`; element.style.top = `${top}px`;
+    element.style.left = `${left - layerOrigin.left}px`; element.style.top = `${top - layerOrigin.top}px`;
     if (mirror.current && mirrorDirty.current) {
       mirrorDirty.current = false;
       const copy = button.cloneNode(true) as HTMLElement;
@@ -135,10 +139,10 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
       Object.assign(copy.style, { width: "100%", height: "100%" });
       mirror.current.replaceChildren(copy);
     }
-    if (mirror.current && changed) Object.assign(mirror.current.style, { left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px` });
+    if (mirror.current && (changed || showing)) Object.assign(mirror.current.style, { left: `${rect.left - layerOrigin.left}px`, top: `${rect.top - layerOrigin.top}px`, width: `${rect.width}px`, height: `${rect.height}px` });
     const parent = showing ? topLayer.current! : anchor.current;
     if (host.parentElement !== parent) parent.appendChild(host);
-    const origin = showing ? { left: 0, top: 0 } : anchor.current.getBoundingClientRect();
+    const origin = showing ? layerOrigin : anchor.current.getBoundingClientRect();
     Object.assign(host.style, { position: "absolute", left: `${fl - origin.left}px`, top: `${ft - origin.top}px`, width: `${fw}px`, height: `${fh}px`, pointerEvents: "none", zIndex: "0" });
     const canvas = source.current ?? document.createElement("canvas"); source.current = canvas;
     backdropBounds.current = { left: fl, top: ft, width: fw, height: fh };
@@ -168,7 +172,13 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
     if (anchor.current) resize.observe(anchor.current);
     if (panel.current) resize.observe(panel.current);
     window.addEventListener("resize", update); window.addEventListener("scroll", scroll, true);
-    return () => { cancelFrame(measure); cancelFrame(refreshBackdrop); resize.disconnect(); window.removeEventListener("resize", update); window.removeEventListener("scroll", scroll, true); host?.remove(); };
+    const viewport = window.visualViewport;
+    viewport?.addEventListener("resize", update); viewport?.addEventListener("scroll", update);
+    return () => {
+      cancelFrame(measure); cancelFrame(refreshBackdrop); resize.disconnect();
+      window.removeEventListener("resize", update); window.removeEventListener("scroll", scroll, true);
+      viewport?.removeEventListener("resize", update); viewport?.removeEventListener("scroll", update); host?.remove();
+    };
   }, [host, stage]);
   useEffect(() => {
     if (stage || !anchor.current || !topLayer.current) return;
@@ -268,7 +278,9 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
         <ClosePopoverContext.Provider value={close}>{children}</ClosePopoverContext.Provider>
       </motion.div>
     </div>
-    {host && createPortal(<LiquidGlassCanvas {...SURFACE_MATERIAL} shared sourceRef={source} sourceRevision={revision}
+    {/* Viewport overlays present directly: copying their large WebGL frame into
+        a 2D canvas stalls WebKit. Embedded controls still share one GPU device. */}
+    {host && createPortal(<LiquidGlassCanvas {...SURFACE_MATERIAL} shared={!!stage} sourceRef={source} sourceRevision={revision}
       contentRef={ink} contentRevision={inkRevision} contentOpacity={contentOpacity} contentRefraction={contentRefraction} contentBlur={contentBlur}
       width={frame.width} height={frame.height} pixelRatio={2} transparentOutside
       blobs={[

@@ -18,7 +18,9 @@ export function paintLiquidBackdrop(root: HTMLElement, canvas: HTMLCanvasElement
   ctx.save(); ctx.beginPath(); ctx.rect(region.left - bounds.left, region.top - bounds.top, region.width, region.height); ctx.clip();
   ctx.fillStyle = liquidBackground(root); ctx.fillRect(0, 0, bounds.width, bounds.height);
   const visit = (element: Element) => {
-    if (exclude.includes(element) || element.matches("script, style, link, template, [popover], dialog:not([open])")) return;
+    // Sample the SDR optical base once. Reading its additive HDR presentation
+    // through a 2D canvas stalls WebKit and tone-maps that light a second time.
+    if (exclude.includes(element) || element.matches("script, style, link, template, [popover], [data-dg-highlight-hdr], dialog:not([open])")) return;
     const rect = element.getBoundingClientRect();
     // Reject off-region boxes before resolving all their computed styles.
     if ((rect.width || rect.height) && !intersects(rect, region)) return;
@@ -79,7 +81,7 @@ export function paintLiquidBackdrop(root: HTMLElement, canvas: HTMLCanvasElement
 export function observeLiquidBackdrop(root: HTMLElement, bounds: () => Bounds, exclude: readonly Element[], refresh: () => void) {
   const relevant = (node: Node) => {
     const element = node instanceof Element ? node : node.parentElement;
-    return element && !element.closest("[popover]") && !exclude.some(item => item.contains(element)) && intersects(element.getBoundingClientRect(), bounds());
+    return element && !element.closest("[popover], [data-dg-highlight-hdr]") && !exclude.some(item => item.contains(element)) && intersects(element.getBoundingClientRect(), bounds());
   };
   const update = () => { if (!document.hidden && intersects(bounds(), { left: 0, top: 0, width: innerWidth, height: innerHeight })) frame.preRender(refresh); };
   const observer = new MutationObserver(records => { if (records.some(record => relevant(record.target))) update(); });

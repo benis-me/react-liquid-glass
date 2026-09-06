@@ -300,11 +300,45 @@ export async function checkContactFeedback() {
   return { light: 'follows the pointer', pull: 'subtle, anchored, elastic', cancellation: 'capture loss and blur', rest: 'unchanged' };
 }
 
+async function captureLiquidCanvas(canvas) {
+  const {subscribeLiquidFrames} = await import('refractive-glass-react/liquid-glass/renderer');
+  const snapshot = document.createElement('canvas'); snapshot.width = snapshot.height = 0;
+  const stop = subscribeLiquidFrames(target => {
+    if(target !== canvas) return;
+    snapshot.width = canvas.width; snapshot.height = canvas.height;
+    snapshot.getContext('2d').drawImage(canvas,0,0);
+  });
+  window.dispatchEvent(new Event('resize'));
+  try { await until(()=>snapshot.width>1, 'Glass did not publish a rendered frame'); }
+  catch(error) { stop(); throw error; }
+  return {snapshot,stop};
+}
+
+export async function checkViewportAlignment() {
+  await go('/components/button'); await go('/components');
+  const trigger=document.querySelector('.catalog-material .dg-popover-anchor button');
+  const layer=document.querySelector('.catalog-material .dg-popover-layer');
+  trigger.click(); await until(()=>layer.matches(':popover-open'),'Material did not open');
+  await new Promise(resolve=>setTimeout(resolve,500));
+  const canvas=layer.querySelector('span > canvas[data-dg-renderer]');
+  const before=canvas.getBoundingClientRect();
+  try {
+    // A nonzero fixed containing-block origin exercises the mobile viewport seam.
+    layer.style.translate='23px 31px';
+    visualViewport.dispatchEvent(new Event('resize')); await paint();
+    const after=canvas.getBoundingClientRect(), mirror=layer.querySelector('.dg-popover__trigger-ink').getBoundingClientRect(), anchor=trigger.getBoundingClientRect();
+    assert(Math.abs(after.left-before.left)<.1 && Math.abs(after.top-before.top)<.1,'The glass backdrop moved with the viewport origin');
+    assert(Math.abs(mirror.left-anchor.left)<.1 && Math.abs(mirror.top-anchor.top)<.1,'The trigger ink and real trigger no longer align');
+    return {viewportOrigin:'glass and ink stay aligned'};
+  } finally { layer.style.translate='';window.dispatchEvent(new Event('resize'));document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); }
+}
+
 export async function checkViewportBackdrop() {
   await go('/components'); click('.catalog-material .dg-popover-anchor > button');
   await until(() => document.querySelector('.catalog-material .dg-popover-layer:popover-open'), 'Material panel did not open');
   await new Promise(resolve => setTimeout(resolve, 500));
   const panel = document.querySelector('.catalog-material .dg-popover__panel'), canvas = document.querySelector('.catalog-material .dg-popover-layer > span > canvas[data-dg-renderer]');
+  const captured = await captureLiquidCanvas(canvas);
   const rect = panel.getBoundingClientRect(), view = canvas.getBoundingClientRect();
   const probe = document.createElement('canvas');
   probe.width = probe.height = 80;
@@ -314,7 +348,7 @@ export async function checkViewportBackdrop() {
   const sourceContext = source.getContext('2d');
   const {createLiquidGlassRenderer, subscribeLiquidFrames} = await import('refractive-glass-react/liquid-glass/renderer');
   const renderer = createLiquidGlassRenderer(probe, {shared:true});
-  const pixel = () => canvas.getContext('2d').getImageData(Math.round((rect.left + 80 - view.left) * 2), Math.round((rect.top + 230 - view.top) * 2), 1, 1).data;
+  const pixel = () => captured.snapshot.getContext('2d').getImageData(Math.round((rect.left + 80 - view.left) * 2), Math.round((rect.top + 230 - view.top) * 2), 1, 1).data;
   const draw = color => { sourceContext.fillStyle=color;sourceContext.fillRect(0,0,80,80);renderer.draw({source,sourceRevision:color==='rgb(20, 200, 40)'?1:2,width:80,height:80,blobs:[]}); };
   let floating;
   let paints = 0, lastDraw = performance.now(); const stop = subscribeLiquidFrames(target => { if (target===canvas) { paints++; lastDraw=performance.now(); } });
@@ -334,7 +368,7 @@ export async function checkViewportBackdrop() {
     assert(paints===outside, 'An excluded top-layer canvas invalidates the backdrop');
     floating.hidePopover(); document.body.append(probe); floating.remove();
     return {source:'real page pixels', canvasUpdates:true, idle:'no redraw loop', topLayer:'no feedback'};
-  } finally { stop();renderer.dispose();probe.remove();floating?.remove();document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); }
+  } finally { captured.stop();stop();renderer.dispose();probe.remove();floating?.remove();document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); }
 }
 
 export async function checkPageTexture() {
@@ -366,14 +400,17 @@ export async function checkFloatingPolish() {
   const canvas = () => document.querySelector('.catalog-material :is(.dg-popover-anchor, .dg-popover-layer) > span > canvas[data-dg-renderer]');
   await until(() => canvas()?.width > 1, 'Material trigger not rendered');
   await new Promise(resolve => setTimeout(resolve, 500));
+  const captured = await captureLiquidCanvas(canvas());
+  try {
   const pixels = () => {
     const c = canvas(), a = trigger.getBoundingClientRect(), b = c.getBoundingClientRect();
-    return c.getContext('2d').getImageData(Math.round((a.left - b.left) * 2), Math.round((a.top - b.top) * 2), Math.round(a.width * 2), Math.round(a.height * 2)).data;
+    return captured.snapshot.getContext('2d').getImageData(Math.round((a.left - b.left) * 2), Math.round((a.top - b.top) * 2), Math.round(a.width * 2), Math.round(a.height * 2)).data;
   };
   const before = pixels(); trigger.click();
   await until(() => layer.matches(':popover-open'), 'Material panel not opened');
   await new Promise(resolve => setTimeout(resolve, 600));
-  const c = canvas(), ctx = c.getContext('2d');
+  const controlCanvases = [...layer.querySelectorAll('.dg-popover__panel canvas[data-dg-renderer]')];
+  const c = canvas(), ctx = captured.snapshot.getContext('2d');
   let shadowEdgeAlpha = 0;
   for (const data of [ctx.getImageData(0,0,c.width,1).data, ctx.getImageData(0,c.height-1,c.width,1).data, ctx.getImageData(0,0,1,c.height).data, ctx.getImageData(c.width-1,0,1,c.height).data]) {
     for(let i=3;i<data.length;i+=4) shadowEdgeAlpha = Math.max(shadowEdgeAlpha, data[i]);
@@ -398,6 +435,7 @@ export async function checkFloatingPolish() {
   const closeMs = performance.now()-start;
   assert(closeMs < 360, `Popover close took ${closeMs}ms`);
   await paint();
+  assert(controlCanvases.length > 0 && controlCanvases.every(canvas=>canvas.isConnected), 'Closing the panel discards its measured control canvases');
   const after = pixels(); let pixelError=0;
   for(let i=0;i<before.length;i+=4) pixelError += Math.abs(before[i]-after[i]);
   pixelError /= before.length/4;
@@ -405,6 +443,27 @@ export async function checkFloatingPolish() {
   assert(getComputedStyle(trigger).outlineColor === 'rgba(0, 0, 0, 0)' || getComputedStyle(trigger).outlineStyle === 'none', 'Focus restored a dark outline');
   times.shift(); times.sort((a,b)=>a-b);
   return { closeMs, shadowEdgeAlpha, triggerPixelError:pixelError, scrollTriggerClones:clones, scrollStyleReads:styleReads, frameMedian:times[Math.floor(times.length*.5)], frameP95:times[Math.floor(times.length*.95)] };
+  } finally { captured.stop(); }
+}
+
+export async function checkHDRScroll() {
+  if(!matchMedia('(dynamic-range: high)').matches || !window.GPUQueue) return {supported:false};
+  await go('/components/button'); await go('/components');
+  const anchor=document.querySelector('.catalog-material .dg-popover-anchor');
+  await until(()=>anchor.querySelector('[data-dg-highlight-hdr]')?.style.opacity==='1','HDR trigger did not render');
+  await new Promise(resolve=>setTimeout(resolve,500));
+  const canvas=anchor.querySelector('canvas[data-dg-renderer]'), original=GPUQueue.prototype.copyExternalImageToTexture;
+  let copies=0;
+  GPUQueue.prototype.copyExternalImageToTexture=function(source,...args){if(source.source===canvas)copies++;return original.call(this,source,...args)};
+  const rect=anchor.getBoundingClientRect();
+  const pointer=(target,type,buttons)=>target.dispatchEvent(new PointerEvent(type,{bubbles:true,pointerId:77,pointerType:'mouse',isPrimary:true,buttons,clientX:rect.left+rect.width/2,clientY:rect.top+rect.height/2}));
+  try {
+    for(let i=1;i<=12;i++){window.scrollTo({top:i*7,behavior:'instant'});await paint()}
+    assert(copies===0,'Scrolling re-renders an unchanged HDR light mask');
+    pointer(anchor,'pointerdown',1);
+    await until(()=>copies>0,'HDR caching froze the live contact light');
+    return {backgroundHDRCopies:0,contactHDRUpdates:true};
+  } finally { pointer(window,'pointercancel',0);GPUQueue.prototype.copyExternalImageToTexture=original;window.scrollTo({top:0,behavior:'instant'}); }
 }
 
 export async function checkContactHDR() {

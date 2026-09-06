@@ -52,7 +52,7 @@ export function LiquidGlassCanvas(props: LiquidGlassCanvasProps) {
         requestedHDR = true;
         void createHighlightHDR(canvas).then(next => { if (disposed) next?.dispose(); else { hdr = next; if (next) scheduleDraw(); } });
       }
-      if (!lit || !highRange) hdr?.hide();
+      if (lit && highRange) hdr?.show(); else hdr?.hide();
       renderer.draw({
         ...p, source, content: p.contentRef?.current,
         sourceRevision: readMotion(p.sourceRevision ?? 0),
