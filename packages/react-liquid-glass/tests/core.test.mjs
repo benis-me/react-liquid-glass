@@ -131,10 +131,11 @@ test('glass grips resist unbounded pulling, keep the opposite side pinned and re
         const [px,py] = physics.contactPull(dx,dy,width,height);
         const resumed = physics.contactPull(0,0,width,height,px,py);
         near(resumed[0],px,.001); near(resumed[1],py,.001);
-        assert.ok(Math.hypot(px,py) < Math.min(26,Math.min(width,height)*.45));
+        assert.ok(Math.hypot(px,py) < Math.min(4,Math.min(width,height)*.065));
         const matrix = physics.contactTransform(width,height,x,y,px,py);
         assert.ok(matrix.every(Number.isFinite));
         const [a,b,c,d,tx,ty] = matrix;
+        assert.ok(Math.abs(a - 1) < .09 && Math.abs(d - 1) < .09 && Math.abs(b) < .09 && Math.abs(c) < .09, 'even a far drag must remain a subtle deformation');
         assert.ok(a*d-b*c > .7 && a*d-b*c < 1.3, 'the material must not flip or inflate without bound');
         const gripX=x*width/2, gripY=y*height/2;
         assert.ok((a*gripX+c*gripY+tx-gripX)*px+(b*gripX+d*gripY+ty-gripY)*py > 0, 'the grip must follow the pull');

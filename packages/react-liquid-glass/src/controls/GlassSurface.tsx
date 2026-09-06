@@ -20,6 +20,7 @@ import { springTo, useGlassContact } from "../apple-motion/react";
 import { contactTransform } from "../apple-motion/contact";
 import { SURFACE_PRESS_SPRING } from "../apple-motion/presets";
 import { LiquidGlassCanvas } from "../liquid-glass/LiquidGlassCanvas";
+import { liquidBackground } from "../liquid-glass/source";
 
 export type GlassBackground = "grid" | "lines" | "plain";
 export const StageContext = createContext<{
@@ -152,7 +153,7 @@ function OpticalSurface({
   const halfHeight = useTransform(() => (heightValue.get() * scale.get()) / 2);
   const transform = useTransform(() => {
     const s = scale.get();
-    const [a, b, c, d, x, y] = contactTransform(Math.max(1, widthValue.get() * s), Math.max(1, heightValue.get() * s), contact.contactX.get(), contact.contactY.get(), contact.pullX.get(), contact.pullY.get());
+    const [a, b, c, d, x, y] = contactTransform(Math.max(1, widthValue.get() * s), Math.max(1, heightValue.get() * s), contact.anchorX.get(), contact.anchorY.get(), contact.pullX.get(), contact.pullY.get());
     return `matrix(${a * s},${b * s},${c * s},${d * s},${x},${y})`;
   });
   useEffect(() => {
@@ -167,6 +168,7 @@ function OpticalSurface({
     const element = root.current;
     if (!element) return;
     const paint = () => {
+      if (stage && (!stage.canvas?.width || !stage.root)) return;
       const width = element.offsetWidth,
         height = element.offsetHeight;
       if (!width || !height) return;
@@ -180,8 +182,7 @@ function OpticalSurface({
       canvas.width = (width + 80) * 2;
       canvas.height = (height + 80) * 2;
       const ctx = canvas.getContext("2d")!;
-      const dark = getComputedStyle(element).colorScheme.includes("dark");
-      ctx.fillStyle = dark ? "#202020" : "#eeeeec";
+      ctx.fillStyle = liquidBackground(element.parentElement!);
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       if (stage?.canvas?.width && stage.root) {
         const rect = element.getBoundingClientRect(),

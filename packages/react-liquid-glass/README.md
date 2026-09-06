@@ -59,13 +59,17 @@ Pass the current position and velocity again when retargeting. Elapsed time is i
 
 ## Rendering boundaries
 
-Buttons, button groups and `GlassSurface` respond to a local grip with contact light, resisted deformation and an elastic return. Dragging does not fire the button's action. `GlassSurface interactive="light"` keeps contact light while leaving dragging to the application; `interactive={false}` disables both. Sliders, switches, segmented controls and popup triggers retain their own gesture/morph behavior and add contact light.
+Buttons, button groups and `GlassSurface` respond to a local grip with contact light, subtle resisted deformation (at most 4 CSS pixels) and an elastic return. The light follows the pointer while the original grip anchors the shape. Dragging does not fire the button's action. `GlassSurface interactive="light"` keeps contact light while leaving dragging to the application; `interactive={false}` disables both. Sliders, switches, segmented controls and popup triggers retain their own gesture/morph behavior and add contact light.
 
-For custom controls, `useGlassContact(ref)` from `apple-motion/react` returns MotionValues that can be passed to `LiquidGlass contact={contact}` or spread onto a `LiquidGlassCanvas` blob. `contactTransform` provides the matching affine transform for native foreground content. Pointer cancellation, capture loss, window blur, reduced motion and interruption are handled by the shared hook.
+For custom controls, `useGlassContact(ref)` from `apple-motion/react` returns MotionValues that can be passed to `LiquidGlass contact={contact}` or spread onto a `LiquidGlassCanvas` blob. Use its `anchorX`/`anchorY` and `pullX`/`pullY` with `contactTransform` for matching native foreground deformation; `contactX`/`contactY` track the light. Pointer cancellation, capture loss, window blur, reduced motion and interruption are handled by the shared hook.
 
 On HDR displays with WebGPU extended tone mapping, a lazy shared presenter emits the same SDF's contact-light mask above SDR white using an `rgba16float` canvas. The existing WebGL material is unchanged at rest; SDR and unsupported browsers keep its ordinary local highlight. This is a project-tuned interpretation, not measured iOS constants or a claim of native parity. See [HDR canvas tone mapping](https://developer.chrome.com/blog/new-in-webgpu-129).
 
-WebGL2 is required. `GlassStage` supplies an explicit canvas substrate to its descendant `GlassSurface` components; it does not capture arbitrary DOM behind them. Without a stage, basic surfaces use a neutral substrate. Spotlight and Video render their own media; provide same-origin or CORS-enabled URLs.
+WebGL2 is required. `GlassStage` supplies an explicit canvas substrate to its descendant `GlassSurface` components. Without a stage, basic surfaces use the surrounding page color. Spotlight and Video render their own media; provide same-origin or CORS-enabled URLs.
+
+Anchored popovers outside a `GlassStage` redraw the actual page region beneath their trigger and panel into the same optical material. Text, boxes, Lucide SVG, form values and same-origin images/video/canvases can show through. Scroll, DOM changes and library canvas frames refresh the region; the overlay excludes itself and stops drawing at rest. `paintLiquidBackdrop(root, canvas, bounds, exclude)` exposes the same bounded adapter for custom sources.
+
+This is a DOM redraw adapter, not universal native backdrop capture. Complex CSS backgrounds/effects, arbitrary SVG, native textarea wrapping and cross-origin frames are not reproduced completely. Browser-native DOM-to-texture APIs remain an evolving option; see the [HTML-in-Canvas origin trial](https://developer.chrome.com/blog/html-in-canvas-origin-trial).
 
 The legacy DOM adapter is a bounded redraw of supported content, not browser-native DOM capture, a universal backdrop, or evidence of native iOS performance parity. Controls retain their own track/text substrates. The menu retains one merged SDF for its body, button and neck throughout the transition.
 

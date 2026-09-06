@@ -6,6 +6,7 @@ import { useGlassContact } from "../apple-motion/use-glass-contact";
 import { paintLiquidMenuContent } from "../liquid-glass/menu-content";
 import { liquidContentOptics } from "../liquid-glass/geometry";
 import { LiquidGlassCanvas } from "../liquid-glass/LiquidGlassCanvas";
+import { paintLiquidBackdrop, observeLiquidBackdrop } from "../liquid-glass/backdrop";
 import { StageContext, FusionTriggerContext } from "./GlassSurface";
 
 const ClosePopoverContext = createContext<() => void>(() => undefined);
@@ -71,6 +72,12 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
   const refreshInk = () => { if (!settled.current && inkActive.get()) capture(); };
   const contentFilter = useTransform(model.reveal, value => `blur(${(1 - value) * 3}px)`);
   const measureRef = useRef<() => void>(() => undefined);
+  const backdropBounds = useRef({ left: 0, top: 0, width: 1, height: 1 });
+  const paintBackdrop = () => {
+    if (!source.current || !anchor.current || !topLayer.current) return;
+    if (paintLiquidBackdrop(document.body, source.current, backdropBounds.current, [anchor.current, topLayer.current])) revision.set(revision.get() + 1);
+  };
+  const paintBackdropRef = useRef(paintBackdrop); paintBackdropRef.current = paintBackdrop;
   measureRef.current = () => {
     const button = anchor.current?.querySelector<HTMLElement>(TRIGGER), element = panel.current;
     if (!button || !anchor.current || !host || !element) return;
@@ -120,15 +127,15 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
     const origin = showing ? { left: 0, top: 0 } : anchor.current.getBoundingClientRect();
     Object.assign(host.style, { position: "absolute", left: `${fl - origin.left}px`, top: `${ft - origin.top}px`, width: `${fw}px`, height: `${fh}px`, pointerEvents: "none", zIndex: "0" });
     const canvas = source.current ?? document.createElement("canvas"); source.current = canvas;
-    canvas.width = fw * 2; canvas.height = fh * 2;
-    const ctx = canvas.getContext("2d")!;
-    const dark = style.colorScheme.includes("dark");
-    ctx.fillStyle = dark ? "#202020" : "#eeeeec"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    backdropBounds.current = { left: fl, top: ft, width: fw, height: fh };
     if (stage?.canvas?.width && stage.root) {
+      canvas.width = fw * 2; canvas.height = fh * 2;
+      const ctx = canvas.getContext("2d")!;
+      ctx.fillStyle = style.colorScheme.includes("dark") ? "#202020" : "#eeeeec"; ctx.fillRect(0, 0, canvas.width, canvas.height);
       const substrate = stage.root.getBoundingClientRect();
       ctx.drawImage(stage.canvas, (substrate.left - fl) * 2, (substrate.top - ft) * 2);
-    }
-    revision.set(revision.get() + 1);
+      revision.set(revision.get() + 1);
+    } else paintBackdrop();
   };
   useLayoutEffect(() => {
     measureRef.current();
@@ -139,6 +146,12 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
     window.addEventListener("resize", update); window.addEventListener("scroll", update, true);
     return () => { resize.disconnect(); window.removeEventListener("resize", update); window.removeEventListener("scroll", update, true); host?.remove(); };
   }, [host, stage]);
+  useEffect(() => {
+    if (stage || !anchor.current || !topLayer.current) return;
+    return observeLiquidBackdrop(document.documentElement,
+      () => liveOpen.current ? backdropBounds.current : anchor.current?.getBoundingClientRect() ?? { left: 0, top: 0, width: 0, height: 0 },
+      [anchor.current, topLayer.current], () => paintBackdropRef.current());
+  }, [stage]);
   useLayoutEffect(() => { measureRef.current(); }, [trigger]);
   useLayoutEffect(() => {
     const element = topLayer.current;
@@ -238,7 +251,7 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
         { x: frame.tx / frame.width, y: frame.ty / frame.height, radius: frame.tr, cornerRadius: frame.tr, halfWidth: triggerW, halfHeight: triggerH, ...contact },
       ]}
       mergeDistance={model.merge} edgeDepth={10} domeDepth={18} refractionStrength={.11}
-      chromaAmount={.24} blurStrength={.8} tintStrength={.055} shadowStrength={.11} shadowBlur={18} shadowOffset={6}
+      chromaAmount={.24} blurStrength={stage ? .8 : 2} tintStrength={stage ? .055 : .025} shadowStrength={.11} shadowBlur={18} shadowOffset={6}
       style={{ display: "block", width: "100%", height: "100%" }} />, host)}
   </>;
 }

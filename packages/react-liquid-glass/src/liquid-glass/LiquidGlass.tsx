@@ -42,7 +42,7 @@ export interface LiquidGlassProps {
   zoom?: MotionInput; depth?: MotionInput;
   debug?: boolean;
   material?: Partial<LiquidGlassFrame>;
-  contact?: Pick<LiquidGlassBlob, "contactX" | "contactY" | "contactStrength" | "pullX" | "pullY">;
+  contact?: Pick<LiquidGlassBlob, "contactX" | "contactY" | "anchorX" | "anchorY" | "contactStrength" | "pullX" | "pullY">;
   className?: string; style?: CSSProperties;
 }
 

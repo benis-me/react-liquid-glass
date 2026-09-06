@@ -14,7 +14,6 @@ import {
   GlassButton,
   GlassButtonGroup,
   GlassInput,
-  GlassSurface,
   GlassSwitch,
   GlassSlider,
   GlassSegmented,
@@ -53,10 +52,10 @@ export function CodeBlock({
     }
   };
   return (
-    <GlassSurface className="code-block" radius={18}>
+    <div className="code-block">
       <div className="code-block__bar">
         <span>{label}</span>
-        <GlassButton size="small"
+        <button type="button" className="plain-button"
           onClick={copy}
           aria-label={locale === "zh" ? "复制代码" : "Copy code"}
         >
@@ -64,12 +63,12 @@ export function CodeBlock({
           <span aria-live="polite">
             {status || (locale === "zh" ? "复制" : "Copy")}
           </span>
-        </GlassButton>
+        </button>
       </div>
       <pre tabIndex={0}>
         <code>{code}</code>
       </pre>
-    </GlassSurface>
+    </div>
   );
 }
 export function Preview({

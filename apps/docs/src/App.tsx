@@ -7,7 +7,7 @@ import {
   Sun,
   X,
 } from "lucide-react";
-import { GlassButton, GlassButtonGroup, GlassInput, GlassSheet } from "refractive-glass-react/controls";
+import { GlassButtonGroup, GlassSheet } from "refractive-glass-react/controls";
 import { catalog, groups, groupZh, type ComponentId } from "./site/catalog";
 import {
   Catalog,
@@ -102,7 +102,7 @@ export function App() {
   ];
   const sidebar = (
     <>
-      <GlassButtonGroup className="sidebar-intro" label={zh ? "快速导航" : "Quick navigation"} orientation="vertical">
+      <div className="sidebar-intro">
         <Link
           aria-current={path === "/docs/installation" ? "page" : undefined}
           href="/docs/installation"
@@ -121,8 +121,8 @@ export function App() {
         >
           {zh ? "应用展示" : "Showcase"}
         </Link>
-      </GlassButtonGroup>
-        <GlassInput className="sidebar-search"
+      </div>
+        <input className="sidebar-search site-input"
           type="search"
           aria-label={zh ? "查找组件" : "Find a component"}
           placeholder={zh ? "查找组件…" : "Find a component…"}
@@ -140,7 +140,7 @@ export function App() {
         return items.length ? (
           <div className="sidebar-group" key={group}>
             <h2>{zh ? groupZh[group] : group}</h2>
-            <GlassButtonGroup label={zh ? groupZh[group] : group} orientation="vertical">
+            <div className="sidebar-links">
             {items.map((item) => (
               <Link
                 key={item.id}
@@ -153,7 +153,7 @@ export function App() {
                 {zh && <span>{item.zh}</span>}
               </Link>
             ))}
-            </GlassButtonGroup>
+            </div>
           </div>
         ) : null;
       })}
@@ -279,8 +279,8 @@ export function App() {
             </GlassButtonGroup>
           </nav>
           <div className="header-tools">
-            <GlassButtonGroup label={zh ? "显示设置" : "Display settings"}>
-            <GlassButton size="small"
+            <div className="display-settings" role="group" aria-label={zh ? "显示设置" : "Display settings"}>
+            <button type="button"
               className="icon-button"
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
               aria-label={
@@ -294,15 +294,15 @@ export function App() {
               }
             >
               {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
-            </GlassButton>
-            <GlassButton size="small"
+            </button>
+            <button type="button"
               className="locale-button"
               onClick={() => setLocale(zh ? "en" : "zh")}
               aria-label={zh ? "Switch to English" : "切换到中文"}
             >
               {zh ? "中" : "EN"}
-            </GlassButton>
-            </GlassButtonGroup>
+            </button>
+            </div>
             <Link
               className="github-link"
               href="https://github.com/benis-me/react-liquid-glass"
@@ -312,7 +312,7 @@ export function App() {
             >
               GitHub <ArrowUpRight size={12} />
             </Link>
-            <GlassButton size="small"
+            <button type="button"
               className="icon-button mobile-menu-button"
               aria-label={zh ? "导航菜单" : "Navigation menu"}
               aria-expanded={mobileOpen}
@@ -320,7 +320,7 @@ export function App() {
               onClick={() => setMobileOpen(!mobileOpen)}
             >
               {mobileOpen ? <X size={18} /> : <Menu size={18} />}
-            </GlassButton>
+            </button>
           </div>
         </div>
       </header>
@@ -330,7 +330,7 @@ export function App() {
           className="mobile-navigation"
           aria-label={zh ? "移动导航" : "Mobile navigation"}
         >
-          <GlassButtonGroup label={zh ? "主导航" : "Main navigation"} orientation="vertical">
+          <div className="mobile-top-links">
           {nav.map((item) => (
             <Link
               key={item.href}
@@ -340,7 +340,7 @@ export function App() {
               {zh ? item.zh : item.en}
             </Link>
           ))}
-          </GlassButtonGroup>
+          </div>
           <div
             onClick={(event) => {
               if ((event.target as HTMLElement).closest("a"))

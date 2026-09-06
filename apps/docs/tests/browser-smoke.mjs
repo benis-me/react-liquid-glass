@@ -134,6 +134,9 @@ export async function checkPopupRetargeting() {
 
 export async function checkSiteControls() {
   await go('/components');
+  for (const selector of ['.wordmark', '.header-tools', '.docs-sidebar', '.component-tile__label', '.site-footer']) {
+    assert(!document.querySelector(`${selector} canvas`), `${selector} must stay free of decorative glass`);
+  }
   const search = document.querySelector('input[aria-label="Search components"]');
   assert(search.closest('.dg-surface')?.querySelector('canvas'), 'Catalog search must use the library glass surface');
   input(search, 'button group'); await paint();
@@ -260,8 +263,9 @@ export async function checkContactFeedback() {
   await go('/components/button');
   const button = document.querySelector('.component-preview .dg-button'), surface = button.querySelector('[data-dg-contact]');
   const canvas = surface.querySelector('canvas'), ink = surface.querySelector('.dg-surface__content');
-  await until(() => canvas.width > 0, 'Contact canvas is missing');
   const rect = surface.getBoundingClientRect(), sx = rect.left + rect.width * .84, sy = rect.top + rect.height / 2;
+  await until(() => canvas.width === (surface.offsetWidth + 80) * 2, 'Contact canvas has not rendered its first frame');
+  await paint();
   const color = () => {
     const data = canvas.getContext('2d').getImageData(Math.round((40 + rect.width * .84) * 2), Math.round((40 + rect.height / 2) * 2), 1, 1).data;
     return (data[0] + data[1] + data[2]) / 3;
@@ -272,17 +276,54 @@ export async function checkContactFeedback() {
   await until(() => color() > before + 8, 'The actual grip position did not illuminate');
   pointer(window, 'pointermove', sx + 90, sy - 30); await paint();
   const pulled = new DOMMatrix(getComputedStyle(ink).transform);
-  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) assert(pulled.m41 > 1 && pulled.m42 < 0, 'The material did not follow a resisted diagonal pull');
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) assert(pulled.m41 > .1 && pulled.m41 < 3 && pulled.m42 < 0 && Math.abs(pulled.b) < .05, 'The material must follow a subtle resisted pull');
   pointer(window, 'pointerup', sx + 90, sy - 30);
   button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }));
   assert(button.textContent === label, 'Dragging accidentally fired the action');
   await until(() => { const m = new DOMMatrix(getComputedStyle(ink).transform); return Math.abs(m.a - 1) < .001 && Math.abs(m.m41) < .02 && Math.abs(m.m42) < .02; }, 'The contact did not spring back');
   await until(() => Math.abs(color() - before) < 2, 'Contact light changed the resting material');
+  // The original grip fixes the material; the light must follow a different live pointer position.
+  const left = rect.left + rect.width * .2;
+  const pixelAt = x => { const p = canvas.getContext('2d').getImageData(Math.round((40 + x) * 2), Math.round((40 + rect.height / 2) * 2), 1, 1).data; return (p[0] + p[1] + p[2]) / 3; };
+  pointer(ink, 'pointerdown', left, sy); await new Promise(resolve => setTimeout(resolve, 160));
+  const litLeft = pixelAt(rect.width * .2);
+  pointer(window, 'pointermove', rect.left + rect.width * .8, sy); await paint();
+  assert(pixelAt(rect.width * .8) > pixelAt(rect.width * .2) + 8 && pixelAt(rect.width * .2) < litLeft - 5, 'The contact light stayed at the original grip');
+  pointer(window, 'pointerup');
   pointer(ink, 'pointerdown'); pointer(window, 'lostpointercapture');
   assert(!surface.hasAttribute('data-dg-contact-active'), 'Lost capture left the material pinned');
   pointer(ink, 'pointerdown'); window.dispatchEvent(new Event('blur'));
   assert(!surface.hasAttribute('data-dg-contact-active'), 'Window blur left the material pinned');
-  return { light: 'localized', pull: 'anchored, resisted, elastic', cancellation: 'capture loss and blur', rest: 'unchanged' };
+  return { light: 'follows the pointer', pull: 'subtle, anchored, elastic', cancellation: 'capture loss and blur', rest: 'unchanged' };
+}
+
+export async function checkViewportBackdrop() {
+  await go('/components'); click('.catalog-material .dg-popover-anchor > button');
+  await until(() => document.querySelector('.catalog-material .dg-popover-layer:popover-open'), 'Material panel did not open');
+  await new Promise(resolve => setTimeout(resolve, 500));
+  const panel = document.querySelector('.catalog-material .dg-popover__panel'), canvas = document.querySelector('.catalog-material .dg-popover-layer > span > canvas[data-dg-renderer]');
+  const rect = panel.getBoundingClientRect(), view = canvas.getBoundingClientRect();
+  const probe = document.createElement('canvas');
+  probe.width = probe.height = 80;
+  probe.style.cssText = `position:fixed;pointer-events:none;left:${rect.left + 40}px;top:${rect.top + 190}px;width:80px;height:80px`;
+  document.body.append(probe);
+  const source = document.createElement('canvas'); source.width = source.height = 80;
+  const sourceContext = source.getContext('2d');
+  const {createLiquidGlassRenderer, subscribeLiquidFrames} = await import('refractive-glass-react/liquid-glass/renderer');
+  const renderer = createLiquidGlassRenderer(probe, {shared:true});
+  const pixel = () => canvas.getContext('2d').getImageData(Math.round((rect.left + 80 - view.left) * 2), Math.round((rect.top + 230 - view.top) * 2), 1, 1).data;
+  const draw = color => { sourceContext.fillStyle=color;sourceContext.fillRect(0,0,80,80);renderer.draw({source,sourceRevision:color==='rgb(20, 200, 40)'?1:2,width:80,height:80,blobs:[]}); };
+  let paints = 0, lastDraw = performance.now(); const stop = subscribeLiquidFrames(target => { if (target===canvas) { paints++; lastDraw=performance.now(); } });
+  try {
+    draw('rgb(20, 200, 40)');
+    await until(()=>pixel()[1] > pixel()[0] + 70, 'The actual underlying canvas did not show through the panel');
+    draw('rgb(200, 30, 50)');
+    await until(()=>pixel()[0] > pixel()[1] + 70, 'A canvas-only change did not refresh the live backdrop');
+    await until(()=>performance.now()-lastDraw>160, 'The backdrop never reaches rest'); const settled=paints;
+    await new Promise(resolve=>setTimeout(resolve,200));
+    assert(paints===settled, 'The backdrop keeps redrawing itself at rest');
+    return {source:'real page pixels', canvasUpdates:true, idle:'no redraw loop'};
+  } finally { stop();renderer.dispose();probe.remove();document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); }
 }
 
 export async function checkContactHDR() {
@@ -297,14 +338,14 @@ export async function checkContactHDR() {
     if (!hdr) return { hdr: 'unavailable; ordinary WebGL contact light remains active' };
     const overlay = host.querySelector('[data-dg-contact-hdr]'), context = overlay.getContext('webgpu'), configuration = context.getConfiguration(), device = configuration.device;
     context.configure({...configuration, usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC});
-    renderer.draw({source, width:240, height:140, pixelRatio:1, transparentOutside:true, blobs:[{x:.5,y:.5,radius:24,halfWidth:80,halfHeight:30,contactX:.8,contactY:0,contactStrength:1,pullX:12,pullY:-3}]}, hdr.draw);
+    renderer.draw({source, width:240, height:140, pixelRatio:1, transparentOutside:true, blobs:[{x:.5,y:.5,radius:24,halfWidth:80,halfHeight:30,contactX:.8,contactY:0,contactStrength:1,pullX:3,pullY:-1}]}, hdr.draw);
     const bytesPerRow = 2048, buffer = device.createBuffer({size:bytesPerRow*140,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
     try {
       const commands = device.createCommandEncoder(); commands.copyTextureToBuffer({texture:context.getCurrentTexture()},{buffer,bytesPerRow},[240,140]); device.queue.submit([commands.finish()]);
       await buffer.mapAsync(GPUMapMode.READ);
       const values = new Float16Array(buffer.getMappedRange()); let peak = 0;
       for(let y=0;y<140;y++) for(let x=0;x<240;x++) peak=Math.max(peak,values[y*bytesPerRow/2+x*4]);
-      assert(peak > 1, 'HDR contact never exceeded SDR white');
+      assert(peak > 1, `HDR contact never exceeded SDR white (peak ${peak})`);
       assert(configuration.toneMapping.mode === 'extended', 'HDR output was tone mapped to SDR');
       assert(renderer.stats.emissionDraws === 1 && renderer.stats.sourceUploads === 1, 'HDR duplicated source capture or material work');
       return {format:configuration.format, mode:configuration.toneMapping.mode, peak, displayHDR:matchMedia('(dynamic-range: high)').matches};

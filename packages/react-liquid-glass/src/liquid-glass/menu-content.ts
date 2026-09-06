@@ -43,73 +43,80 @@ export function paintLiquidMenuContent(panel: HTMLElement, canvas: HTMLCanvasEle
       }
     }
     const walker = document.createTreeWalker(panel, NodeFilter.SHOW_TEXT);
-    const range = document.createRange();
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      const text = node.textContent ?? "";
-      const parent = node.parentElement;
-      if (!text.trim() || !parent || parent.closest("svg")) continue;
-      const style = getComputedStyle(parent);
-      context.globalAlpha = opacity(parent);
-      context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
-      context.letterSpacing = style.letterSpacing === "normal" ? "0px" : style.letterSpacing;
-      context.fillStyle = style.color;
-      context.textBaseline = "alphabetic";
-      // Read browser line breaks and baselines, including localized/wrapped labels.
-      let start = 0;
-      while (start < text.length) {
-        range.setStart(node, start);
-        range.setEnd(node, start + 1);
-        const first = range.getBoundingClientRect();
-        let end = start + 1;
-        while (end < text.length) {
-          range.setStart(node, end);
-          range.setEnd(node, end + 1);
-          if (Math.abs(range.getBoundingClientRect().top - first.top) > 1) break;
-          end += 1;
-        }
-        const line = text.slice(start, end);
-        const metrics = context.measureText(line);
-        const baseline = first.top - bounds.top
-          + (first.height - metrics.fontBoundingBoxAscent - metrics.fontBoundingBoxDescent) / 2
-          + metrics.fontBoundingBoxAscent;
-        context.fillText(line, first.left - bounds.left, baseline);
-        start = end;
-      }
+      if (!node.parentElement || node.parentElement.closest("svg")) continue;
+      context.globalAlpha = opacity(node.parentElement);
+      paintLiquidText(node, context, bounds);
     }
-    for (const svg of panel.querySelectorAll("svg")) {
-      const rect = box(svg);
-      const view = svg.viewBox.baseVal;
-      context.save();
-      context.translate(rect.x, rect.y);
-      context.scale(rect.width / view.width, rect.height / view.height);
-      context.translate(-view.x, -view.y);
-      // ponytail: this painter covers the menu's Lucide geometry, not arbitrary SVG/CSS.
-      for (const shape of svg.children) {
-        const attr = (name: string) => Number(shape.getAttribute(name) ?? 0);
-        const path = new Path2D(shape.getAttribute("d") ?? "");
-        if (shape.tagName === "circle") path.arc(attr("cx"), attr("cy"), attr("r"), 0, Math.PI * 2);
-        else if (shape.tagName === "rect") path.roundRect(attr("x"), attr("y"), attr("width"), attr("height"), attr("rx"));
-        else if (shape.tagName === "line") { path.moveTo(attr("x1"), attr("y1")); path.lineTo(attr("x2"), attr("y2")); }
-        else if (shape.tagName === "polyline" || shape.tagName === "polygon") {
-          const points = (shape.getAttribute("points") ?? "").trim().split(/[\s,]+/).map(Number);
-          for (let i = 0; i + 1 < points.length; i += 2) {
-            if (i === 0) path.moveTo(points[i], points[i + 1]);
-            else path.lineTo(points[i], points[i + 1]);
-          }
-          if (shape.tagName === "polygon") path.closePath();
-        }
-        const style = getComputedStyle(shape);
-        context.globalAlpha = opacity(shape);
-        context.lineWidth = parseFloat(style.strokeWidth);
-        context.lineCap = style.strokeLinecap as CanvasLineCap;
-        context.lineJoin = style.strokeLinejoin as CanvasLineJoin;
-        if (style.fill !== "none") { context.fillStyle = style.fill; context.fill(path); }
-        if (style.stroke !== "none") { context.strokeStyle = style.stroke; context.stroke(path); }
-      }
-      context.restore();
-    }
+    for (const svg of panel.querySelectorAll("svg")) paintLiquidSvg(svg, context, bounds, opacity);
     return true;
   } finally {
     panel.style.transform = transform;
   }
+}
+
+/** Browser-measured line breaks, shared by menu ink and the bounded backdrop adapter. */
+export function paintLiquidText(node: Node, context: CanvasRenderingContext2D, bounds: { left: number; top: number }) {
+  const text = node.textContent ?? "", parent = node.parentElement;
+  if (!text.trim() || !parent) return;
+  const style = getComputedStyle(parent), range = document.createRange();
+  context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+  context.letterSpacing = style.letterSpacing === "normal" ? "0px" : style.letterSpacing;
+  context.fillStyle = style.color;
+  context.textBaseline = "alphabetic";
+  // Read browser line breaks and baselines, including localized/wrapped labels.
+  let start = 0;
+  while (start < text.length) {
+    range.setStart(node, start);
+    range.setEnd(node, start + 1);
+    const first = range.getBoundingClientRect();
+    let end = start + 1;
+    while (end < text.length) {
+      range.setStart(node, end);
+      range.setEnd(node, end + 1);
+      if (Math.abs(range.getBoundingClientRect().top - first.top) > 1) break;
+      end += 1;
+    }
+    const line = text.slice(start, end);
+    const metrics = context.measureText(line);
+    const baseline = first.top - bounds.top
+      + (first.height - metrics.fontBoundingBoxAscent - metrics.fontBoundingBoxDescent) / 2
+      + metrics.fontBoundingBoxAscent;
+    context.fillText(line, first.left - bounds.left, baseline);
+    start = end;
+  }
+}
+
+export function paintLiquidSvg(svg: SVGSVGElement, context: CanvasRenderingContext2D, bounds: { left: number; top: number }, opacity: (element: Element) => number) {
+  const r = svg.getBoundingClientRect(), rect = { x: r.left - bounds.left, y: r.top - bounds.top, width: r.width, height: r.height };
+  if (!rect.width || !rect.height || !svg.viewBox.baseVal.width || !svg.viewBox.baseVal.height) return;
+  const view = svg.viewBox.baseVal;
+  context.save();
+  context.translate(rect.x, rect.y);
+  context.scale(rect.width / view.width, rect.height / view.height);
+  context.translate(-view.x, -view.y);
+  // ponytail: this painter covers the menu's Lucide geometry, not arbitrary SVG/CSS.
+  for (const shape of svg.children) {
+    const attr = (name: string) => Number(shape.getAttribute(name) ?? 0);
+    const path = new Path2D(shape.getAttribute("d") ?? "");
+    if (shape.tagName === "circle") path.arc(attr("cx"), attr("cy"), attr("r"), 0, Math.PI * 2);
+    else if (shape.tagName === "rect") path.roundRect(attr("x"), attr("y"), attr("width"), attr("height"), attr("rx"));
+    else if (shape.tagName === "line") { path.moveTo(attr("x1"), attr("y1")); path.lineTo(attr("x2"), attr("y2")); }
+    else if (shape.tagName === "polyline" || shape.tagName === "polygon") {
+      const points = (shape.getAttribute("points") ?? "").trim().split(/[\s,]+/).map(Number);
+      for (let i = 0; i + 1 < points.length; i += 2) {
+        if (i === 0) path.moveTo(points[i], points[i + 1]);
+        else path.lineTo(points[i], points[i + 1]);
+      }
+      if (shape.tagName === "polygon") path.closePath();
+    }
+    const style = getComputedStyle(shape);
+    context.globalAlpha = opacity(shape);
+    context.lineWidth = parseFloat(style.strokeWidth);
+    context.lineCap = style.strokeLinecap as CanvasLineCap;
+    context.lineJoin = style.strokeLinejoin as CanvasLineJoin;
+    if (style.fill !== "none") { context.fillStyle = style.fill; context.fill(path); }
+    if (style.stroke !== "none") { context.strokeStyle = style.stroke; context.stroke(path); }
+  }
+  context.restore();
 }

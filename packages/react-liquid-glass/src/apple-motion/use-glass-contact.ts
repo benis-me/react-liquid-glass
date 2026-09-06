@@ -10,6 +10,7 @@ const PRESS = { stiffness: 700, damping: 42, mass: 1 };
 /** Adds material feedback without replacing a control's native pointer/keyboard action. */
 export function useGlassContact(root: RefObject<HTMLElement | null>, { deform = true, enabled = true }: { deform?: boolean; enabled?: boolean } = {}) {
   const contactX = useMotionValue(0), contactY = useMotionValue(0), contactStrength = useMotionValue(0);
+  const anchorX = useMotionValue(0), anchorY = useMotionValue(0);
   const pullX = useMotionValue(0), pullY = useMotionValue(0);
   const reduce = useReducedMotion();
   const active = useRef<{ id: number; x: number; y: number; px: number; py: number; width: number; height: number; elastic: boolean; moved: boolean } | null>(null);
@@ -41,8 +42,9 @@ export function useGlassContact(root: RefObject<HTMLElement | null>, { deform = 
       const x = Math.max(-1, Math.min(1, (event.clientX - rect.left) / rect.width * 2 - 1));
       const y = Math.max(-1, Math.min(1, (event.clientY - rect.top) / rect.height * 2 - 1));
       stop();
-      if (Math.hypot(pullX.get(), pullY.get()) > .1) runs.current.push(springTo(contactX, x, PRESS), springTo(contactY, y, PRESS));
-      else { contactX.jump(x); contactY.jump(y); }
+      if (Math.hypot(pullX.get(), pullY.get()) > .1) runs.current.push(springTo(anchorX, x, PRESS), springTo(anchorY, y, PRESS));
+      else { anchorX.jump(x); anchorY.jump(y); }
+      contactX.jump(x); contactY.jump(y);
       runs.current.push(animate(contactStrength, 1, { duration: .12, ease: "easeOut" }));
       const elastic = deform && !target.closest('input, textarea, select, [contenteditable="true"], pre, code');
       active.current = { id: event.pointerId, x: event.clientX, y: event.clientY, px: pullX.get(), py: pullY.get(), width: rect.width, height: rect.height, elastic, moved: false };
@@ -53,8 +55,9 @@ export function useGlassContact(root: RefObject<HTMLElement | null>, { deform = 
         if (!grip || next.pointerId !== grip.id) return;
         const dx = next.clientX - grip.x, dy = next.clientY - grip.y;
         if (Math.hypot(dx, dy) > 4) grip.moved = true;
-        if (!grip.elastic) { contactX.set(Math.max(-1, Math.min(1, x + dx / grip.width * 2))); contactY.set(Math.max(-1, Math.min(1, y + dy / grip.height * 2))); return; }
-        if (reduce) return;
+        contactX.set(Math.max(-1, Math.min(1, x + dx / grip.width * 2)));
+        contactY.set(Math.max(-1, Math.min(1, y + dy / grip.height * 2)));
+        if (!grip.elastic || reduce) return;
         const [px, py] = contactPull(dx, dy, grip.width, grip.height, grip.px, grip.py);
         pullX.set(px); pullY.set(py);
       };
@@ -83,6 +86,6 @@ export function useGlassContact(root: RefObject<HTMLElement | null>, { deform = 
       element.removeAttribute("data-dg-contact"); element.removeAttribute("data-dg-contact-active");
       element.removeEventListener("pointerdown", down); action.removeEventListener("click", click as EventListener, true); action.removeEventListener("dragstart", drag as EventListener);
     };
-  }, [root, enabled, deform, reduce, arm, disarm, contactX, contactY, contactStrength, pullX, pullY]);
-  return { contactX, contactY, contactStrength, pullX, pullY };
+  }, [root, enabled, deform, reduce, arm, disarm, contactX, contactY, anchorX, anchorY, contactStrength, pullX, pullY]);
+  return { contactX, contactY, anchorX, anchorY, contactStrength, pullX, pullY };
 }

@@ -6,3 +6,4 @@ export type { LiquidGlassBlob, LiquidGlassFrame, LiquidGlassSource, LiquidRender
 export type { LiquidSourceFactory, LiquidSourcePainter } from "./source";
 export { liquidContentPose, liquidContentOptics } from "./geometry";
 export { LiquidGlassProvider, useGlassMaterial, type GlassMaterial } from "./provider";
+export { paintLiquidBackdrop } from "./backdrop";

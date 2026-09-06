@@ -3,6 +3,11 @@ import { contactTransform } from "../shared/contact";
 import { readMotion, type MotionInput } from "../shared/values";
 
 const MAX_BLOBS = 8;
+const frameListeners = new Set<(canvas: HTMLCanvasElement) => void>();
+export function subscribeLiquidFrames(listener: (canvas: HTMLCanvasElement) => void) {
+  frameListeners.add(listener);
+  return () => { frameListeners.delete(listener); };
+}
 export interface LiquidGlassBlob {
   /** Normalized center coordinates in the source, from 0 to 1. */
   x: MotionInput;
@@ -17,9 +22,12 @@ export interface LiquidGlassBlob {
   /** Optional CSS-pixel velocity used for squash and stretch. */
   velocityX?: MotionInput;
   velocityY?: MotionInput;
-  /** Grip position relative to the lens center, normalized to -1..1. */
+  /** Live light position relative to the lens center, normalized to -1..1. */
   contactX?: MotionInput;
   contactY?: MotionInput;
+  /** Original grip stays fixed while the light follows the pointer. */
+  anchorX?: MotionInput;
+  anchorY?: MotionInput;
   contactStrength?: MotionInput;
   /** Resisted grip displacement in CSS pixels. */
   pullX?: MotionInput;
@@ -305,7 +313,7 @@ void main() {
     vec2 local = movingBlobLocal(point, uBlobs[index], uVelocity[index], index);
     vec2 extent = max(uHalfSize[index], vec2(1.));
     if (uContact[index].z > .001) {
-      vec2 finger = local - uContact[index].xy * extent;
+      vec2 finger = point - uBlobs[index].xy - uContact[index].xy * extent;
       float radius = clamp(min(extent.x, extent.y) * 1.1, 12., 54.);
       float spread = exp(-dot(finger, finger) / (radius * radius));
       float crest = exp(-dot(finger, finger) / (radius * radius * .09));
@@ -689,10 +697,11 @@ export function createLiquidGlassRenderer(
       velocities[i*2+1] = readMotion(b.velocityY ?? 0);
       if (![blobs[i*3], blobs[i*3+1], radius, sizes[i*2], sizes[i*2+1], corners[i], velocities[i*2], velocities[i*2+1]].every(Number.isFinite)) return false;
       const cx = readMotion(b.contactX ?? 0), cy = readMotion(b.contactY ?? 0), strength = readMotion(b.contactStrength ?? 0);
+      const ax = readMotion(b.anchorX ?? cx), ay = readMotion(b.anchorY ?? cy);
       const px = readMotion(b.pullX ?? 0), py = readMotion(b.pullY ?? 0);
-      if (![cx, cy, strength, px, py].every(Number.isFinite)) return false;
+      if (![cx, cy, ax, ay, strength, px, py].every(Number.isFinite)) return false;
       contacts.set([Math.max(-1, Math.min(1, cx)), Math.max(-1, Math.min(1, cy)), Math.max(0, Math.min(1, strength))], i * 3);
-      const [m00, m10, m01, m11, tx, ty] = contactTransform(sizes[i*2] * 2, sizes[i*2+1] * 2, cx, cy, px, py);
+      const [m00, m10, m01, m11, tx, ty] = contactTransform(sizes[i*2] * 2, sizes[i*2+1] * 2, ax, ay, px, py);
       const determinant = m00 * m11 - m01 * m10;
       contactInverses.set([m11 / determinant, -m10 / determinant, -m01 / determinant, m00 / determinant], i * 4);
       contactOffsets.set([tx, ty], i * 2);
@@ -738,6 +747,7 @@ export function createLiquidGlassRenderer(
       presentContactHDR(device.canvas); stats.emissionDraws++;
     }
     stats.draws++;
+    for (const listener of frameListeners) listener(canvas);
     return true;
   }
   function dispose() {

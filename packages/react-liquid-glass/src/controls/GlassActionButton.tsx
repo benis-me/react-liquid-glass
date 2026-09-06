@@ -26,7 +26,7 @@ export function GlassActionButton({ children, disabled, onClick, ...props }: Com
   const tintStrength = useMotionValue(0.1846);
   const tintBlur = useMotionValue(3);
   const shadowOpacity = useMotionValue(0.28);
-  const transform = useTransform(() => `matrix(${contactTransform(lensW.get() * 2, lensH.get() * 2, contact.contactX.get(), contact.contactY.get(), contact.pullX.get(), contact.pullY.get()).join(",")})`);
+  const transform = useTransform(() => `matrix(${contactTransform(lensW.get() * 2, lensH.get() * 2, contact.anchorX.get(), contact.anchorY.get(), contact.pullX.get(), contact.pullY.get()).join(",")})`);
 
   const press = () => {
     if (disabled) return;
