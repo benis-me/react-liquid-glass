@@ -14,9 +14,6 @@ import {
   GlassButton,
   GlassButtonGroup,
   GlassInput,
-  GlassSwitch,
-  GlassSlider,
-  GlassSegmented,
   GlassPopover,
 } from "refractive-glass-react/controls";
 import {
@@ -174,22 +171,9 @@ export function Home({ locale, theme }: PageProps) {
           </Link>
         </div>
         <GlassStage className="home-material">
-          <GlassSegmented
-            ariaLabel={zh ? "材质选项" : "Material options"}
-            items={[
-              { value: "clear", label: "Clear" },
-              { value: "soft", label: "Soft" },
-              { value: "liquid", label: "Liquid" },
-            ]}
-          />
-          <GlassSlider
-            ariaLabel={zh ? "材质预览" : "Material preview"}
-            defaultValue={68}
-          />
-          <GlassSwitch
-            ariaLabel={zh ? "玻璃开关" : "Glass switch"}
-            defaultChecked
-          />
+          <ComponentExample id="button-group" locale={locale} theme={theme} compact />
+          <GlassInput aria-label={zh ? "写点什么" : "Write something"} placeholder={zh ? "写点什么…" : "Write something…"} />
+          <ComponentExample id="toggle" locale={locale} theme={theme} compact />
         </GlassStage>
       </section>
       <section className="home-section">
@@ -338,7 +322,7 @@ export function Catalog({ locale, theme }: PageProps) {
       </div>
       </LiquidGlassProvider>
       <div className="catalog-material">
-        <GlassPopover label={zh ? "全局材质" : "Global material"} trigger={<><SlidersHorizontal size={15} /><span>{zh ? "材质" : "Material"}</span><small>{Object.keys(material).length ? (zh ? "自定义" : "Custom") : (zh ? "默认" : "Default")}</small></>}>
+        <GlassPopover blurStrength={18} label={zh ? "全局材质" : "Global material"} trigger={<><SlidersHorizontal size={15} /><span>{zh ? "材质" : "Material"}</span><small>{Object.keys(material).length ? (zh ? "自定义" : "Custom") : (zh ? "默认" : "Default")}</small></>}>
           <MaterialControls locale={locale} material={material} setMaterial={setMaterial} />
         </GlassPopover>
       </div>

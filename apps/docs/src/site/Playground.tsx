@@ -142,7 +142,7 @@ export function Playground({ locale, theme }: PageProps) {
             ) }]} />
           </div>
         </div>
-        <GlassSurface className="playground-inspector" radius={24}>
+        <GlassSurface className="playground-inspector" radius={24} blurStrength={18} interactive="light">
         <MaterialControls locale={locale} material={material} setMaterial={setMaterial}>
           <GlassButton size="small" className="share-material" onClick={share}>
             {shared ? <Check size={14} /> : <Link2 size={14} />}

@@ -205,8 +205,7 @@ td code { font-size: 10px; }
 .mobile-top-links { display: grid; gap: 4px; margin-bottom: 24px; }
 .mobile-top-links a { padding: 8px 10px; border-radius: 6px; }
 @media (max-width: 900px) { .header-tools .mobile-menu-button { display: inline-flex; } }
-.material-advanced .dg-accordion__heading button { font-size: 10px; padding: 12px; }
-.material-advanced .dg-accordion__body { padding: 0 12px 16px; }
+.material-advanced summary { cursor: pointer; padding-block: 12px; }
 .material-advanced .material-fields { margin-top: 10px; }
 .material-advanced .material-field { grid-template-columns: minmax(0,1fr) 120px; }
 @media (max-width: 640px) {

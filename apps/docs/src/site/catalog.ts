@@ -368,11 +368,23 @@ export const catalog = [
     summary: "触发器融成菜单，关闭后复原。",
     api: "GlassMorphMenu",
     props: [
+      ["theme", '"light" | "dark"', "required"],
       ["trigger", "ReactNode", "required"],
-      ["label", "string", '"Actions"'],
-      ["items", "{ label, onSelect, disabled? }[]", "required"],
+      ["menuLabel / openLabel", "string", "required"],
+      ["children", "(open: boolean) => ReactNode", "required"],
+      ["size", '"small" | "default"', '"small"'],
     ],
-    code: '<GlassMorphMenu trigger="Actions" items={[{ label: "Duplicate", onSelect: () => {} }, { label: "Archive", onSelect: () => {} }]} />',
+    code: `<GlassMorphMenu theme="light" menuLabel="Sort and filter" openLabel="Open menu" trigger={<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.5" fill="currentColor" /><circle cx="12" cy="12" r="1.5" fill="currentColor" /><circle cx="19" cy="12" r="1.5" fill="currentColor" /></svg>}>
+        {open => (
+          <div className="dg-liquid-menu__scroll">
+            <p className="dg-liquid-menu__heading">Sort</p>
+            {["Recently played", "Game name"].map(label => <button key={label} className="dg-liquid-menu__sort-row" role="menuitemradio" aria-checked={sort === label} tabIndex={open ? 0 : -1} onClick={() => setSort(label)}><span className="dg-liquid-menu__check">{sort === label && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg>}</span>{label}</button>)}
+            <div className="dg-liquid-menu__divider" />
+            <p className="dg-liquid-menu__heading">Filter</p>
+            <button className="dg-liquid-menu__filter-row" role="menuitemcheckbox" aria-checked={local} tabIndex={open ? 0 : -1} onClick={() => setLocal(!local)}><span />On this device</button>
+          </div>
+        )}
+      </GlassMorphMenu>`,
   },  {
     id: "spotlight",
     name: "Spotlight",
@@ -431,6 +443,7 @@ const setup: Partial<Record<ComponentId, string>> = {
   slider: "const [volume, setVolume] = useState(50);",
   input: 'const [name, setName] = useState("");',
   toggle: "const [saved, setSaved] = useState(false);",
+  "morph-menu": 'const [sort, setSort] = useState("Recently played");\n  const [local, setLocal] = useState(false);',
   toast: "const [visible, setVisible] = useState(false);",
   dialog: "const [open, setOpen] = useState(false);",
   sheet: "const [open, setOpen] = useState(false);",

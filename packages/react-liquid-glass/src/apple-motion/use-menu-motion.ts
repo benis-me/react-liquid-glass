@@ -68,6 +68,7 @@ export interface MenuTransition {
 }
 export interface MenuMotionOptions {
   getLayout: (width: number, height: number) => MenuLayout;
+  coordinateScale?: number;
   onBegin?: (transition: Omit<MenuTransition, "duration">) => void;
   onTransition?: (transition: MenuTransition) => AnimationControl[];
   onPress?: (pressed: boolean) => AnimationControl[];
@@ -188,8 +189,8 @@ export function useMenuMotion(options: MenuMotionOptions) {
     const measure = () => {
       const rect = stage.getBoundingClientRect();
       const next = {
-        width: Math.max(1, Math.round(rect.width)),
-        height: Math.max(1, Math.round(rect.height)),
+        width: Math.max(1, Math.round(rect.width / (callbacks.current.coordinateScale ?? 1))),
+        height: Math.max(1, Math.round(rect.height / (callbacks.current.coordinateScale ?? 1))),
       };
       stageSizeRef.current = next;
       setStageSize((current) => current.width === next.width && current.height === next.height
@@ -511,11 +512,11 @@ export function useMenuMotion(options: MenuMotionOptions) {
     stopAnimations();
     const duration = pressed ? 0.08 : 0.16;
     const ease = pressed ? PRESS_EASE : RELEASE_EASE;
-    const pressHalf = pressed ? 29 : TRIGGER_RADIUS;
+    const pressHalf = pressed ? TRIGGER_RADIUS * 1.025 : TRIGGER_RADIUS;
     animations.current = [
       ...callbacks.current.onPress?.(pressed) ?? [],
       animate(buttonHalf, pressHalf, { duration, ease }),
-        animate(triggerScale, pressed ? 0.86 : 1, {
+        animate(triggerScale, pressed ? 1.025 : 1, {
         duration,
         ease,
       }),

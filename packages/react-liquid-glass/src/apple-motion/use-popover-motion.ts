@@ -5,6 +5,7 @@ import { liquidEasings, retargetLiquidFrames } from "./trajectory";
 
 export interface PopoverLayout {
   triggerX: number; triggerY: number; triggerWidth: number; triggerHeight: number; triggerRadius: number;
+  originX?: number; originY?: number;
   panelX: number; panelY: number; panelWidth: number; panelHeight: number; panelRadius: number;
 }
 
@@ -16,10 +17,11 @@ export function popoverFrames(layout: PopoverLayout, open: boolean, morphTrigger
   const reach = (w: number, h: number) => Math.hypot(w * ux, h * uy);
   const triggerReach = reach(tw / 2, th / 2);
   const neck = Math.min(28, th * 0.65);
+  const ox = layout.originX ?? tx, oy = layout.originY ?? ty;
   if (open) return {
     times: OPEN_MORPH_TIMES,
-    x: [tx, tx, tx + (px - tx) * .86, px + (px - tx) * .006, px],
-    y: [ty, ty, ty + (py - ty) * .86, py + (py - ty) * .006, py],
+    x: [ox, ox, ox + (px - ox) * .86, px + (px - tx) * .006, px],
+    y: [oy, oy, oy + (py - oy) * .86, py + (py - ty) * .006, py],
     w: openWidthFrames(tw * .4, pw / 2),
     h: openHeightFrames(th * .4, ph / 2),
     radius: openRadiusFrames(Math.min(tw, th) * .4, pr, pw / 2, ph / 2),
@@ -31,8 +33,10 @@ export function popoverFrames(layout: PopoverLayout, open: boolean, morphTrigger
   // Both extents shrink monotonically, even for a tooltip shorter than its trigger.
   const w = [pw / 2, pw * .45, pw * .22, Math.max(1, Math.min(pw * .11, tw * .38)), 1, 1];
   const h = [ph / 2, ph * .445, ph * .2, Math.max(1, Math.min(ph * .14, th * .48)), 1, 1];
-  const contact = (index: number, gap: number) => triggerReach + reach(w[index], h[index]) + gap;
-  const middle = Math.min(length * .62, contact(2, 6)), lobe = Math.min(middle * .52, contact(3, -4));
+  // Match the live head's size; using its resting reach leaves a gap while it grows.
+  const contact = (index: number, headScale: number, gap: number) => triggerReach * headScale + reach(w[index], h[index]) + gap;
+  const middle = Math.min(length * .62, contact(2, morphTrigger ? .65 : .975, 4));
+  const lobe = Math.min(middle, contact(3, 1.035, -neck * .25));
   return {
     times: [0, .12, .42, .68, .84, 1],
     x: [px, px + dx * .12, tx - ux * middle, tx - ux * lobe, tx, tx],
@@ -81,7 +85,7 @@ export function usePopoverMotion() {
   };
   const press = (pressed: boolean) => {
     if (running.current) return;
-    const target = pressed ? .96 : 1;
+    const target = pressed ? 1.025 : 1;
     if (reduce) { trigger.jump(target); return; }
     if (Math.abs(trigger.get() - target) < .001) return;
     stop();

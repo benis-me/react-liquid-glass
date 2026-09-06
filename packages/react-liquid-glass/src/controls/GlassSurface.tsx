@@ -113,6 +113,8 @@ export interface GlassSurfaceProps {
   className?: string;
   style?: CSSProperties;
   radius?: number;
+  /** Frost strength in CSS pixels, for larger surfaces such as inspectors. */
+  blurStrength?: number;
   pressed?: boolean;
   /** Contact light and elastic pull; use "light" to keep application-owned dragging. */
   interactive?: boolean | "light";
@@ -134,6 +136,7 @@ function OpticalSurface({
   radius = 18,
   pressed = false,
   interactive = true,
+  blurStrength,
 }: GlassSurfaceProps) {
   const root = useRef<HTMLSpanElement>(null);
   const contact = useGlassContact(root, { enabled: interactive !== false, deform: interactive !== "light" });
@@ -153,10 +156,10 @@ function OpticalSurface({
   });
   useEffect(() => {
     if (reduce) {
-      scale.jump(pressed ? 0.96 : 1);
+      scale.jump(pressed ? 1.025 : 1);
       return;
     }
-    const run = springTo(scale, pressed ? 0.96 : 1, SURFACE_PRESS_SPRING);
+    const run = springTo(scale, pressed ? 1.025 : 1, SURFACE_PRESS_SPRING);
     return () => run.stop();
   }, [pressed, reduce, scale]);
   useLayoutEffect(() => {
@@ -188,6 +191,7 @@ function OpticalSurface({
         <span className="dg-surface__optics" aria-hidden="true" style={{ inset: -40 }}>
           <LiquidGlassCanvas
             {...SURFACE_MATERIAL}
+            blurStrength={blurStrength ?? SURFACE_MATERIAL.blurStrength}
             shared
             pixelRatio={2}
             sourceRef={source}

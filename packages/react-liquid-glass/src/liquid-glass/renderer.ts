@@ -43,7 +43,7 @@ export type LiquidGlassSource = HTMLCanvasElement | HTMLImageElement | HTMLVideo
 export const LIQUID_GLASS_MATERIAL = Object.freeze({
   mergeDistance: 40, refractionStrength: .11, chromaAmount: .55,
   specularStrength: .72, blurStrength: .5, edgeDepth: 10, domeDepth: 58,
-  brightness: .015, backdropDim: 0, specularRotation: 90, glowStrength: .30, glowSpread: .72,
+  brightness: .015, specularRotation: 90, glowStrength: .30, glowSpread: .72,
   glowExponent: 1.4, edgeStrength: .36, edgeWidth: 1.6, edgeExponent: 1.2,
   tintColor: [1, 1, 1] as readonly [number, number, number], tintStrength: .055,
   magnification: 1, shadowStrength: .11, shadowOffset: 18, shadowBlur: 26,
@@ -71,8 +71,6 @@ export interface LiquidGlassFrame {
   edgeDepth?: MotionInput;
   domeDepth?: number;
   brightness?: number;
-  /** A black mask between the captured page and this surface; avoids per-frame recapture. */
-  backdropDim?: MotionInput;
   specularRotation?: number;
   glowStrength?: number;
   glowSpread?: number;
@@ -139,7 +137,6 @@ uniform float uDepth;
 uniform vec4 uDome[8];
 uniform float uDomeDepth;
 uniform float uBrightness;
-uniform float uBackdropDim;
 uniform float uSpecularRotation;
 uniform float uGlowStrength;
 uniform float uGlowSpread;
@@ -402,7 +399,7 @@ void main() {
     outputColor = vec4(vec3(contactLight, rimLight * (1. - brightnessAmount), 0.) * visibility, 1.);
     return;
   }
-  vec3 refracted = sampleGlass(vUv, displacement) * (1. - clamp(uBackdropDim, 0., 1.));
+  vec3 refracted = sampleGlass(vUv, displacement);
   // Video's highlight response preserves contrast on both bright and dark substrates.
   float luminance = dot(refracted, vec3(.299, .587, .114));
   float shine = specular * uSpecular * (127. / 255.);
@@ -481,7 +478,7 @@ const uniformNames = [
   "uSourceSize", "uBlobs[0]", "uHalfSize[0]", "uCornerRadius[0]", "uVelocity[0]",
   "uContact[0]", "uContactInverse[0]", "uContactOffset[0]", "uEmissionOnly",
   "uDome[0]", "uBlobRefractionRatio[0]", "uBlobCount", "uMergeDistance", "uRefraction", "uRefractionRatio",
-  "uChroma", "uSpecular", "uBlur", "uDepth", "uDomeDepth", "uBrightness", "uBackdropDim",
+  "uChroma", "uSpecular", "uBlur", "uDepth", "uDomeDepth", "uBrightness",
   "uSpecularRotation", "uGlowStrength", "uGlowSpread", "uGlowExponent",
   "uEdgeStrength", "uEdgeWidth", "uEdgeExponent", "uTintColor", "uTint", "uZoom",
   "uShadow", "uShadowOffset", "uShadowBlur", "uOpacity", "uTransparentOutside", "uDebug",
@@ -489,7 +486,7 @@ const uniformNames = [
 const scalarUniforms = {
   mergeDistance: "uMergeDistance", refractionStrength: "uRefraction",
   chromaAmount: "uChroma", specularStrength: "uSpecular", blurStrength: "uBlur",
-  edgeDepth: "uDepth", domeDepth: "uDomeDepth", brightness: "uBrightness", backdropDim: "uBackdropDim",
+  edgeDepth: "uDepth", domeDepth: "uDomeDepth", brightness: "uBrightness",
   specularRotation: "uSpecularRotation", glowStrength: "uGlowStrength",
   glowSpread: "uGlowSpread", glowExponent: "uGlowExponent", edgeStrength: "uEdgeStrength",
   edgeWidth: "uEdgeWidth", edgeExponent: "uEdgeExponent", tintStrength: "uTint",

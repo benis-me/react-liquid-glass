@@ -11,7 +11,6 @@ import {
   GlassCheckbox,
   GlassDialog,
   GlassDropdownMenu,
-  GlassMorphMenu,
   GlassInput,
   GlassPopover,
   GlassProgress,
@@ -28,6 +27,7 @@ import {
   GlassTooltip,
   GlassVideo,
 } from "refractive-glass-react/controls";
+import { MorphMenuDemo } from "../demos/MorphMenuDemo";
 import type { Locale } from "../i18n";
 import type { ComponentId } from "./catalog";
 export const PHOTO =
@@ -393,11 +393,7 @@ export function ComponentExample({
         />
       );
     case "morph-menu":
-      return <GlassMorphMenu trigger={t("Actions", "操作")} label={t("Actions", "操作")} items={[
-        { label: t("Duplicate", "创建副本"), onSelect: () => setCount(count + 1) },
-        { label: t("Share", "分享"), onSelect: () => setCount(count + 1) },
-        { label: t("Archive", "归档"), onSelect: () => setCount(0) },
-      ]} />;
+      return <MorphMenuDemo locale={locale} theme={theme} />;
     case "spotlight":
       return (
         <GlassSpotlight

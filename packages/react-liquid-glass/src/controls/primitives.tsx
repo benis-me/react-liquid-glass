@@ -125,7 +125,7 @@ export function GlassInput({
   return (
     <label className={`dg-field ${className}`} htmlFor={inputId}>
       {label && <span className="dg-field__label">{label}</span>}
-      <GlassSurface radius={14}>
+      <GlassSurface radius={22}>
         <input
           {...props}
           id={inputId}
@@ -148,7 +148,7 @@ export function GlassTextarea({
   return (
     <label className={`dg-field ${className}`} htmlFor={suppliedId ?? id}>
       {label && <span className="dg-field__label">{label}</span>}
-      <GlassSurface radius={16}>
+      <GlassSurface radius={24}>
         <textarea {...props} id={suppliedId ?? id} />
       </GlassSurface>
     </label>

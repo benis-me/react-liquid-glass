@@ -75,10 +75,15 @@ export interface LiquidMenuProps {
   trigger: ReactNode;
   children: (open: boolean) => ReactNode;
   className?: string;
+  size?: "default" | "small";
   onOpenChange?: (open: boolean) => void;
 }
 
-export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, className, onOpenChange }: LiquidMenuProps) {
+export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, className, onOpenChange, size = "default" }: LiquidMenuProps) {
+  const scale = size === "small" ? .65 : 1;
+  const renderLayout = (width: number, height: number) => Object.fromEntries(
+    Object.entries(menuLayout(width, height)).map(([key, value]) => [key, value * scale]),
+  ) as unknown as MenuLayout;
   const menuLens = theme === "dark" ? DARK_MENU_LENS : LIGHT_MENU_LENS;
   const menuId = useId();
   const fusionSourceRef = useRef<HTMLCanvasElement>(null);
@@ -105,22 +110,32 @@ export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, cla
     if (contentActive.get()) captureContent();
   }, [captureContent, contentActive]);
 
-  const { open, stageSize, stageRef, triggerRef, rightEdge, bottomEdge, halfWidth, halfHeight, cornerRadius, centerX, centerY, buttonCenterX, buttonCenterY, buttonHalf, menuVelocityX, menuVelocityY, buttonVelocityX, buttonVelocityY, mergeDistance, reveal, triggerOpacity, triggerScale, triggerOffsetX, triggerOffsetY, setExpanded, pressTrigger } = useMenuMotion({
+  const { open, stageSize, stageRef, triggerRef, rightEdge: rawRightEdge, bottomEdge: rawBottomEdge, halfWidth: rawHalfWidth, halfHeight: rawHalfHeight, cornerRadius: rawCornerRadius, centerX, centerY, buttonCenterX, buttonCenterY, buttonHalf: rawButtonHalf, menuVelocityX: rawMenuVelocityX, menuVelocityY: rawMenuVelocityY, buttonVelocityX: rawButtonVelocityX, buttonVelocityY: rawButtonVelocityY, mergeDistance: rawMergeDistance, reveal, triggerOpacity, triggerScale, triggerOffsetX: rawTriggerOffsetX, triggerOffsetY: rawTriggerOffsetY, setExpanded, pressTrigger } = useMenuMotion({
     getLayout: menuLayout,
+    coordinateScale: scale,
     onBegin: ({ interrupted, reducedMotion }) => { if (!reducedMotion && !interrupted) contentActive.set(captureContent() ? 1 : 0); },
     onTransition: transition,
     onPress: press,
     onRest: () => { contentActive.jump(0); closingBlur.jump(0); },
     onOpenChange,
   });
+  const rightEdge = useTransform(rawRightEdge, value => value * scale);
+  const bottomEdge = useTransform(rawBottomEdge, value => value * scale);
+  const halfWidth = useTransform(rawHalfWidth, value => value * scale);
+  const halfHeight = useTransform(rawHalfHeight, value => value * scale);
+  const cornerRadius = useTransform(rawCornerRadius, value => value * scale);
+  const menuVelocityX = useTransform(rawMenuVelocityX, value => value * scale);
+  const menuVelocityY = useTransform(rawMenuVelocityY, value => value * scale);
+  const triggerOffsetX = useTransform(rawTriggerOffsetX, value => value * scale);
+  const triggerOffsetY = useTransform(rawTriggerOffsetY, value => value * scale);
   const stageSizeRef = useRef(stageSize);
   stageSizeRef.current = stageSize;
   const contentOpacity = useTransform([reveal, contentActive], ([opacity, active]: number[]) => opacity * active);
   const domContentOpacity = useTransform([reveal, contentActive], ([opacity, active]: number[]) => opacity * (1 - active));
   const materialProgress = useTransform(halfWidth, (value) => {
-    const target = menuLayout(stageSizeRef.current.width, stageSizeRef.current.height).panelWidth / 2;
+    const target = renderLayout(stageSizeRef.current.width, stageSizeRef.current.height).panelWidth / 2;
     return clamp(
-      (value - TRIGGER_RADIUS) / Math.max(1, target - TRIGGER_RADIUS),
+      (value - TRIGGER_RADIUS * scale) / Math.max(1, target - TRIGGER_RADIUS * scale),
       0,
       1,
     );
@@ -133,51 +148,53 @@ export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, cla
   );
   const materialZoom = useTransform([materialProgress, zoom, buttonZoom], blendMaterialValue);
   const contentOptics = useTransform([halfWidth, halfHeight, cornerRadius], (values) =>
-    liquidContentOptics(values as number[], menuLayout(stageSizeRef.current.width, stageSizeRef.current.height)));
+    liquidContentOptics(values as number[], renderLayout(stageSizeRef.current.width, stageSizeRef.current.height)));
   const contentRefraction = useTransform(contentOptics, (optics) => optics.refraction);
   const contentBlur = useTransform(() => Math.max(contentOptics.get().blur, closingBlur.get()));
   const contentFilter = useTransform(contentBlur, (blur) => `blur(${blur}px)`);
+  // Render in the original menu coordinates; the CSS size and render ratio scale
+  // together, preserving optical depth, shadow, AA and the original trajectory.
   const fusionBlobs = useMemo(
     () => [
       {
         x: centerX,
         y: centerY,
-        radius: cornerRadius,
-        halfWidth,
-        halfHeight,
-        cornerRadius,
-        velocityX: menuVelocityX,
-        velocityY: menuVelocityY,
+        radius: rawCornerRadius,
+        halfWidth: rawHalfWidth,
+        halfHeight: rawHalfHeight,
+        cornerRadius: rawCornerRadius,
+        velocityX: rawMenuVelocityX,
+        velocityY: rawMenuVelocityY,
       },
       {
         x: buttonCenterX,
         y: buttonCenterY,
-        radius: buttonHalf,
-        halfWidth: buttonHalf,
-        halfHeight: buttonHalf,
-        cornerRadius: buttonHalf,
-        velocityX: buttonVelocityX,
-        velocityY: buttonVelocityY,
+        radius: rawButtonHalf,
+        halfWidth: rawButtonHalf,
+        halfHeight: rawButtonHalf,
+        cornerRadius: rawButtonHalf,
+        velocityX: rawButtonVelocityX,
+        velocityY: rawButtonVelocityY,
       },
     ],
     [
       centerX,
       centerY,
-      cornerRadius,
-      halfHeight,
-      halfWidth,
-      menuVelocityX,
-      menuVelocityY,
+      rawCornerRadius,
+      rawHalfHeight,
+      rawHalfWidth,
+      rawMenuVelocityX,
+      rawMenuVelocityY,
       buttonCenterX,
       buttonCenterY,
-      buttonHalf,
-      buttonVelocityX,
-      buttonVelocityY,
+      rawButtonHalf,
+      rawButtonVelocityX,
+      rawButtonVelocityY,
     ],
   );
   const contentPose = useTransform(
     [rightEdge, bottomEdge, halfWidth, halfHeight, cornerRadius, menuVelocityX, menuVelocityY],
-    (values) => liquidContentPose(values as number[], menuLayout(stageSizeRef.current.width, stageSizeRef.current.height)),
+    (values) => liquidContentPose(values as number[], renderLayout(stageSizeRef.current.width, stageSizeRef.current.height)),
   );
   const contentTransform = useTransform(contentPose, (pose) => pose.transform);
   const contentClip = useTransform(contentPose, (pose) => pose.clipPath);
@@ -195,10 +212,10 @@ export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, cla
     }).dispose;
   }, [stageSize.height, stageSize.width, theme]);
 
-  const layout = menuLayout(stageSize.width, stageSize.height);
+  const layout = renderLayout(stageSize.width, stageSize.height);
 
   return (
-    <div ref={stageRef} className={["dg-liquid-glass", className].filter(Boolean).join(" ")} data-liquid-theme={theme}>
+    <div ref={stageRef} className={["dg-liquid-glass", size === "small" && "dg-liquid-glass--small", className].filter(Boolean).join(" ")} data-liquid-theme={theme}>
       <canvas ref={contentSourceRef} className="dg-liquid-menu__fusion-source" aria-hidden="true" />
       <div className="dg-liquid-menu__fusion-layer" aria-hidden="true">
         <LiquidGlassCanvas
@@ -211,7 +228,7 @@ export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, cla
           width={stageSize.width}
           height={stageSize.height}
           blobs={fusionBlobs}
-          mergeDistance={mergeDistance}
+          mergeDistance={rawMergeDistance}
           refractionStrength={menuLens.scaleX}
           chromaAmount={menuLens.chromaAmount}
           specularStrength={menuLens.specularStrength}
@@ -231,7 +248,7 @@ export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, cla
           magnification={materialZoom}
           shadowStrength={0.11}
           sourceRevision={fusionSourceRevision}
-          pixelRatio={2}
+          pixelRatio={2 * scale}
           className="dg-liquid-menu__fusion-canvas"
           ariaLabel={menuLabel}
         />
@@ -252,6 +269,8 @@ export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, cla
         aria-controls={menuId}
         tabIndex={open ? -1 : 0}
         style={{
+          width: TRIGGER_RADIUS * 2 * scale,
+          height: TRIGGER_RADIUS * 2 * scale,
           left: layout.triggerLeft,
           top: layout.triggerTop,
           opacity: triggerOpacity,
@@ -297,4 +316,9 @@ export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, cla
       </motion.div>
     </div>
   );
+}
+
+/** The original liquid menu, at component-library density. */
+export function GlassMorphMenu(props: LiquidMenuProps) {
+  return <LiquidMenu {...props} size={props.size ?? "small"} />;
 }

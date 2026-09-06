@@ -291,7 +291,7 @@ test("liquid menu keeps one core-compatible Canvas material over the shared back
   assert.match(liquidDemoSource, /const buttonHalf = useMotionValue\(TRIGGER_RADIUS\)/);
   assert.match(liquidDemoSource, /const buttonCenterX = useMotionValue\(0\.5\)/);
   assert.match(liquidDemoSource, /const buttonCenterY = useMotionValue\(0\.5\)/);
-  assert.match(liquidDemoSource, /x: buttonCenterX,[\s\S]*y: buttonCenterY,[\s\S]*velocityX: buttonVelocityX/s);
+  assert.match(liquidDemoSource, /x: buttonCenterX,[\s\S]*y: buttonCenterY,[\s\S]*velocityX: rawButtonVelocityX/s);
   assert.doesNotMatch(liquidDemoSource, /const lensHalfWidth = useTransform/);
   assert.match(liquidDemoSource, /const triggerCenterX = clamp\(panelRight - 38/);
   assert.match(liquidDemoSource, /const triggerCenterY = clamp\(panelBottom - 38/);
@@ -345,14 +345,14 @@ test("liquid menu keeps one core-compatible Canvas material over the shared back
   assert.match(liquidDemoSource, /frame\.preRender\(updateVelocity\)/);
   assert.doesNotMatch(liquidDemoSource, /direction\.[xy] \* 780/);
   assert.match(liquidDemoSource, /x: triggerOffsetX,[\s\S]*y: triggerOffsetY,/s);
-  assert.match(liquidDemoSource, /const pressHalf = pressed \? 29 : TRIGGER_RADIUS/);
+  assert.match(liquidDemoSource, /const pressHalf = pressed \? TRIGGER_RADIUS \* 1\.025 : TRIGGER_RADIUS/);
   assert.match(liquidDemoSource, /if \(openRef\.current \|\| transitioningRef\.current\) return/);
   assert.match(liquidDemoSource, /animate\(buttonHalf, pressHalf/);
   assert.match(liquidDemoSource, /if \(nextOpen\) triggerRef\.current\?\.blur\(\)/);
   assert.match(liquidDemoSource, /focusDelay = reduceMotion[\s\S]*transitionDuration \* 1000 \+ 32/s);
   assert.match(liquidDemoSource, /if \(reduceMotion\)[\s\S]*halfWidth\.jump\(target\.halfWidth\)/s);
   assert.equal((liquidDemoSource.match(/<LiquidGlassCanvas/g) ?? []).length, 1);
-  assert.match(liquidDemoSource, /<LiquidGlassCanvas[\s\S]*sourceRef=\{fusionSourceRef\}[\s\S]*blobs=\{fusionBlobs\}[\s\S]*mergeDistance=\{mergeDistance\}/s);
+  assert.match(liquidDemoSource, /<LiquidGlassCanvas[\s\S]*sourceRef=\{fusionSourceRef\}[\s\S]*blobs=\{fusionBlobs\}[\s\S]*mergeDistance=\{rawMergeDistance\}/s);
   assert.match(liquidDemoSource, /edgeDepth=\{materialDepth\}/);
   assert.match(liquidDemoSource, /blurStrength=\{materialBlur\}/);
   assert.match(liquidDemoSource, /tintStrength=\{materialTintOpacity\}/);

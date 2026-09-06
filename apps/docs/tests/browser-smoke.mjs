@@ -40,8 +40,8 @@ export async function checkInteractions() {
   await go('/components/input'); input(document.querySelector('.component-preview .dg-field input'), 'Glass test'); await paint(); assert(document.querySelector('.example-status')?.textContent.includes('Glass test'), 'Input failed'); passed.push('input');
   await go('/components/checkbox'); assert(click('.dg-choice input').checked, 'Checkbox failed'); passed.push('checkbox');
   await go('/components/radio-group'); const radio = click('input[value="motion"]'); await paint(); assert(radio.checked && !document.querySelector('input[value="design"]').checked, 'Radio group failed'); passed.push('radio');
-  await go('/components/dialog'); const trigger = click('.component-preview > .dg-stage__contents > .dg-button'); await until(() => document.querySelector('.component-preview dialog')?.open, 'Dialog did not open'); assert(document.querySelector('.component-preview dialog').contains(document.activeElement), 'Dialog did not receive focus'); click('.component-preview dialog .dg-dismiss'); await until(() => !document.querySelector('.component-preview dialog')?.open, 'Dialog did not close'); assert(document.activeElement === trigger, 'Dialog did not restore focus'); passed.push('dialog');
-  await go('/components/dropdown-menu'); click('.dg-popover-anchor button'); await until(() => document.querySelector('.dg-popover-layer')?.matches(':popover-open'), 'Popover did not open'); await until(() => document.activeElement?.getAttribute('role') === 'menuitem', 'Menu focus missing'); const menu = document.querySelector('.dg-dropdown'); menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })); assert(document.activeElement?.textContent === 'Reset', 'Arrow navigation failed'); click('[role="menuitem"]', menu); await until(() => !document.querySelector('.dg-popover-layer')?.matches(':popover-open'), 'Menu did not close'); assert(document.querySelector('.example-status')?.textContent.includes('1 copies'), 'Menu action did not fire'); passed.push('dropdown');
+  await go('/components/dialog'); const trigger = click('.component-preview .dg-popover-anchor > .dg-button'); await until(() => document.querySelector('.component-preview dialog')?.open, 'Dialog did not open'); assert(document.querySelector('.component-preview dialog').contains(document.activeElement), 'Dialog did not receive focus'); click('.component-preview dialog .dg-dismiss'); await until(() => !document.querySelector('.component-preview dialog')?.open, 'Dialog did not close'); assert(document.activeElement === trigger, 'Dialog did not restore focus'); passed.push('dialog');
+  await go('/components/dropdown-menu'); click('.component-preview .dg-popover-anchor button'); await until(() => document.querySelector('.dg-popover-layer')?.matches(':popover-open'), 'Popover did not open'); await until(() => document.activeElement?.getAttribute('role') === 'menuitem', 'Menu focus missing'); const menu = document.querySelector('.dg-dropdown'); menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })); assert(document.activeElement?.textContent === 'Reset', 'Arrow navigation failed'); click('[role="menuitem"]', menu); await until(() => !document.querySelector('.dg-popover-layer')?.matches(':popover-open'), 'Menu did not close'); assert(document.querySelector('.example-status')?.textContent.includes('1 copies'), 'Menu action did not fire'); passed.push('dropdown');
   await go('/components/accordion'); click('.dg-accordion__heading button'); await until(() => document.querySelector('.dg-accordion [role=region]')?.getBoundingClientRect().height > 20, 'Accordion did not expand'); assert(document.querySelector('.dg-accordion__heading button')?.getAttribute('aria-expanded') === 'true', 'Accordion failed'); passed.push('accordion');
   await go('/components/toast'); click('.component-preview .dg-button'); await paint(); assert(document.querySelector('.dg-toast')?.textContent.includes('saved'), 'Toast missing'); click('.dg-toast .dg-dismiss'); await until(() => !document.querySelector('.dg-toast')?.textContent, 'Toast did not dismiss'); passed.push('toast');
   await go('/components/video'); await until(() => document.querySelector('.dg-video-player canvas')?.style.opacity === '1', 'Paused video did not render its first frame'); assert(document.querySelector('video')?.paused, 'Video autoplayed unexpectedly'); passed.push('paused video');
@@ -55,7 +55,8 @@ export async function checkPlayground() {
   assert(JSON.parse(localStorage.getItem('glass-playground')).chromaAmount === 1.1, 'Material did not persist');
   const fields = document.querySelectorAll('.material-field').length;
   assert(fields === 11, 'Advanced controls mounted eagerly');
-  click('.material-advanced .dg-accordion__heading button'); await paint(); assert(document.querySelectorAll('.material-field').length === 21, 'Advanced fields incomplete');
+  assert(!document.querySelector('.material-advanced > .dg-surface, .material-advanced .dg-accordion'),'Advanced disclosure still has glass');
+  click('.material-advanced summary'); await paint(); assert(document.querySelectorAll('.material-field').length === 21, 'Advanced fields incomplete');
   click('.material-advanced .debug-field input'); await paint(); assert(document.querySelector('.playground-code code')?.textContent.includes('"debug": true'), 'Optical field is not connected');
   click('button[aria-label="Reset material"]'); await paint(); assert(localStorage.getItem('glass-playground') === '{}', 'Reset failed');
   return { material: 'live, persisted, reset', parameters: 21, debug: true };
@@ -118,9 +119,9 @@ export async function checkRefinements() {
 
 export async function checkPopupRetargeting() {
   await go('/components/dropdown-menu');
-  await until(() => document.querySelector('.dg-popover-anchor canvas')?.width > 0, 'Trigger optics missing');
-  const trigger = document.querySelector('.dg-popover-anchor > button');
-  const canvas = document.querySelector('.dg-popover-anchor canvas');
+  await until(() => document.querySelector('.component-preview .dg-popover-anchor canvas')?.width > 0, 'Trigger optics missing');
+  const trigger = document.querySelector('.component-preview .dg-popover-anchor > button');
+  const canvas = document.querySelector('.component-preview .dg-popover-anchor canvas');
   for (let i = 0; i < 6; i++) {
     trigger.click(); await new Promise(resolve => setTimeout(resolve, 55));
     const panel = document.querySelector('.dg-popover__panel'), rect = panel.getBoundingClientRect();
@@ -128,7 +129,7 @@ export async function checkPopupRetargeting() {
     assert(document.querySelector('.dg-popover-layer canvas') === canvas, 'Fusion switched renderer during retargeting');
   }
   await until(() => !document.querySelector('.dg-popover-layer:popover-open'), 'Reversal did not settle closed');
-  assert(document.querySelector('.dg-popover-anchor canvas') === canvas, 'Trigger lost its original compositor');
+  assert(document.querySelector('.component-preview .dg-popover-anchor canvas') === canvas, 'Trigger lost its original compositor');
   assert(document.activeElement === trigger, 'Reversal lost focus restoration');
   return { reversals: 6, compositor: 'same canvas throughout', closed: true };
 }
@@ -170,12 +171,11 @@ export async function checkSiteControls() {
   assert(document.activeElement === select, 'Playground select lost focus');
   const inspector = document.querySelector('.material-inspector');
   assert(inspector.querySelectorAll('.dg-slider').length === 11, 'Parameter panel must use small glass sliders lazily');
-  click('.material-advanced .dg-accordion__heading button');
+  click('.material-advanced summary');
   await until(() => inspector.querySelectorAll('.dg-slider').length === 21, 'Advanced glass sliders missing');
-  const close = click('.material-advanced .dg-accordion__heading button');
-  await paint(); if (!matchMedia('(prefers-reduced-motion: reduce)').matches) assert(inspector.querySelectorAll('.dg-slider').length === 21, 'Advanced sliders unmounted before closing animation');
+  const close = click('.material-advanced summary');
   await until(() => inspector.querySelectorAll('.dg-slider').length === 11, 'Advanced sliders did not release resources');
-  assert(close.getAttribute('aria-expanded') === 'false', 'Advanced disclosure state incorrect');
+  assert(!close.parentElement.open, 'Advanced disclosure state incorrect');
   return { search: true, navigation: true, buttonGroup: 'one canvas, actions, disabled, horizontal/vertical/RTL focus', playground: 'liquid select, 21 glass sliders, lazy release' };
 }
 
@@ -275,6 +275,8 @@ export async function checkContactFeedback() {
   const pointer = (target, type, x = sx, y = sy) => target.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 27, isPrimary: true, pointerType: 'mouse', button: 0, buttons: type === 'pointerup' ? 0 : 1, clientX: x, clientY: y }));
   pointer(ink, 'pointerdown');
   await until(() => color() > before + 8, 'The actual grip position did not illuminate');
+  await until(()=>new DOMMatrix(getComputedStyle(ink).transform).a>1.02,'Press still shrinks the button');
+  assert(new DOMMatrix(getComputedStyle(ink).transform).a<1.04,'Press expansion is excessive');
   pointer(window, 'pointermove', sx + 90, sy - 30); await paint();
   const pulled = new DOMMatrix(getComputedStyle(ink).transform);
   if (!matchMedia('(prefers-reduced-motion: reduce)').matches) assert(pulled.m41 > .1 && pulled.m41 < 3 && pulled.m42 < 0 && Math.abs(pulled.b) < .05, 'The material must follow a subtle resisted pull');
@@ -352,6 +354,7 @@ export async function checkFieldAndGroupPolish() {
     const appearance=element=>{const s=getComputedStyle(element);return [s.boxShadow,s.borderWidth,s.outlineWidth,s.outlineStyle].join('|')};
     field.blur();const before=[appearance(field),appearance(surface)];field.focus();await paint();
     assert(before.join(';')===[appearance(field),appearance(surface)].join(';'),`${id} changed its focus shadow or border`);
+    assert(parseFloat(getComputedStyle(surface).borderRadius)>=(id==='input'?22:24),`${id} still has small corners`);
     if(id==='textarea')assert(getComputedStyle(field).resize==='none','Textarea still has a resize handle');
   }
   await go('/components/button-group');
@@ -610,8 +613,6 @@ export async function checkMaterialOptics() {
     assert(red(ordinary,42,110)>232, 'Side contour extends too far into the glass');
     renderer.draw({...frame,blobs:[...frame.blobs,{x:.95,y:.9,radius:16,halfWidth:0,halfHeight:0}]});
     assert(pixels().every((value,index)=>value===ordinary[index]),'A dissolved trigger left a phantom lens or shadow');
-    renderer.draw({...frame,backdropDim:.5});const dimmed=red(pixels(),160,110);
-    assert(dimmed>100&&dimmed<140,'Modal glass does not follow the black mask beneath it');
     renderer.draw(frame,capture);const after=pixels();
     assert(after.every((value,index)=>value===ordinary[index]), 'Direct renderer ended on the HDR mask');
     const light=mask.getContext('2d').getImageData(0,0,640,440).data;
@@ -658,8 +659,8 @@ export async function checkConsolidatedControls() {
   click('.dg-toast .dg-dismiss');const closing=await sampleMotion(360,()=>button.getBoundingClientRect().y);
   assert(opening.filter(v=>v<y-1&&v>end+1).length>2 && closing.filter(v=>v> end+1&&v<y-1).length>2,'Toast still jumps the neighboring button');
   assert(Math.abs(closing.at(-1)-y)<.5,'Toast did not release its space');
-  for(const [id,expected] of [['morph-menu',0],['dropdown-menu',1]]) {
-    await go(`/components/${id}`);const trigger=click('.dg-popover-anchor > button');
+  for(const [id,expected] of [['dropdown-menu',1]]) {
+    await go(`/components/${id}`);const trigger=click('.component-preview .dg-popover-anchor > button');
     await until(()=>document.querySelector('.dg-popover__panel')?.style.opacity==='1','Menu did not settle');
     const mirror=document.querySelector('.dg-popover__trigger-ink');
     assert(+mirror.style.opacity===expected,`${id} has the wrong trigger lifecycle`);
@@ -667,33 +668,69 @@ export async function checkConsolidatedControls() {
     await until(()=>!document.querySelector('.dg-popover-layer:popover-open'),'Menu did not close');
     assert(document.activeElement===trigger && !trigger.closest('[inert]'),'Menu did not restore an interactive trigger');
   }
+  await go('/components/morph-menu');
+  const original=click('.dg-liquid-menu__trigger');
+  await until(()=>document.querySelector('.dg-liquid-menu__panel')?.style.opacity==='1','Original menu did not settle');
+  const menu=document.querySelector('.dg-liquid-menu__panel');
+  assert(menu.querySelectorAll('[role=menuitemradio]').length===4 && menu.querySelectorAll('[role=menuitemcheckbox]').length===8,'Original sorting/filtering content was replaced');
+  assert(+original.style.opacity===0 && original.getBoundingClientRect().width<50,'Morph trigger is not compact or did not dissolve');
+  click('[role=menuitemradio]:nth-child(2)',menu);await paint();
+  assert(menu.querySelector('[role=menuitemradio]:nth-child(2)').getAttribute('aria-checked')==='true','Sorting state did not update');
+  click('[role=menuitemcheckbox]:nth-child(2)',menu);await paint();
+  assert(menu.querySelector('[role=menuitemcheckbox]:nth-child(2)').getAttribute('aria-checked')==='true','Filter state did not update');
+  const scroll=menu.querySelector('.dg-liquid-menu__scroll');scroll.scrollTop=scroll.scrollHeight;await paint();assert(scroll.scrollTop>0,'Menu lost its native scroll region');
+  window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+  await until(()=>document.activeElement===original && +original.style.opacity===1,'Original menu did not absorb and restore focus');
   return {aliases:Object.keys(componentAliases),tabs:'stable',toggle:'interpolated',toast:'continuous layout',menus:'distinct trigger lifecycles'};
 }
 export async function checkModalMotion() {
+  await document.fonts.ready;
   const {subscribeLiquidFrames}=await import('refractive-glass-react/liquid-glass/renderer');
   const results=[];
   for(const id of ['dialog','sheet']) {
     await go(`/components/${id}`);
-    const trigger=document.querySelector('.component-preview > .dg-stage__contents > .dg-button');
+    const trigger=document.querySelector('.component-preview .dg-popover-anchor > .dg-button');
+    const canvas=trigger.parentElement.querySelector('canvas[data-dg-renderer]');
+    assert(canvas,'Trigger does not own the modal compositor at rest');
+    await until(()=>canvas.width>1,'Trigger has not rendered');
     const rect=trigger.getBoundingClientRect(), x=rect.left+rect.width*.2, y=rect.top+rect.height*.3;
     trigger.dispatchEvent(new MouseEvent('click',{bubbles:true,detail:1,clientX:x,clientY:y}));
-    const dialog=document.querySelector('.component-preview dialog'), panel=dialog.querySelector('.dg-dialog__body'), mask=dialog.querySelector('.dg-dialog__mask');
-    const read=()=>{const r=panel.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2,w:r.width,h:r.height,mask:+mask.style.opacity,open:dialog.open}};
-    const initial=await sampleMotion(600,read), last=initial.at(-1);
+    const dialog=document.querySelector('.component-preview dialog'), panel=dialog.querySelector('.dg-dialog__body');
+    const read=()=>{const r=panel.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2,w:r.width,h:r.height,open:dialog.open}};
+    const initial=await sampleMotion(650,read), last=initial.at(-1);
     assert(initial.some(v=>v.w<last.w*.75&&Math.hypot(v.x-x,v.y-y)<Math.hypot(last.x-x,last.y-y)*.6+12),`${id} did not originate at the click`);
-    assert(initial.some(v=>v.mask>0&&v.mask<1),`${id} mask skipped entrance`);
+    assert(!dialog.querySelector('.dg-dialog__mask') && getComputedStyle(dialog,'::backdrop').backgroundColor==='rgba(0, 0, 0, 0)','Modal darkened the page');
     assert(last.w<=innerWidth && last.h<=innerHeight && dialog.contains(document.activeElement),`${id} exceeds the viewport or lost focus`);
-    click('.dg-dismiss',dialog);const closing=await sampleMotion(420,read);
-    assert(closing.some(v=>v.open&&v.mask>0&&v.mask<1),'Mask did not fade during closing');
+    assert(dialog.contains(canvas) && !trigger.querySelector('canvas') && !trigger.parentElement.querySelector('canvas'),'Trigger still paints a separate lower glass layer');
+    const gl=canvas.getContext('webgl2'), program=gl.getParameter(gl.CURRENT_PROGRAM);
+    const uniform=name=>gl.getUniform(program,gl.getUniformLocation(program,name));
+    assert(uniform('uBlur')>13,`${id} does not have large-area frost`);
+    const copy=document.createElement('canvas'), ctx=copy.getContext('2d');
+    let connected=0;const gaps=[];
+    const stopFusion=subscribeLiquidFrames(target=>{
+      if(target!==canvas || !dialog.open || dialog.hasAttribute('data-open'))return;
+      const half=uniform('uHalfSize[0]'), head=uniform('uHalfSize[1]'), merge=uniform('uMergeDistance');
+      if(half[0]<3 || half[0]>last.w*.23 || head[0]<rect.width*.3 || merge<5)return;
+      const body=uniform('uBlobs[0]'), tip=uniform('uBlobs[1]'), size=uniform('uSourceSize');
+      copy.width=canvas.width;copy.height=canvas.height;ctx.drawImage(canvas,0,0);
+      let min=255;
+      for(let i=0;i<=24;i++) {
+        const t=i/24, px=Math.round((body[0]+(tip[0]-body[0])*t)*copy.width/size[0]), py=Math.round((body[1]+(tip[1]-body[1])*t)*copy.height/size[1]);
+        min=Math.min(min,ctx.getImageData(px,py,1,1).data[3]);
+      }
+      if(min>=220)connected++;else gaps.push({min,body:[...body],head:[...head],merge});
+    });
+    click('.dg-dismiss',dialog);await sampleMotion(420,read);stopFusion();
+    assert(connected>0 && !gaps.length,`${id} has a broken absorption neck: ${JSON.stringify(gaps)}`);
     assert(!dialog.open && document.activeElement===trigger,`${id} did not finish/restored focus`);
-    // Controlled consumers can retarget while the native modal is still exiting.
+    assert(trigger.parentElement.contains(canvas),'Closing replaced the trigger canvas');
     for(let i=0;i<2;i++){trigger.click();await sampleMotion(75,()=>null);click('.dg-dismiss',dialog);await sampleMotion(45,()=>null);}
     trigger.click();await sampleMotion(650,()=>null);
     assert(dialog.open && +panel.style.opacity===1,`${id} failed rapid reversal`);
     let idleFrames=0;const stop=subscribeLiquidFrames(()=>idleFrames++);
     await sampleMotion(180,()=>null);stop();assert(idleFrames===0,`${id} still redraws after settling`);
     dialog.dispatchEvent(new Event('cancel',{cancelable:true}));await until(()=>!dialog.open,'Escape did not dismiss modal');
-    results.push({id,width:last.w,height:last.h,idleFrames});
+    results.push({id,width:last.w,height:last.h,connectedFrames:connected,idleFrames});
   }
   return results;
 }
@@ -718,4 +755,31 @@ export async function checkHDRPreference() {
     click('button[aria-label="Reset material"]');await paint();assert(toggle.checked,'Reset did not restore default HDR');
     return {toggle:'live',presets:'preserve HDR',persistence:true};
   } finally {window.matchMedia=original;await go('/components/button');}
+}
+
+// Also exercise consumers whose trigger lives outside the dialog component.
+export async function checkControlledModal() {
+  const {createElement: h, useState}=await import('react');
+  const {createRoot}=await import('react-dom/client');
+  const {GlassButton, GlassDialog}=await import('refractive-glass-react/controls');
+  document.activeElement instanceof HTMLElement && document.activeElement.blur();
+  const host=document.createElement('div');Object.assign(host.style,{position:'fixed',left:'30px',top:'120px',zIndex:'10'});document.body.append(host);
+  const root=createRoot(host);
+  function Probe() {
+    const [open,setOpen]=useState(true);
+    return h('div',null,h(GlassButton,{onClick:()=>setOpen(true)},'External opener'),h(GlassDialog,{open,onOpenChange:setOpen,title:'Controlled modal'},h('p',null,'Programmatic and external triggers.')));
+  }
+  try {
+    root.render(h(Probe));
+    await until(()=>host.querySelector('.dg-dialog__body')?.style.opacity==='1','Programmatic modal did not settle');
+    const dialog=host.querySelector('dialog'),external=host.querySelector(':scope > div > button');
+    assert(dialog.open && dialog.getBoundingClientRect().width<=innerWidth,'Programmatic modal missing');
+    dialog.dispatchEvent(new Event('cancel',{cancelable:true}));await until(()=>!dialog.open,'Programmatic modal did not close');
+    // Native close is queued; it must not dismiss an immediate reopen.
+    external.focus();external.click();await until(()=>host.querySelector('.dg-dialog__body')?.style.opacity==='1','Queued close dismissed the next opening');
+    assert(getComputedStyle(external).visibility==='hidden','External trigger duplicates active glass');
+    dialog.dispatchEvent(new Event('cancel',{cancelable:true}));await until(()=>!dialog.open,'External modal did not close');
+    assert(document.activeElement===external && getComputedStyle(external).visibility!=='hidden','External trigger did not return');
+    return {programmatic:true,external:true,focus:true};
+  } finally {root.unmount();host.remove();}
 }

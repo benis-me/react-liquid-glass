@@ -19,6 +19,7 @@ export interface GlassPopoverProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   className?: string;
+  blurStrength?: number;
 }
 export function GlassPopover({ trigger, ...props }: GlassPopoverProps) {
   return <LiquidPopover {...props} trigger={<GlassButton>{trigger}</GlassButton>} />;
@@ -72,10 +73,7 @@ export function GlassDropdownMenu({
     </LiquidPopover>
   );
 }
-/** The trigger dissolves into the menu and returns through the same liquid neck. */
-export function GlassMorphMenu(props: Omit<ComponentProps<typeof GlassDropdownMenu>, "morphTrigger">) {
-  return <GlassDropdownMenu {...props} morphTrigger />;
-}
+export { GlassMorphMenu } from "./LiquidMenu";
 export function GlassTooltip({ label, children }: {
   label: string;
   children: ReactElement<ComponentProps<"button">>;

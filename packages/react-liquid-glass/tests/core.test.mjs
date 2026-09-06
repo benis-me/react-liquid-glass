@@ -160,8 +160,11 @@ test('popup trajectories keep a compact capsule, a live fusion neck, and one tri
     assert.equal(morphOpen.trigger.at(-1), 0); assert.equal(morphClose.trigger[0], 0);
     assert.equal(morphClose.trigger.at(-1), 1); assert.equal(opened.trigger.at(-1), 1);
     for (const key of ['x', 'y', 'w', 'h', 'radius', 'merge', 'reveal']) {
-      assert.deepEqual(morphOpen[key], opened[key]); assert.deepEqual(morphClose[key], closed[key]);
+      assert.deepEqual(morphOpen[key], opened[key]);
+      if (!['x','y'].includes(key)) assert.deepEqual(morphClose[key], closed[key]);
     }
+    const origin = popoverFrames({...layout,originX:123,originY:456},true,true);
+    assert.equal(origin.x[0],123); assert.equal(origin.y[0],456);
     assert.equal(opened.w.at(-1), pw / 2); assert.equal(opened.h.at(-1), ph / 2);
     assert.equal(closed.x.at(-1), layout.triggerX); assert.equal(closed.y.at(-1), layout.triggerY);
     assert.equal(closed.w.at(-1), 1); assert.equal(closed.h.at(-1), 1);

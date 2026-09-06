@@ -412,7 +412,7 @@ html[data-theme="dark"] .dg-tabs__item:not([data-selected]):hover { background: 
 .dg-stage__contents { position: relative; min-width: 0; }
 .dg-surface { position: relative; display: block; isolation: isolate; min-width: 0; }
 .dg-surface__optics { position: absolute; inset: -14px; pointer-events: none; z-index: -1; }
-.dg-surface__content { position: relative; display: block; min-width: 0; }
+.dg-surface__content { border-radius: inherit; position: relative; display: block; min-width: 0; }
 .dg-button, .dg-action__button { touch-action: none; }
 .dg-button { appearance: none; display: inline-block; color: inherit; font: inherit; font-size: 13px; font-weight: 650; line-height: 1; background: transparent; border: 0; padding: 0; cursor: pointer; border-radius: 16px; vertical-align: middle; -webkit-tap-highlight-color: transparent; }
 .dg-button > .dg-surface > .dg-surface__content { min-height: 42px; padding: 0 18px; display: flex; align-items: center; justify-content: center; gap: 8px; }
@@ -446,7 +446,7 @@ html[data-theme="dark"] .dg-tabs__item:not([data-selected]):hover { background: 
 .dg-badge > .dg-surface > .dg-surface__content { padding: 7px 12px; white-space: nowrap; }
 .dg-field { display: grid; gap: 10px; min-width: 0; border-radius: 12px; }
 .dg-field__label, .dg-radio-group legend { font-size: 12px; font-weight: 550; }
-.dg-field input, .dg-field textarea, .dg-field select { display: block; width: 100%; padding: 13px 16px; min-height: 44px; color: inherit; background: transparent; border: 0; border-radius: 14px; font: inherit; outline: none; box-sizing: border-box; }
+.dg-field input, .dg-field textarea, .dg-field select { display: block; width: 100%; padding: 13px 16px; min-height: 44px; color: inherit; background: transparent; border: 0; border-radius: inherit; font: inherit; outline: none; box-sizing: border-box; }
 .dg-field :is(input, textarea, select):focus-visible { box-shadow: none; }
 .dg-field textarea { resize: none; min-height: 104px; }
 .dg-field select { cursor: pointer; padding-right: 32px; }
@@ -480,9 +480,7 @@ html[data-theme="dark"] .dg-tabs__item:not([data-selected]):hover { background: 
 .dg-accordion__body { padding: 0 20px 20px; font-size: 13px; line-height: 1.7; }
 .dg-dialog { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; border: 0; padding: 0; background: transparent; color: inherit; overflow: hidden; }
 .dg-dialog::backdrop { background: transparent; }
-.dg-dialog__mask { position: absolute; inset: 0; background: #0007; }
-.dg-dialog__optics { position: absolute; pointer-events: none; }
-.dg-dialog__body { position: absolute; width: min(440px, calc(100vw - 40px)); max-height: calc(100dvh - 48px); padding: 28px; overflow: auto; box-sizing: border-box; overscroll-behavior: contain; }
+.dg-dialog__body { z-index: 4; position: absolute; width: min(440px, calc(100vw - 40px)); max-height: calc(100dvh - 48px); padding: 28px; overflow: auto; box-sizing: border-box; overscroll-behavior: contain; }
 .dg-dialog header { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 14px; }
 .dg-dialog h2 { margin: 0; font: inherit; font-size: 20px; font-weight: 600; }
 .dg-dialog__description { margin: 0 0 24px; font-size: 13px; line-height: 1.6; color: inherit; }
@@ -583,3 +581,18 @@ html[data-theme="dark"] .dg-action { --action-glass-tint: #4a4a46; }
     outline: 2px solid Highlight; outline-offset: 3px; box-shadow: none;
   }
 }
+
+/* Same menu, geometry and content density scaled together. */
+.dg-liquid-glass--small { height: 520px; --dg-liquid-item-radius: 20px; }
+.dg-liquid-glass--small .dg-liquid-menu__trigger svg { width: 16px; height: 16px; }
+.dg-liquid-glass--small .dg-liquid-menu__scroll { padding: 10px; }
+.dg-liquid-glass--small .dg-liquid-menu__heading { font-size: 10px; margin: 0 0 8px 30px; }
+.dg-liquid-glass--small .dg-liquid-menu__sort-row { grid-template-columns: 27px minmax(0, 1fr); height: 42px; min-height: 42px; font-size: 14px; }
+.dg-liquid-glass--small .dg-liquid-menu__check { width: 27px; height: 27px; }
+.dg-liquid-glass--small .dg-liquid-menu__check svg { width: 15px; height: 15px; }
+.dg-liquid-glass--small .dg-liquid-menu__label-block { gap: 3px; }
+.dg-liquid-glass--small .dg-liquid-menu__label-block small { font-size: 10px; }
+.dg-liquid-glass--small .dg-liquid-menu__divider { margin: 11px 5px 16px; }
+.dg-liquid-glass--small .dg-liquid-menu__filter-row { grid-template-columns: 20px minmax(0, 1fr) 16px; gap: 11px; min-height: 40px; padding: 0 5px 0 30px; font-size: 13px; }
+.dg-liquid-glass--small .dg-liquid-menu__filter-row > svg:first-child { width: 18px; height: 18px; }
+.dg-liquid-glass--small .dg-liquid-menu__chevron { width: 13px; height: 13px; }

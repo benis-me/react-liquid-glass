@@ -1,6 +1,6 @@
-import { memo, type Dispatch, type SetStateAction, type ReactNode } from "react";
+import { memo, useState, type Dispatch, type SetStateAction, type ReactNode } from "react";
 import { RotateCcw } from "lucide-react";
-import { GlassAccordion, GlassButton, GlassButtonGroup, GlassSlider, GlassSwitch } from "refractive-glass-react/controls";
+import { GlassButton, GlassButtonGroup, GlassSlider, GlassSwitch } from "refractive-glass-react/controls";
 import { PRISM_MATERIAL, type GlassMaterial } from "refractive-glass-react/liquid-glass";
 import type { Locale } from "../i18n";
 import { materialFields } from "./material";
@@ -82,6 +82,7 @@ export function MaterialControls({ locale, material, setMaterial, children }: {
   locale: Locale; material: GlassMaterial; setMaterial: Dispatch<SetStateAction<GlassMaterial>>; children?: ReactNode;
 }) {
   const zh = locale === "zh";
+  const [advanced, setAdvanced] = useState(false);
   const { hdr: _hdr, ...optics } = material;
   const activePreset =
     presets.find(
@@ -129,8 +130,9 @@ export function MaterialControls({ locale, material, setMaterial, children }: {
             </div>
             {materialFields.slice(0, 11).map(fieldControl)}
           </div>
-          <div className="material-advanced">
-            <GlassAccordion lazy items={[{ title: zh ? "其他参数" : "More parameters", content: (
+          <details className="material-advanced" onToggle={event => setAdvanced(event.currentTarget.open)}>
+            <summary>{zh ? "其他参数" : "More parameters"}</summary>
+            {advanced && (
               <div className="material-fields">
                 {materialFields.slice(11).map(fieldControl)}
                 <div className="debug-field">
@@ -147,8 +149,8 @@ export function MaterialControls({ locale, material, setMaterial, children }: {
                   />
                 </div>
               </div>
-            ) }]} />
-          </div>
+            )}
+          </details>
           {children}
 
         </aside>
