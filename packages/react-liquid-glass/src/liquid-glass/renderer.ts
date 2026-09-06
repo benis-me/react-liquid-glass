@@ -32,6 +32,8 @@ export interface LiquidGlassBlob {
   /** Resisted grip displacement in CSS pixels. */
   pullX?: MotionInput;
   pullY?: MotionInput;
+  /** Per-body optical scale, independent of a shared canvas's padding/size. */
+  refractionRatio?: readonly [number, number];
 }
 
 
@@ -148,6 +150,7 @@ uniform float uShadow;
 uniform float uShadowOffset;
 uniform float uShadowBlur;
 uniform vec2 uRefractionRatio;
+uniform vec2 uBlobRefractionRatio[8];
 uniform float uOpacity;
 uniform bool uTransparentOutside;
 uniform bool uDebug;
@@ -314,7 +317,7 @@ void main() {
     vec2 extent = max(uHalfSize[index], vec2(1.));
     if (uContact[index].z > .001) {
       vec2 finger = point - uBlobs[index].xy - uContact[index].xy * extent;
-      float radius = clamp(min(extent.x, extent.y) * 1.1, 12., 54.);
+      float radius = clamp(min(extent.x, extent.y) * 1.35, 16., 66.);
       float spread = exp(-dot(finger, finger) / (radius * radius));
       float crest = exp(-dot(finger, finger) / (radius * radius * .09));
       contactLight += uContact[index].z * weight * (spread * (.16 + .5 * falloff) + crest * .26);
@@ -327,7 +330,7 @@ void main() {
       vec2 denominator = sqrt(max(dome.xy * dome.xy - capped * capped, vec2(.001)));
       gradient = sign(local) * capped / denominator * dome.zw;
     }
-    glassGradient += gradient * weight;
+    glassGradient += gradient * uBlobRefractionRatio[index] * weight;
     materialUv += normalizedLocal * weight;
     materialWeight += weight;
   }
@@ -455,7 +458,7 @@ const uniformNames = [
   "uSource", "uFrostSource", "uContent", "uContentOpacity", "uContentRefraction", "uContentBlur",
   "uSourceSize", "uBlobs[0]", "uHalfSize[0]", "uCornerRadius[0]", "uVelocity[0]",
   "uContact[0]", "uContactInverse[0]", "uContactOffset[0]", "uEmissionOnly",
-  "uDome[0]", "uBlobCount", "uMergeDistance", "uRefraction", "uRefractionRatio",
+  "uDome[0]", "uBlobRefractionRatio[0]", "uBlobCount", "uMergeDistance", "uRefraction", "uRefractionRatio",
   "uChroma", "uSpecular", "uBlur", "uDepth", "uDomeDepth", "uBrightness",
   "uSpecularRotation", "uGlowStrength", "uGlowSpread", "uGlowExponent",
   "uEdgeStrength", "uEdgeWidth", "uEdgeExponent", "uTintColor", "uTint", "uZoom",
@@ -566,6 +569,7 @@ export function createLiquidGlassRenderer(
   const contactInverses = new Float32Array(MAX_BLOBS * 4);
   const contactOffsets = new Float32Array(MAX_BLOBS * 2);
   const domes = new Float32Array(MAX_BLOBS * 4);
+  const refractionRatios = new Float32Array(MAX_BLOBS * 2);
   let lastSource: LiquidGlassSource | undefined;
   let sourceRevision: number | undefined;
   let sourceWidth = 0, sourceHeight = 0;
@@ -576,7 +580,7 @@ export function createLiquidGlassRenderer(
   let disposed = false;
   const stats: LiquidRendererStats = { draws: 0, emissionDraws: 0, sourceUploads: 0, contentUploads: 0 };
 
-  function draw(p: LiquidGlassFrame, presentHighlightHDR?: (mask: HTMLCanvasElement) => void) {
+  function draw(p: LiquidGlassFrame, presentHighlightHDR?: (mask: HTMLCanvasElement, region?: { x: number; y: number; width: number; height: number }) => void) {
     if (disposed || gl.isContextLost() || !Number.isFinite(p.width) || !Number.isFinite(p.height) || p.width <= 0 || p.height <= 0) return false;
     const source = p.source;
     const sw = source instanceof HTMLVideoElement ? source.videoWidth
@@ -604,8 +608,11 @@ export function createLiquidGlassRenderer(
     const ratio = Number.isFinite(requestedRatio) ? Math.max(.5, Math.min(2.5, requestedRatio)) : 1;
     const width = Math.max(1, Math.round(p.width * ratio));
     const height = Math.max(1, Math.round(p.height * ratio));
-    if (device.canvas.width !== width) device.canvas.width = width;
-    if (device.canvas.height !== height) device.canvas.height = height;
+    // Shared controls draw into a retained viewport. Alternating a large popup
+    // with small thumbs must not reallocate the GPU drawing buffer every frame.
+    if (output ? device.canvas.width < width : device.canvas.width !== width) device.canvas.width = width;
+    if (output ? device.canvas.height < height : device.canvas.height !== height) device.canvas.height = height;
+    const sourceTop = device.canvas.height - height;
     gl.useProgram(device.program);
     gl.bindVertexArray(device.vao);
     gl.activeTexture(gl.TEXTURE0);
@@ -689,6 +696,9 @@ export function createLiquidGlassRenderer(
     const count = Math.min(MAX_BLOBS, p.blobs.length);
     for (let i = 0; i < count; i++) {
       const b = p.blobs[i];
+      const ratio = b.refractionRatio ?? [1, 1];
+      if (!ratio.every(value => Number.isFinite(value) && value >= 0)) return false;
+      refractionRatios.set(ratio, i * 2);
       const radius = Math.max(0, readMotion(b.radius));
       blobs[i*3] = readMotion(b.x) * p.width;
       blobs[i*3+1] = readMotion(b.y) * p.height;
@@ -722,6 +732,7 @@ export function createLiquidGlassRenderer(
     gl.uniform4fv(u["uContactInverse[0]"], contactInverses);
     gl.uniform2fv(u["uContactOffset[0]"], contactOffsets);
     gl.uniform4fv(u["uDome[0]"], domes);
+    gl.uniform2fv(u["uBlobRefractionRatio[0]"], refractionRatios);
     gl.uniform1i(u.uBlobCount, count);
     for (const key of scalarKeys) {
       const value = readMotion(p[key] ?? LIQUID_GLASS_MATERIAL[key]);
@@ -740,7 +751,7 @@ export function createLiquidGlassRenderer(
     // visible material. Both paths share textures, frost and the merged SDF.
     if (presentHighlightHDR && !p.debug) {
       gl.uniform1i(u.uEmissionOnly, 1); gl.drawArrays(gl.TRIANGLES, 0, 6);
-      presentHighlightHDR(device.canvas); stats.emissionDraws++;
+      presentHighlightHDR(device.canvas, { x: 0, y: sourceTop, width, height }); stats.emissionDraws++;
     }
     gl.uniform1i(u.uEmissionOnly, 0);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
@@ -748,7 +759,7 @@ export function createLiquidGlassRenderer(
       if (canvas.width !== width) canvas.width = width;
       if (canvas.height !== height) canvas.height = height;
       output.clearRect(0, 0, width, height);
-      output.drawImage(device.canvas, 0, 0);
+      output.drawImage(device.canvas, 0, sourceTop, width, height, 0, 0, width, height);
     }
     stats.draws++;
     for (const listener of frameListeners) listener(canvas);

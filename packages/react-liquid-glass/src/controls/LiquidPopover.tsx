@@ -1,18 +1,19 @@
-import { cloneElement, createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ComponentProps, type ReactElement, type ReactNode } from "react";
+import { cloneElement, createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ComponentProps, type ReactElement, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { motion, useMotionValue, useTransform } from "motion/react";
+import { cancelFrame, frame as motionFrame } from "motion";
 import { usePopoverMotion, type PopoverLayout } from "../apple-motion/use-popover-motion";
 import { useGlassContact } from "../apple-motion/use-glass-contact";
 import { paintLiquidMenuContent } from "../liquid-glass/menu-content";
 import { liquidContentOptics, liquidSurfaceBlur } from "../liquid-glass/geometry";
 import { LiquidGlassCanvas } from "../liquid-glass/LiquidGlassCanvas";
 import { paintLiquidBackdrop, observeLiquidBackdrop } from "../liquid-glass/backdrop";
+import { useGlassMaterial } from "../liquid-glass/provider";
 import { StageContext, FusionTriggerContext, SURFACE_MATERIAL } from "./GlassSurface";
 
 const ClosePopoverContext = createContext<() => void>(() => undefined);
 export const useClosePopover = () => useContext(ClosePopoverContext);
 const openLayers: HTMLDivElement[] = [];
-const PAD = 28;
 const TRIGGER = "button, a[href], input, select, textarea, [tabindex]";
 const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]';
 
@@ -44,6 +45,8 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
   const settled = useRef(false);
   const hasOpened = useRef(false);
   const stage = useContext(StageContext);
+  const material = useGlassMaterial();
+  const padding = Math.ceil(Math.max(28, (material.shadowBlur ?? 18) * 3 + Math.abs(material.shadowOffset ?? 6)));
   const model = usePopoverMotion();
   const layoutRef = useRef<PopoverLayout | null>(null);
   const [frame, setFrame] = useState({ left: 0, top: 0, width: 1, height: 1, tx: 0, ty: 0, tw: 1, th: 1, tr: 16, px: 0, py: 0, pw: 1, ph: 1 });
@@ -53,6 +56,8 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const focusTrigger = useRef(false);
   const mirror = useRef<HTMLDivElement>(null);
+  const mirrorDirty = useRef(true);
+  const frameRef = useRef(frame);
   const bodyX = useTransform(model.x, value => value / frame.width), bodyY = useTransform(model.y, value => value / frame.height);
   const triggerW = useTransform(model.trigger, value => frame.tw / 2 * value);
   const triggerH = useTransform(model.trigger, value => frame.th / 2 / Math.sqrt(value));
@@ -76,9 +81,14 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
   const backdropBounds = useRef({ left: 0, top: 0, width: 1, height: 1 });
   const paintBackdrop = () => {
     if (!source.current || !anchor.current || !topLayer.current) return;
-    if (paintLiquidBackdrop(document.body, source.current, backdropBounds.current, [anchor.current, topLayer.current])) revision.set(revision.get() + 1);
+    const rect = anchor.current.getBoundingClientRect();
+    // Custom frost/refraction may sample farther; retain their full source area.
+    const full = topLayer.current.matches(":popover-open") || material.blurStrength !== undefined || material.refractionStrength !== undefined;
+    const region = full ? backdropBounds.current : { left: rect.left - 24, top: rect.top - 24, width: rect.width + 48, height: rect.height + 48 };
+    if (paintLiquidBackdrop(document.body, source.current, backdropBounds.current, [anchor.current, topLayer.current], region)) revision.set(revision.get() + 1);
   };
   const paintBackdropRef = useRef(paintBackdrop); paintBackdropRef.current = paintBackdrop;
+  const refreshBackdrop = useCallback(() => paintBackdropRef.current(), []);
   measureRef.current = () => {
     const button = anchor.current?.querySelector<HTMLElement>(TRIGGER), element = panel.current;
     if (!button || !anchor.current || !host || !element) return;
@@ -93,20 +103,23 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
     const below = rect.bottom + 10, above = rect.top - ph - 10;
     let top = tooltip && above >= 12 ? above : below + ph <= innerHeight - 12 ? below : Math.max(12, above);
     if (!showing && !hasOpened.current) { left = rect.left; top = rect.top; }
-    const fl = Math.floor(Math.min(left, rect.left) - PAD), ft = Math.floor(Math.min(top, rect.top) - PAD);
-    const fw = Math.ceil(Math.max(left + pw, rect.right) + PAD - fl), fh = Math.ceil(Math.max(top + ph, rect.bottom) + PAD - ft);
+    const fl = Math.floor(Math.min(left, rect.left) - padding), ft = Math.floor(Math.min(top, rect.top) - padding);
+    const fw = Math.ceil(Math.max(left + pw, rect.right) + padding - fl), fh = Math.ceil(Math.max(top + ph, rect.bottom) + padding - ft);
     const tx = rect.left + rect.width / 2 - fl, ty = rect.top + rect.height / 2 - ft;
     const style = getComputedStyle(button);
     const tr = Math.min(parseFloat(style.borderRadius) || 16, rect.width / 2, rect.height / 2);
     const layout: PopoverLayout = { triggerX: tx, triggerY: ty, triggerWidth: rect.width, triggerHeight: rect.height, triggerRadius: tr, panelX: left + pw / 2 - fl, panelY: top + ph / 2 - ft, panelWidth: pw, panelHeight: ph, panelRadius: tooltip ? 14 : 22 };
     layoutRef.current = layout;
-    if (showing && settled.current) {
+    const nextFrame = { left: fl, top: ft, width: fw, height: fh, tx, ty, tw: rect.width, th: rect.height, tr, px: layout.panelX, py: layout.panelY, pw, ph };
+    const changed = (Object.keys(nextFrame) as Array<keyof typeof nextFrame>).some(key => nextFrame[key] !== frameRef.current[key]);
+    if (changed && showing && settled.current) {
       model.x.jump(layout.panelX); model.y.jump(layout.panelY);
       model.w.jump(pw / 2); model.h.jump(ph / 2); model.radius.jump(layout.panelRadius);
     }
-    setFrame({ left: fl, top: ft, width: fw, height: fh, tx, ty, tw: rect.width, th: rect.height, tr, px: layout.panelX, py: layout.panelY, pw, ph });
+    if (changed) { frameRef.current = nextFrame; setFrame(nextFrame); }
     element.style.left = `${left}px`; element.style.top = `${top}px`;
-    if (mirror.current) {
+    if (mirror.current && mirrorDirty.current) {
+      mirrorDirty.current = false;
       const copy = button.cloneNode(true) as HTMLElement;
       // Computed `font` can be empty for variable fonts. Copy the longhands so
       // moving into the top layer preserves both trigger metrics and local styles.
@@ -121,8 +134,8 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
       for (const element of [copy, ...copy.querySelectorAll<HTMLElement>("[id], [tabindex]")]) { element.removeAttribute("id"); element.removeAttribute("tabindex"); }
       Object.assign(copy.style, { width: "100%", height: "100%" });
       mirror.current.replaceChildren(copy);
-      Object.assign(mirror.current.style, { left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px` });
     }
+    if (mirror.current && changed) Object.assign(mirror.current.style, { left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px` });
     const parent = showing ? topLayer.current! : anchor.current;
     if (host.parentElement !== parent) parent.appendChild(host);
     const origin = showing ? { left: 0, top: 0 } : anchor.current.getBoundingClientRect();
@@ -130,30 +143,40 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
     const canvas = source.current ?? document.createElement("canvas"); source.current = canvas;
     backdropBounds.current = { left: fl, top: ft, width: fw, height: fh };
     if (stage?.canvas?.width && stage.root) {
-      canvas.width = fw * 2; canvas.height = fh * 2;
+      if (canvas.width !== fw * 2) canvas.width = fw * 2;
+      if (canvas.height !== fh * 2) canvas.height = fh * 2;
       const ctx = canvas.getContext("2d")!;
       ctx.fillStyle = style.colorScheme.includes("dark") ? "#202020" : "#eeeeec"; ctx.fillRect(0, 0, canvas.width, canvas.height);
       const substrate = stage.root.getBoundingClientRect();
       ctx.drawImage(stage.canvas, (substrate.left - fl) * 2, (substrate.top - ft) * 2);
       revision.set(revision.get() + 1);
-    } else paintBackdrop();
+    } else motionFrame.preRender(refreshBackdrop);
   };
   useLayoutEffect(() => {
     measureRef.current();
-    const resize = new ResizeObserver(() => measureRef.current());
+    const measure = () => {
+      const rect = anchor.current?.getBoundingClientRect();
+      if (document.hidden || !rect || (!liveOpen.current && (rect.bottom < 0 || rect.top > innerHeight))) return;
+      measureRef.current();
+    };
+    const update = () => motionFrame.read(measure);
+    const scroll = (event: Event) => {
+      if (event.target instanceof Node && panel.current?.contains(event.target)) return;
+      if (!stage || liveOpen.current) update();
+    };
+    const resize = new ResizeObserver(() => { mirrorDirty.current = true; update(); });
     if (anchor.current) resize.observe(anchor.current);
     if (panel.current) resize.observe(panel.current);
-    const update = () => measureRef.current();
-    window.addEventListener("resize", update); window.addEventListener("scroll", update, true);
-    return () => { resize.disconnect(); window.removeEventListener("resize", update); window.removeEventListener("scroll", update, true); host?.remove(); };
+    window.addEventListener("resize", update); window.addEventListener("scroll", scroll, true);
+    return () => { cancelFrame(measure); cancelFrame(refreshBackdrop); resize.disconnect(); window.removeEventListener("resize", update); window.removeEventListener("scroll", scroll, true); host?.remove(); };
   }, [host, stage]);
   useEffect(() => {
     if (stage || !anchor.current || !topLayer.current) return;
     return observeLiquidBackdrop(document.documentElement,
       () => liveOpen.current ? backdropBounds.current : anchor.current?.getBoundingClientRect() ?? { left: 0, top: 0, width: 0, height: 0 },
-      [anchor.current, topLayer.current], () => paintBackdropRef.current());
+      [anchor.current, topLayer.current], refreshBackdrop);
   }, [stage]);
-  useLayoutEffect(() => { measureRef.current(); }, [trigger]);
+  useLayoutEffect(() => { mirrorDirty.current = true; measureRef.current(); }, [trigger, padding]);
   useLayoutEffect(() => {
     const element = topLayer.current;
     if (!element) return;
@@ -240,6 +263,7 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
         inert={!open} aria-hidden={!open || undefined}
         style={{ opacity: nativeOpacity, transform: contentTransform, filter: contentFilter, borderRadius: tooltip ? 14 : 22 }}
         onFocus={refreshInk} onPointerOver={refreshInk} onPointerOut={refreshInk}
+        onScroll={refreshInk}
         onPointerEnter={() => { if (tooltip) clearTimeout(timer.current); }} onPointerLeave={() => hover(false)}>
         <ClosePopoverContext.Provider value={close}>{children}</ClosePopoverContext.Provider>
       </motion.div>
@@ -248,8 +272,8 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
       contentRef={ink} contentRevision={inkRevision} contentOpacity={contentOpacity} contentRefraction={contentRefraction} contentBlur={contentBlur}
       width={frame.width} height={frame.height} pixelRatio={2} transparentOutside
       blobs={[
-        ...(active ? [{ x: bodyX, y: bodyY, radius: model.radius, cornerRadius: model.radius, halfWidth: model.w, halfHeight: model.h }] : []),
-        { x: frame.tx / frame.width, y: frame.ty / frame.height, radius: frame.tr, cornerRadius: frame.tr, halfWidth: triggerW, halfHeight: triggerH, ...contact },
+        ...(active ? [{ x: bodyX, y: bodyY, radius: model.radius, cornerRadius: model.radius, halfWidth: model.w, halfHeight: model.h, refractionRatio: [(frame.pw + 56) / frame.width, (frame.ph + 56) / frame.height] as const }] : []),
+        { x: frame.tx / frame.width, y: frame.ty / frame.height, radius: frame.tr, cornerRadius: frame.tr, halfWidth: triggerW, halfHeight: triggerH, refractionRatio: [(frame.tw + 28) / frame.width, (frame.th + 28) / frame.height], ...contact },
       ]}
       mergeDistance={model.merge} edgeDepth={10} domeDepth={18} refractionStrength={.11}
       blurStrength={backgroundBlur} shadowStrength={.08} shadowBlur={18} shadowOffset={6}

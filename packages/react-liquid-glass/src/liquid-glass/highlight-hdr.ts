@@ -14,7 +14,7 @@ async function resources() {
     }
     @fragment fn fragment(@builtin(position) point: vec4f) -> @location(0) vec4f {
       let light = textureLoad(mask, vec2i(point.xy), 0).rg;
-      return vec4f(vec3f(light.r * 2.4 + light.g * 3.2), light.r * .35 + light.g * .12);
+      return vec4f(vec3f(light.r * 2.4 + light.g * 4.), light.r * .35 + light.g * .12);
     }
   ` });
   const pipeline = device.createRenderPipeline({ layout: "auto", vertex: { module, entryPoint: "vertex" }, fragment: { module, entryPoint: "fragment", targets: [{ format: "rgba16float" }] } });
@@ -41,16 +41,16 @@ export async function createHighlightHDR(canvas: HTMLCanvasElement) {
     const dispose = () => { if (disposed) return; disposed = true; presenters.delete(dispose); texture?.destroy(); context.unconfigure(); overlay.remove(); };
     presenters.add(dispose);
     return {
-      draw(source: HTMLCanvasElement) {
+      draw(source: HTMLCanvasElement, region = { x: 0, y: 0, width: source.width, height: source.height }) {
         if (disposed) return;
-        if (width !== source.width || height !== source.height) {
-          width = overlay.width = source.width; height = overlay.height = source.height;
+        if (width !== region.width || height !== region.height) {
+          width = overlay.width = region.width; height = overlay.height = region.height;
           texture?.destroy();
           texture = device.createTexture({ size: [width, height], format: "rgba8unorm", usage: 2 | 4 | 16 });
           group = device.createBindGroup({ layout: pipeline.getBindGroupLayout(0), entries: [{ binding: 0, resource: texture.createView() }] });
         }
         Object.assign(overlay.style, { left: `${canvas.offsetLeft}px`, top: `${canvas.offsetTop}px`, width: `${canvas.clientWidth}px`, height: `${canvas.clientHeight}px`, opacity: "1" });
-        device.queue.copyExternalImageToTexture({ source }, { texture: texture! }, [width, height]);
+        device.queue.copyExternalImageToTexture({ source, origin: [region.x, region.y] }, { texture: texture! }, [width, height]);
         const commands = device.createCommandEncoder();
         const pass = commands.beginRenderPass({ colorAttachments: [{ view: context.getCurrentTexture().createView(), loadOp: "clear", storeOp: "store", clearValue: [0, 0, 0, 0] }] });
         pass.setPipeline(pipeline); pass.setBindGroup(0, group!); pass.draw(3); pass.end(); device.queue.submit([commands.finish()]);

@@ -10,7 +10,7 @@ test("Liquid shares a device, retains textures, recovers loss and disposes per o
   class Canvas extends EventTarget {
     width = 100; height = 60;
     getContext(kind) {
-      if (kind === "2d") return { clearRect() {}, drawImage() {} };
+      if (kind === "2d") return { clearRect() {}, drawImage(...args) { calls.push(["copy", ...args]); } };
       if (this.gl) return this.gl;
       devices++;
       return this.gl = new Proxy({ canvas: this, isContextLost: () => false }, {
@@ -68,6 +68,16 @@ test("Liquid shares a device, retains textures, recovers loss and disposes per o
     source.width = 200; source.height = 120;
     before = draws(); first.draw(frostFrame);
     assert.equal(draws() - before, 4, "a 2x source resolves to the blur grid before paired taps");
+    first.draw({ ...frame, width: 300, height: 500, pixelRatio: 2 });
+    const buffer = first.context.canvas;
+    let emissionRegion;
+    second.draw({ ...frame, pixelRatio: 2, blobs: [{ x: .5, y: .5, radius: 20, refractionRatio: [.4, .6] }] }, (_, region) => { emissionRegion = region; });
+    assert.deepEqual([buffer.width, buffer.height, b.width, b.height], [600, 1000, 200, 120], "small controls retain the shared buffer and their own 2x output");
+    assert.deepEqual(calls.findLast(([name]) => name === "copy").slice(2), [0, 880, 200, 120, 0, 0, 200, 120], "SDR copies only the current viewport");
+    assert.deepEqual(emissionRegion, { x: 0, y: 880, width: 200, height: 120 }, "HDR uses the same viewport crop");
+    const ratios = calls.findLast(([name, uniform]) => name === "uniform2fv" && uniform === "uBlobRefractionRatio[0]")[2];
+    assert.ok(Math.abs(ratios[0] - .4) < 1e-6 && Math.abs(ratios[1] - .6) < 1e-6);
+    assert.equal(second.draw({ ...frame, blobs: [{ x: .5, y: .5, radius: 20, refractionRatio: [NaN, 1] }] }), false);
     const lost = new Event("webglcontextlost", { cancelable: true });
     first.context.canvas.dispatchEvent(lost);
     assert.equal(lost.defaultPrevented, true);

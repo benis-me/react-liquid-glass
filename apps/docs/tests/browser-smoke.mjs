@@ -316,6 +316,7 @@ export async function checkViewportBackdrop() {
   const renderer = createLiquidGlassRenderer(probe, {shared:true});
   const pixel = () => canvas.getContext('2d').getImageData(Math.round((rect.left + 80 - view.left) * 2), Math.round((rect.top + 230 - view.top) * 2), 1, 1).data;
   const draw = color => { sourceContext.fillStyle=color;sourceContext.fillRect(0,0,80,80);renderer.draw({source,sourceRevision:color==='rgb(20, 200, 40)'?1:2,width:80,height:80,blobs:[]}); };
+  let floating;
   let paints = 0, lastDraw = performance.now(); const stop = subscribeLiquidFrames(target => { if (target===canvas) { paints++; lastDraw=performance.now(); } });
   try {
     draw('rgb(20, 200, 40)');
@@ -325,8 +326,15 @@ export async function checkViewportBackdrop() {
     await until(()=>performance.now()-lastDraw>160, 'The backdrop never reaches rest'); const settled=paints;
     await new Promise(resolve=>setTimeout(resolve,200));
     assert(paints===settled, 'The backdrop keeps redrawing itself at rest');
-    return {source:'real page pixels', canvasUpdates:true, idle:'no redraw loop'};
-  } finally { stop();renderer.dispose();probe.remove();document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); }
+    floating = document.createElement('div'); floating.popover = 'manual';
+    document.body.append(floating); floating.append(probe); floating.showPopover();
+    await paint();
+    await until(()=>performance.now()-lastDraw>160, 'Layer change did not settle'); const outside=paints;
+    for(let i=0;i<5;i++) { draw(i%2 ? 'rgb(20, 200, 40)' : 'rgb(200, 30, 50)'); await paint(); }
+    assert(paints===outside, 'An excluded top-layer canvas invalidates the backdrop');
+    floating.hidePopover(); document.body.append(probe); floating.remove();
+    return {source:'real page pixels', canvasUpdates:true, idle:'no redraw loop', topLayer:'no feedback'};
+  } finally { stop();renderer.dispose();probe.remove();floating?.remove();document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); }
 }
 
 export async function checkPageTexture() {
@@ -349,6 +357,54 @@ export async function checkPageTexture() {
     assert(getComputedStyle(document.body).backgroundImage.startsWith('repeating-linear-gradient(135deg'), 'Page texture missing');
     return {nativeCssMeanPixelError:mean, page:'faint diagonal hatch'};
   } finally { probe.remove(); }
+}
+
+export async function checkFloatingPolish() {
+  await go('/components/button'); await go('/components');
+  const anchor = document.querySelector('.catalog-material .dg-popover-anchor'), trigger = anchor.querySelector('button');
+  const layer = document.querySelector('.catalog-material .dg-popover-layer');
+  const canvas = () => document.querySelector('.catalog-material :is(.dg-popover-anchor, .dg-popover-layer) > span > canvas[data-dg-renderer]');
+  await until(() => canvas()?.width > 1, 'Material trigger not rendered');
+  await new Promise(resolve => setTimeout(resolve, 500));
+  const pixels = () => {
+    const c = canvas(), a = trigger.getBoundingClientRect(), b = c.getBoundingClientRect();
+    return c.getContext('2d').getImageData(Math.round((a.left - b.left) * 2), Math.round((a.top - b.top) * 2), Math.round(a.width * 2), Math.round(a.height * 2)).data;
+  };
+  const before = pixels(); trigger.click();
+  await until(() => layer.matches(':popover-open'), 'Material panel not opened');
+  await new Promise(resolve => setTimeout(resolve, 600));
+  const c = canvas(), ctx = c.getContext('2d');
+  let shadowEdgeAlpha = 0;
+  for (const data of [ctx.getImageData(0,0,c.width,1).data, ctx.getImageData(0,c.height-1,c.width,1).data, ctx.getImageData(0,0,1,c.height).data, ctx.getImageData(c.width-1,0,1,c.height).data]) {
+    for(let i=3;i<data.length;i+=4) shadowEdgeAlpha = Math.max(shadowEdgeAlpha, data[i]);
+  }
+  assert(shadowEdgeAlpha === 0, `Shadow is cropped at alpha ${shadowEdgeAlpha}`);
+  let clones = 0;
+  const observer = new MutationObserver(records => { clones += records.filter(record => record.type === 'childList').length; });
+  observer.observe(layer.querySelector('.dg-popover__trigger-ink'), { childList: true });
+  const times = [], cssRead = window.getComputedStyle; let styleReads = 0;
+  window.getComputedStyle = (...args) => { styleReads++; return cssRead(...args); };
+  try {
+    let previous = performance.now();
+    for(let i=0;i<36;i++) {
+      await new Promise(resolve => requestAnimationFrame(time => { times.push(time-previous); previous=time; window.scrollTo({top:(i+1)*8,behavior:'instant'}); resolve(); }));
+    }
+    await paint();
+  } finally { window.getComputedStyle = cssRead; observer.disconnect(); }
+  assert(clones === 0, 'Scrolling clones the trigger and forces typography/layout work');
+  window.scrollTo({top:0,behavior:'instant'}); await paint();
+  const start = performance.now(); trigger.click();
+  await until(() => !layer.matches(':popover-open'), 'Material panel did not finish closing');
+  const closeMs = performance.now()-start;
+  assert(closeMs < 360, `Popover close took ${closeMs}ms`);
+  await paint();
+  const after = pixels(); let pixelError=0;
+  for(let i=0;i<before.length;i+=4) pixelError += Math.abs(before[i]-after[i]);
+  pixelError /= before.length/4;
+  assert(pixelError < .1, `Opening a panel changed the trigger's optical scale (mean error ${pixelError})`);
+  assert(getComputedStyle(trigger).outlineColor === 'rgba(0, 0, 0, 0)' || getComputedStyle(trigger).outlineStyle === 'none', 'Focus restored a dark outline');
+  times.shift(); times.sort((a,b)=>a-b);
+  return { closeMs, shadowEdgeAlpha, triggerPixelError:pixelError, scrollTriggerClones:clones, scrollStyleReads:styleReads, frameMedian:times[Math.floor(times.length*.5)], frameP95:times[Math.floor(times.length*.95)] };
 }
 
 export async function checkContactHDR() {

@@ -55,6 +55,8 @@ export function liquidBackground(root: HTMLElement): string {
   for (let node: HTMLElement | null = root; node; node = node.parentElement) {
     const color = getComputedStyle(node).backgroundColor;
     if (color !== "transparent" && color !== "rgba(0, 0, 0, 0)") colors.push(color);
+    // The usual opaque page needs no canvas allocation or synchronous pixel readback.
+    if (/^rgb\(/.test(color)) { if (colors.length === 1) return color; break; }
   }
   const canvas = document.createElement("canvas"); canvas.width = canvas.height = 1;
   const ctx = canvas.getContext("2d")!;

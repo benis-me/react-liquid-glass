@@ -64,6 +64,21 @@ export function paintLiquidText(node: Node, context: CanvasRenderingContext2D, b
   context.letterSpacing = style.letterSpacing === "normal" ? "0px" : style.letterSpacing;
   context.fillStyle = style.color;
   context.textBaseline = "alphabetic";
+  range.selectNodeContents(node);
+  const rects = range.getClientRects();
+  if (rects.length === 1) {
+    let rect = rects[0], line = text;
+    if (/^(normal|nowrap|pre-line)$/.test(style.whiteSpace)) {
+      const first = text.search(/\S/);
+      range.setStart(node, first); range.setEnd(node, first + 1);
+      rect = range.getBoundingClientRect();
+      line = text.slice(first).replace(/\s+/g, " ");
+    }
+    const metrics = context.measureText(line);
+    context.fillText(line, rect.left - bounds.left, rect.top - bounds.top
+      + (rect.height - metrics.fontBoundingBoxAscent - metrics.fontBoundingBoxDescent) / 2 + metrics.fontBoundingBoxAscent);
+    return;
+  }
   // Read browser line breaks and baselines, including localized/wrapped labels.
   let start = 0;
   while (start < text.length) {

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { animate, useMotionValue, useReducedMotion, type MotionValue } from "motion/react";
-import { CLOSE_FUSION_DURATION, OPEN_MORPH_DURATION, OPEN_MORPH_TIMES, openWidthFrames, openHeightFrames, openRadiusFrames } from "./menu";
+import { OPEN_MORPH_DURATION, OPEN_MORPH_TIMES, openWidthFrames, openHeightFrames, openRadiusFrames } from "./menu";
 import { liquidEasings, retargetLiquidFrames } from "./trajectory";
 
 export interface PopoverLayout {
@@ -58,7 +58,7 @@ export function usePopoverMotion() {
     const revision = ++token.current;
     stop();
     const frames = popoverFrames(layout, open);
-    const duration = open ? OPEN_MORPH_DURATION : CLOSE_FUSION_DURATION * Math.max(.55, Math.min(1, h.get() * 2 / layout.panelHeight));
+    const duration = open ? OPEN_MORPH_DURATION : .28 * Math.max(.55, Math.min(1, h.get() * 2 / layout.panelHeight));
     const values: Record<string, MotionValue<number>> = { x, y, w, h, radius, trigger, merge, reveal };
     running.current = !reduce;
     for (const [key, value] of Object.entries(values)) {

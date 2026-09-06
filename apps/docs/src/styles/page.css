@@ -192,7 +192,6 @@ td code { font-size: 10px; }
 
 /* Page navigation stays quiet; glass is reserved for interactive specimens and tools. */
 .site-link:hover { color: var(--text); }
-.site-link:focus-visible, .plain-button:focus-visible, .header-tools button:focus-visible, .site-input:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
 .top-nav .site-link { display: flex; align-items: center; padding: 7px 12px; }
 .sidebar-intro { display: grid; gap: 2px; }
 .sidebar-intro a, .sidebar-links a { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border-radius: 6px; }

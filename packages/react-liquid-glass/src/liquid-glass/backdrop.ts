@@ -7,7 +7,7 @@ type Bounds = { left: number; top: number; width: number; height: number };
 const intersects = (a: Bounds, b: Bounds) => a.width > 0 && a.height > 0 && b.width > 0 && b.height > 0 && a.left < b.left + b.width && a.left + a.width > b.left && a.top < b.top + b.height && a.top + a.height > b.top;
 
 /** Redraw the visible DOM region beneath a glass overlay into its existing material. */
-export function paintLiquidBackdrop(root: HTMLElement, canvas: HTMLCanvasElement, bounds: Bounds, exclude: readonly Element[] = []) {
+export function paintLiquidBackdrop(root: HTMLElement, canvas: HTMLCanvasElement, bounds: Bounds, exclude: readonly Element[] = [], region: Bounds = bounds) {
   if (!Object.values(bounds).every(Number.isFinite) || bounds.width <= 0 || bounds.height <= 0) return false;
   const ctx = canvas.getContext("2d");
   if (!ctx) return false;
@@ -15,13 +15,15 @@ export function paintLiquidBackdrop(root: HTMLElement, canvas: HTMLCanvasElement
   if (canvas.width !== width) canvas.width = width;
   if (canvas.height !== height) canvas.height = height;
   ctx.setTransform(2, 0, 0, 2, 0, 0); ctx.globalAlpha = 1;
+  ctx.save(); ctx.beginPath(); ctx.rect(region.left - bounds.left, region.top - bounds.top, region.width, region.height); ctx.clip();
   ctx.fillStyle = liquidBackground(root); ctx.fillRect(0, 0, bounds.width, bounds.height);
   const visit = (element: Element) => {
     if (exclude.includes(element) || element.matches("script, style, link, template, [popover], dialog:not([open])")) return;
-    const css = getComputedStyle(element);
-    if (css.display === "none" || css.visibility === "hidden" || Number(css.opacity) === 0) return;
     const rect = element.getBoundingClientRect();
-    if (css.display !== "contents" && (!rect.width || !rect.height || !intersects(rect, bounds))) return;
+    // Reject off-region boxes before resolving all their computed styles.
+    if ((rect.width || rect.height) && !intersects(rect, region)) return;
+    const css = getComputedStyle(element);
+    if (css.display === "none" || css.visibility === "hidden" || Number(css.opacity) === 0 || (!rect.width && !rect.height && css.display !== "contents")) return;
     const x = rect.left - bounds.left, y = rect.top - bounds.top;
     const radius = (value: string) => value.endsWith("%") ? Math.min(rect.width, rect.height) * parseFloat(value) / 100 : parseFloat(value) || 0;
     const corners = [css.borderTopLeftRadius, css.borderTopRightRadius, css.borderBottomRightRadius, css.borderBottomLeftRadius].map(radius);
@@ -69,6 +71,7 @@ export function paintLiquidBackdrop(root: HTMLElement, canvas: HTMLCanvasElement
     ctx.restore();
   };
   visit(root);
+  ctx.restore();
   return true;
 }
 
@@ -76,7 +79,7 @@ export function paintLiquidBackdrop(root: HTMLElement, canvas: HTMLCanvasElement
 export function observeLiquidBackdrop(root: HTMLElement, bounds: () => Bounds, exclude: readonly Element[], refresh: () => void) {
   const relevant = (node: Node) => {
     const element = node instanceof Element ? node : node.parentElement;
-    return element && !exclude.some(item => item.contains(element)) && intersects(element.getBoundingClientRect(), bounds());
+    return element && !element.closest("[popover]") && !exclude.some(item => item.contains(element)) && intersects(element.getBoundingClientRect(), bounds());
   };
   const update = () => { if (!document.hidden && intersects(bounds(), { left: 0, top: 0, width: innerWidth, height: innerHeight })) frame.preRender(refresh); };
   const observer = new MutationObserver(records => { if (records.some(record => relevant(record.target))) update(); });

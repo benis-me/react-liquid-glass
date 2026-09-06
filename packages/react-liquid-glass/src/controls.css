@@ -25,7 +25,6 @@
   position: relative;
 }
 .dg-switch:has(input:disabled) { opacity: .4; cursor: not-allowed; }
-.dg-switch:has(input:focus-visible) { outline: 2px solid var(--dg-control-accent); outline-offset: 3px; }
 .dg-switch__input,
 .dg-slider__input {
   white-space: nowrap;
@@ -67,7 +66,6 @@ html[data-theme="dark"] .dg-switch { --dg-switch-on: #777773; }
   user-select: none;
 }
 .dg-slider:has(input:disabled) { opacity: .4; cursor: not-allowed; }
-.dg-slider:has(input:focus-visible) { outline: 2px solid var(--dg-control-accent); outline-offset: 3px; }
 .dg-slider__root {
   cursor: pointer;
   touch-action: none;
@@ -152,7 +150,6 @@ html[data-theme="dark"] .dg-switch { --dg-switch-on: #777773; }
 }
 .dg-tabs__item:hover { color: var(--dg-control-text-hover); }
 .dg-tabs__item:not([data-selected]):hover { background: rgba(18, 18, 22, .035); }
-.dg-tabs__item:focus-visible { box-shadow: 0 0 0 2px var(--dg-control-accent); outline: 0; }
 .dg-tabs > .dg-tabs__group > .dg-tabs__item[data-selected] {
   --dg-icon-color-1: var(--dg-icon-active-1) !important;
   --dg-icon-color-2: var(--dg-icon-active-2) !important;
@@ -244,12 +241,6 @@ html[data-theme="dark"] .dg-tabs__item:not([data-selected]):hover { background: 
   width: 25px;
   height: 25px;
   stroke-width: 2;
-}
-.dg-liquid-menu__trigger:focus-visible,
-.dg-liquid-menu__sort-row:focus-visible,
-.dg-liquid-menu__filter-row:focus-visible {
-  outline: 2px solid var(--text, #111);
-  outline-offset: 3px;
 }
 .dg-liquid-menu__panel {
   z-index: 4;
@@ -409,7 +400,6 @@ html[data-theme="dark"] .dg-liquid-glass {
 .dg-video-player__controls { z-index: 3; display: flex; align-items: center; justify-content: center; gap: 24px; opacity: 0; filter: blur(4px); pointer-events: none; transition: opacity .25s ease-out, filter .25s ease-out; position: absolute; inset: 0; }
 .dg-video-player__controls[data-visible="true"] { opacity: 1; filter: blur(0); pointer-events: auto; }
 .dg-video-player__button { cursor: pointer; color: #fff; background: transparent; border: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; padding: 0; will-change: transform; }
-.dg-video-player__button:focus-visible { outline: 2px solid var(--primary); }
 .dg-video-player__button--large { width: 111px; height: 111px; }
 .dg-video-player__button--small { width: 65px; height: 65px; }
 .dg-video-player__button--large .dg-video-player__source-icon { width: 49.55%; height: 49.55%; }
@@ -458,7 +448,6 @@ html[data-theme="dark"] .dg-liquid-glass {
 @media (prefers-reduced-motion: reduce) {
   .dg-button-group__items > .dg-button > .dg-surface > .dg-surface__content { transition: none; }
 }
-.dg-button:focus-visible, .dg-field:focus-within, .dg-choice:has(:focus-visible), .dg-dropdown button:focus-visible, .dg-dismiss:focus-visible, .dg-video-player__bar:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
 .dg-card { margin: 0; min-width: 0; }
 .dg-card > .dg-surface > .dg-surface__content { padding: 26px; }
 .dg-card h3 { margin: 0 0 10px; font: inherit; font-weight: 650; }
@@ -468,6 +457,7 @@ html[data-theme="dark"] .dg-liquid-glass {
 .dg-field { display: grid; gap: 10px; min-width: 0; border-radius: 12px; }
 .dg-field__label, .dg-radio-group legend { font-size: 12px; font-weight: 550; }
 .dg-field input, .dg-field textarea, .dg-field select { display: block; width: 100%; padding: 13px 16px; min-height: 44px; color: inherit; background: transparent; border: 0; border-radius: 14px; font: inherit; outline: none; box-sizing: border-box; }
+.dg-field :is(input, textarea, select):focus-visible { box-shadow: none; }
 .dg-field textarea { resize: vertical; min-height: 104px; }
 .dg-field select { cursor: pointer; padding-right: 32px; }
 .dg-field select option { color: CanvasText; background: Canvas; }
@@ -496,7 +486,6 @@ html[data-theme="dark"] .dg-liquid-glass {
 .dg-accordion { display: grid; gap: 12px; }
 .dg-accordion__heading { margin: 0; font: inherit; }
 .dg-accordion__heading button { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 16px; padding: 17px 20px; color: inherit; background: transparent; border: 0; border-radius: 18px; text-align: left; font: inherit; font-size: 13px; cursor: pointer; }
-.dg-accordion__heading button:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
 .dg-accordion__mark { font-size: 18px; }
 .dg-accordion__body { padding: 0 20px 20px; font-size: 13px; line-height: 1.7; }
 .dg-dialog { border: 0; padding: 0; background: transparent; color: inherit; overflow: visible; width: min(440px, calc(100vw - 40px)); max-height: calc(100dvh - 48px); }
@@ -511,6 +500,8 @@ html[data-theme="dark"] .dg-liquid-glass {
 .dg-dropdown { min-width: 160px; display: grid; gap: 4px; margin: -10px; }
 .dg-dropdown button { text-align: left; padding: 10px 14px; border-radius: 12px; background: transparent; border: 0; color: inherit; cursor: pointer; font: inherit; font-size: 13px; }
 .dg-dropdown button:hover, .dg-dropdown button:focus { background: color-mix(in srgb, currentColor 8%, transparent); }
+.dg-dropdown button:focus-visible, .dg-select-options button:focus-visible { outline: 2px solid transparent; box-shadow: none; }
+.dg-liquid-menu__sort-row:focus-visible, .dg-liquid-menu__filter-row:focus-visible { outline: 2px solid transparent; box-shadow: none; background: color-mix(in srgb, currentColor 10%, transparent); }
 .dg-dropdown button:disabled { opacity: .4; cursor: not-allowed; }
 .dg-toast { min-width: 0; }
 .dg-toast > div > .dg-surface > .dg-surface__content { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 18px 20px; font-size: 13px; }
@@ -586,3 +577,21 @@ html[data-theme="dark"] .dg-action { --action-glass-tint: #4a4a46; }
 .dg-select-options button:is(:hover, :focus-visible) { outline: none; background: color-mix(in srgb, currentColor 8%, transparent); }
 .dg-select-options button:disabled { opacity: .4; cursor: not-allowed; }
 .dg-select-options small { padding: 6px 14px; opacity: .55; }
+
+/* A light reflection with a soft neutral halo keeps keyboard focus visible. */
+:is(.dg-button, .dg-tabs__item, .dg-dismiss, .dg-video-player__bar, .dg-video-player__button,
+  .dg-liquid-menu__trigger,
+  .dg-accordion__heading button):focus-visible,
+:is(.dg-switch, .dg-slider, .dg-choice):has(:focus-visible), .dg-field:focus-within > .dg-surface {
+  outline: 2px solid transparent;
+  outline-offset: 3px;
+  box-shadow: var(--dg-focus-shadow, 0 0 0 2px light-dark(#fffd, #fff9), 0 0 10px 3px light-dark(#7775, #fff3));
+}
+@media (forced-colors: active) {
+  :is(.dg-button, .dg-tabs__item, .dg-dismiss, .dg-video-player__bar, .dg-video-player__button,
+    .dg-liquid-menu__trigger, .dg-liquid-menu__sort-row, .dg-liquid-menu__filter-row,
+    .dg-accordion__heading button, .dg-dropdown button, .dg-select-options button):focus-visible,
+  :is(.dg-switch, .dg-slider, .dg-choice):has(:focus-visible), .dg-field:focus-within > .dg-surface {
+    outline: 2px solid Highlight; outline-offset: 3px; box-shadow: none;
+  }
+}
