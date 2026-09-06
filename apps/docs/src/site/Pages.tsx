@@ -91,9 +91,6 @@ export function Home({ locale, theme }: PageProps) {
   return (
     <div className="home">
       <section className="home-intro">
-        <div className="eyebrow">
-          <span className="status-dot" /> React · WebGL · Motion
-        </div>
         <h1>
           Liquid Glass
         </h1>

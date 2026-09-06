@@ -111,27 +111,40 @@ export function paintLiquidBackdrop(root: HTMLElement, canvas: HTMLCanvasElement
 
 /** Coalesce visible source changes; no polling or work while the page is hidden. */
 export function observeLiquidBackdrop(root: HTMLElement, bounds: () => Bounds, exclude: readonly Element[], refresh: () => void, before?: () => Element | undefined) {
-  const relevant = (node: Node, regions?: readonly Bounds[]) => {
-    const element = node instanceof Element ? node : node.parentElement;
-    if (!element || !behind(element, before?.()) || element.closest("[popover], [data-dg-highlight-hdr]") || exclude.some(item => item.contains(element))) return false;
-    const rect = element.getBoundingClientRect();
-    if (regions) {
-      const target = bounds();
-      return regions.some(region => intersects({ left: rect.left + region.left * rect.width, top: rect.top + region.top * rect.height,
+  const changes = new Map<Element, readonly Bounds[] | undefined>();
+  let force = false;
+  const check = () => {
+    const requested = force; force = false;
+    const target = document.hidden ? undefined : bounds();
+    const changed = [...changes]; changes.clear();
+    if (!target || !intersects(target, { left: 0, top: 0, width: innerWidth, height: innerHeight })) return;
+    if (requested || changed.some(([element, regions]) => {
+      const rect = layout(element).rect;
+      if (regions) return regions.some(region => intersects({ left: rect.left + region.left * rect.width, top: rect.top + region.top * rect.height,
         width: region.width * rect.width, height: region.height * rect.height }, target));
-    }
-    return intersects(rect.width && rect.height ? rect : element.parentElement?.getBoundingClientRect() ?? rect, bounds());
+      return intersects(rect.width && rect.height ? rect : element.parentElement ? layout(element.parentElement).rect : rect, target);
+    })) refresh();
   };
-  const update = () => { if (!document.hidden && intersects(bounds(), { left: 0, top: 0, width: innerWidth, height: innerHeight })) scheduleLiquidBackdrop(refresh); };
-  const observer = new MutationObserver(records => { if (records.some(record => relevant(record.target))) update(); });
+  // Collect notifications without forcing layout in mutation/renderer callbacks.
+  // All observers share the same fresh layout snapshot in the next pre-render batch.
+  const invalidate = (node: Node, regions?: readonly Bounds[]) => {
+    if (document.hidden) return;
+    const element = node instanceof Element ? node : node.parentElement;
+    if (!element || !root.contains(element) || !behind(element, before?.()) || element.closest("[popover], [data-dg-highlight-hdr]") || exclude.some(item => item.contains(element))) return;
+    const previous = changes.get(element);
+    changes.set(element, changes.has(element) ? previous && regions ? [...previous, ...regions] : undefined : regions);
+    scheduleLiquidBackdrop(check);
+  };
+  const update = () => { force = true; scheduleLiquidBackdrop(check); };
+  const observer = new MutationObserver(records => { for (const record of records) invalidate(record.target); });
   observer.observe(root, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ["style", "class", "src", "width", "height", "hidden", "value", "checked", "data-theme"] });
-  const sourceFrame = subscribeLiquidFrames((canvas, regions) => { if (relevant(canvas, regions)) update(); });
-  const event = (event: Event) => { if (event.target instanceof Node && relevant(event.target)) update(); };
+  const sourceFrame = subscribeLiquidFrames(invalidate);
+  const event = (event: Event) => { if (event.target instanceof Node) invalidate(event.target); };
   for (const type of ["input", "change", "load", "seeked"]) root.addEventListener(type, event, true);
   document.fonts.addEventListener("loadingdone", update);
   document.addEventListener("visibilitychange", update);
   return () => {
-    observer.disconnect(); sourceFrame(); cancelLiquidBackdrop(refresh);
+    observer.disconnect(); sourceFrame(); changes.clear(); cancelLiquidBackdrop(check); cancelLiquidBackdrop(refresh);
     for (const type of ["input", "change", "load", "seeked"]) root.removeEventListener(type, event, true);
     document.fonts.removeEventListener("loadingdone", update); document.removeEventListener("visibilitychange", update);
   };

@@ -10,6 +10,8 @@ Build the library in `packages/react-liquid-glass/src/` and the documentation/de
 
 ## Component library and documentation site
 
+- The home introduction has no technology-stack eyebrow or status dot; keep the removed “React · WebGL · Motion” line out.
+
 - Playground's Lines substrate uses subdued stripes (black/white at `0x18` alpha), shared by the visible canvas and glass backdrop sampling. Preserve the stripe width and spacing.
 
 - Material is one persisted site-wide configuration shared by Playground and the catalog inspector, including header navigation, site tools, inspector controls and demos. Empty material restores each component's defaults; keep HDR independent. Material panels have 32px optical corners, fit the available viewport height and scroll internally without clipping their outer glass shadow. Presets use the standard GlassTabs; custom parameters leave preset selection empty. The Playground configuration code block has no vertical margin. Keyboard Tab focus has no white frame or halo anywhere; use quiet underlines or neutral state fills, while retaining forced-colors accessibility.

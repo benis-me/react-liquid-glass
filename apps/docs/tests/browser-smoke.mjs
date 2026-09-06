@@ -62,6 +62,53 @@ export async function checkPlayground() {
   return { material: 'live, persisted, reset', parameters: 21, debug: true };
 }
 
+export async function checkPlaygroundNavigation() {
+  const original=localStorage.getItem('glass-material')??'{}',write=navigator.clipboard.writeText;
+  let copied='';navigator.clipboard.writeText=async value=>{copied=value};
+  try {
+    await go('/playground?component=button');
+    await go('/playground?component=switch');
+    assert(document.querySelector('.component-preview--switch .dg-switch'),'Same-page navigation kept the previous preview');
+    history.back();await until(()=>location.search.includes('component=button')&&document.querySelector('.component-preview--button'),'Back did not restore the component');
+    click('.playground-toolbar [role=combobox]');
+    const option=[...document.querySelectorAll('[role=listbox][aria-label="Component"] [role=option]')].find(el=>el.textContent==='Slider');
+    assert(option,'Slider option missing');option.click();await paint();
+    assert(new URLSearchParams(location.search).get('component')==='slider'&&document.querySelector('.component-preview--slider'),'Selection did not update the URL and preview');
+    click('.share-material');await paint();
+    assert(new URL(copied).searchParams.get('component')==='slider'&&document.querySelector('.share-material').textContent.includes('Link copied'),'Share used a stale component');
+    input(document.querySelector('input[aria-label="Dispersion"]'),'.51');await paint();
+    assert(document.querySelector('.share-material').textContent==='Share configuration','Changed material still claims to be copied');
+    await go('/playground?component=unknown');
+    assert(document.querySelector('.component-preview--tabs'),'Invalid component did not fall back to Tabs');
+    return {navigation:'same-page, back and selection',share:'current configuration',invalid:'Tabs fallback'};
+  } finally {
+    navigator.clipboard.writeText=write;
+    await go('/playground?component=button&material='+encodeURIComponent(original));
+    history.replaceState(null,'','/playground?component=button');
+  }
+}
+
+export async function checkBackdropBatching() {
+  const {observeLiquidBackdrop}=await import('../../../packages/react-liquid-glass/src/liquid-glass/backdrop.ts');
+  await go('/docs/installation');await document.fonts.ready;await new Promise(resolve=>setTimeout(resolve,600));
+  const source=document.createElement('div');source.style.cssText='position:fixed;left:10px;top:10px;width:20px;height:20px';document.body.append(source);
+  let bounds=source.getBoundingClientRect(),boundsReads=0,sourceReads=0,refreshes=0;
+  const rect=source.getBoundingClientRect.bind(source);source.getBoundingClientRect=()=>{sourceReads++;return rect()};
+  const stops=Array.from({length:2},()=>observeLiquidBackdrop(source,()=>{boundsReads++;return bounds},[],()=>refreshes++));
+  try {
+    for(const color of ['red','blue','green']) {source.style.color=color;await Promise.resolve()}
+    assert(boundsReads===0&&sourceReads===0,'Backdrop notifications forced synchronous layout');
+    await paint();
+    assert(boundsReads===2&&sourceReads===1&&refreshes===2,`Observers did not share one layout: ${boundsReads}/${sourceReads}/${refreshes}`);
+    bounds={left:0,top:innerHeight+100,width:20,height:20};boundsReads=sourceReads=refreshes=0;
+    source.style.color='black';await paint();
+    assert(boundsReads===2&&sourceReads===0&&refreshes===0,'Offscreen backdrops read source layout or repainted');
+    source.style.color='white';await Promise.resolve();stops.forEach(stop=>stop());await paint();
+    assert(refreshes===0,'Disposed backdrop refreshed queued work');
+    return {synchronousLayouts:0,sharedSourceReads:1,offscreenRefreshes:0,disposed:'cancelled'};
+  } finally {stops.forEach(stop=>stop());source.remove()}
+}
+
 export async function checkGlobalMaterial() {
   const original=localStorage.getItem('glass-material')??'{}';
   const {createLiquidGlassRenderer,subscribeLiquidFrames}=await import('refractive-glass-react/liquid-glass/renderer');

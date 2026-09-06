@@ -53,8 +53,6 @@ code,kbd { font-family: var(--font-mono); font-size: .86em; }
 .page-actions { display: flex; gap: 9px; margin-top: 27px; }
 .home { max-width: 1200px; margin: auto; }
 .home-intro { padding: 74px 0 50px; }
-.home-intro .eyebrow { display: flex; align-items: center; gap: 8px; }
-.status-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--text); }
 .home-intro h1 { font-size: clamp(54px,6.2vw,80px); line-height: 1.035; letter-spacing: -4px; font-weight: 550; margin: 22px 0 25px; }
 .home-intro h1 span { color: var(--muted); }
 .home-intro p { max-width: 350px; color: var(--muted); font-size: 14px; line-height: 1.8; }

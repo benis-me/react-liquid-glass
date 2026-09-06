@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, Link2 } from "lucide-react";
 import {
   GlassStage,
@@ -14,16 +14,25 @@ import { CodeBlock, PageHeading, type PageProps } from "./Pages";
 import { Link } from "./router";
 import { MaterialControls } from "./MaterialControls";
 import type { MaterialState } from "./material";
+function readComponent(): ComponentId | "all" {
+  const requested = new URLSearchParams(location.search).get("component");
+  const id = componentAliases[requested ?? ""] ?? requested;
+  return id === "all" || catalog.some((item) => item.id === id)
+    ? (id as ComponentId | "all")
+    : "tabs";
+}
+
 export function Playground({ locale, theme, material, setMaterial }: PageProps & MaterialState) {
-  const [component, setComponent] = useState<ComponentId | "all">(() => {
-    const requested = new URLSearchParams(location.search).get("component");
-    const id = componentAliases[requested ?? ""] ?? requested;
-    return id === "all" || catalog.some((item) => item.id === id)
-      ? (id as ComponentId | "all")
-      : "tabs";
-  });
+  const [component, setComponent] = useState(readComponent);
+  useEffect(() => {
+    const update = () => setComponent(readComponent());
+    window.addEventListener("popstate", update);
+    return () => window.removeEventListener("popstate", update);
+  }, []);
   const [background, setBackground] = useState<GlassBackground>("grid"),
-    [shared, setShared] = useState("");
+    [shared, setShared] = useState({ key: "", message: "" });
+  const shareKey = `${locale}:${component}:${JSON.stringify(material)}`;
+  const shareMessage = shared.key === shareKey ? shared.message : "";
   const zh = locale === "zh";
   const selected =
     component === "all"
@@ -38,9 +47,9 @@ export function Playground({ locale, theme, material, setMaterial }: PageProps &
     history.replaceState(null, "", url);
     try {
       await navigator.clipboard.writeText(url.href);
-      setShared(zh ? "链接已复制" : "Link copied");
+      setShared({ key: shareKey, message: zh ? "链接已复制" : "Link copied" });
     } catch {
-      setShared(zh ? "配置已写入地址栏" : "Configuration saved to address bar");
+      setShared({ key: shareKey, message: zh ? "配置已写入地址栏" : "Configuration saved to address bar" });
     }
   };
   return (
@@ -58,9 +67,12 @@ export function Playground({ locale, theme, material, setMaterial }: PageProps &
           <div className="playground-toolbar">
               <GlassSelect label={zh ? "组件" : "Component"}
                 value={component}
-                onChange={(event) =>
-                  setComponent(event.target.value as ComponentId | "all")
-                }
+                onChange={(event) => {
+                  setComponent(event.target.value as ComponentId | "all");
+                  const url = new URL(location.href);
+                  url.searchParams.set("component", event.target.value);
+                  history.replaceState(null, "", url);
+                }}
               >
                 <option value="all">
                   {zh ? "所有组件" : "All components"}
@@ -118,9 +130,9 @@ export function Playground({ locale, theme, material, setMaterial }: PageProps &
         <GlassSurface className="playground-inspector" radius={32} blurStrength={18} interactive="light">
         <MaterialControls locale={locale} material={material} setMaterial={setMaterial}>
           <GlassButton size="small" className="share-material" onClick={share}>
-            {shared ? <Check size={14} /> : <Link2 size={14} />}
+            {shareMessage ? <Check size={14} /> : <Link2 size={14} />}
             <span aria-live="polite">
-              {shared || (zh ? "分享配置" : "Share configuration")}
+              {shareMessage || (zh ? "分享配置" : "Share configuration")}
             </span>
           </GlassButton>
         </MaterialControls>
