@@ -119,7 +119,7 @@ test("switch and slider recover when pointer release is lost outside the viewpor
   assert.match(pointerFallbackSource, /window\.addEventListener\("pointercancel", finishPointer\)/);
   assert.match(pointerFallbackSource, /window\.addEventListener\("blur", finish\)/);
   assert.match(pointerFallbackSource, /document\.addEventListener\("visibilitychange", finishWhenHidden\)/);
-  assert.equal((componentSource.match(/armPointerFallback\(event\.pointerId\)/g) ?? []).length, 2);
+  assert.equal((componentSource.match(/armPointerFallback\(event\.pointerId\)/g) ?? []).length, 3);
   const switchSource = componentSource.slice(componentSource.indexOf("export function GlassSwitch"), componentSource.indexOf("const SLIDER_CLICK_SPRING"));
   const sliderSource = componentSource.slice(componentSource.indexOf("export function GlassSlider"), componentSource.indexOf("type IconProps"));
   assert.match(switchSource, /onLostPointerCapture=\{\(event\) =>/);
@@ -589,7 +589,7 @@ test("switch, slider, and toggle retain their source motion contracts", () => {
   assert.match(componentSource, /inputRef\.current\?\.focus/);
   assert.doesNotMatch(componentSource, /dg-slider__value/);
   assert.match(componentSource, /duration: 0\.6/);
-  assert.match(componentSource, /return Math\.min\(0\.46, speed \*\* 0\.62 \* 0\.0095\)/);
+  assert.match(componentSource, /return Math\.min\(0\.18, speed \*\* 0\.62 \* 0\.0045\)/);
   assert.match(componentSource, /zoom=\{zoom\}/);
   assert.match(componentSource, /depth=\{boostedDepth\}/);
   assert.match(componentSource, /refracted \? color1 : "#bcbbbb"/);
@@ -598,8 +598,8 @@ test("switch, slider, and toggle retain their source motion contracts", () => {
 
 
 
-test("segmented control supports mouse press-drag tab switching", () => {
-  assert.match(componentSource, /event\.pointerType !== "mouse"/);
+test("segmented control supports pointer press-drag tab switching", () => {
+  assert.match(componentSource, /event\.pointerType === "mouse"/);
   assert.match(componentSource, /moveDrag\(event\.clientX\)/);
   assert.match(componentSource, /setPointerCapture\(event\.pointerId\)/);
   assert.match(componentSource, /suppressDragClick/);
@@ -620,7 +620,7 @@ test("segmented control is solid at rest and directly tracks drag as glass", () 
   assert.match(componentSource, /const pointerX = useMotionValue\(0\)/);
   assert.match(componentSource, /useVelocityDeformation\(pointerX/);
   assert.match(componentSource, /pointerX\.set\(centerX\)/);
-  assert.match(componentSource, /width \* \(1 \+ amount \* 1\.45\)/);
+  assert.match(componentSource, /width \* \(1 \+ amount \* 0\.75\)/);
   assert.match(componentSource, /height \* \(1 - amount \* 0\.52\)/);
   assert.match(componentSource, /const nearestSegment = \(clientX: number\)/);
   assert.match(componentSource, /const nextX = \(centerX - expandedLeft\) \/ expandedWidth/);
@@ -638,11 +638,11 @@ test("segmented click expands, travels as glass, then collapses", () => {
   assert.match(componentSource, /return x\.on\("change", \(position\) => \{[\s\S]*pointerX\.set\(expandedLeft \+ position \* expandedWidth\)/);
   assert.match(componentSource, /choose\(nearest\.value\);\s*travelSettled\.current = updateGeometry\(nearest\.value, false\);/);
   assert.match(componentSource, /if \(dragMoved\.current\) moveDrag\(event\.clientX\)/);
-  assert.match(componentSource, /releaseInteraction\(dragMoved\.current \? 0 : 90, dragMoved\.current\)/);
+  assert.match(componentSource, /releaseInteraction\(0, dragMoved\.current\)/);
   assert.match(componentSource, /const releaseInteraction = \(delay = 0, settle = true\)/);
   assert.match(componentSource, /const travel = settle \? updateGeometry\(selectedRef\.current, false\) : travelSettled\.current/);
-  assert.match(componentSource, /width \* \(1 \+ amount \* 0\.32\)/);
-  assert.match(componentSource, /height \* \(1 \+ amount \* 0\.48\)/);
+  assert.match(componentSource, /width \* \(1 \+ amount \* 0\.10\)/);
+  assert.match(componentSource, /height \* \(1 \+ amount \* 0\.22\)/);
 });
 
 test("segmented edge items stay centered and the selected fill stays flat", () => {
@@ -663,8 +663,8 @@ test("segmented idle selection restores each icon's own colors", () => {
 });
 
 test("segmented motion uses velocity-preserving iOS-style physical springs", () => {
-  assert.match(componentSource, /const SEGMENTED_TRAVEL_SPRING = \{ mass: 1, stiffness: 157\.9, damping: 17\.6 \}/);
-  assert.match(componentSource, /const SEGMENTED_PRESS_SPRING = \{ mass: 0\.9, stiffness: 190, damping: 18 \}/);
+  assert.match(componentSource, /const SEGMENTED_TRAVEL_SPRING = \{ mass: 1, stiffness: 260, damping: 28 \}/);
+  assert.match(componentSource, /const SEGMENTED_PRESS_SPRING = \{ mass: 0\.9, stiffness: 320, damping: 28 \}/);
   assert.match(componentSource, /const SEGMENTED_RELEASE_SPRING = \{ mass: 1, stiffness: 150, damping: 19 \}/);
   assert.match(componentSource, /velocity: value\.getVelocity\(\)/);
   assert.match(componentSource, /const x = useMotionValue\(0\.5\)/);
@@ -679,7 +679,7 @@ test("segmented glass attenuation overlaps the low-amplitude travel tail", () =>
   assert.match(componentSource, /waitForRest\(\[renderedLensW, renderedLensH, impactX, deformation, interaction, glassHeight\]/);
   assert.match(componentSource, /epsilon = 1, timeoutMs = 900, holdMs = 32/);
   assert.match(componentSource, /restTimer = window\.setTimeout\(finish, holdMs\)/);
-  assert.match(componentSource, /animate\(glassOpacity, 0, \{ duration: 0\.18, ease: \[0\.22, 1, 0\.36, 1\] \}\)/);
+  assert.match(componentSource, /animate\(glassOpacity, 0, \{ duration: 0\.12, ease: \[0\.22, 1, 0\.36, 1\] \}\)/);
   assert.doesNotMatch(componentSource, /setTimeout\(\(\) => \{\s*rootRef\.current\?\.removeAttribute\("data-interacting"\)/);
   assert.doesNotMatch(libraryStylesSource, /\.dg-tabs__solid-thumb\s*\{[^}]*opacity 90ms/s);
 });
@@ -716,18 +716,18 @@ test("the retained material supports opaque control rests without covering refra
 
 test("segmented braking squashes both axes and hover stays subtle", () => {
   assert.match(componentSource, /stiffness: \(\) => impactLanded\.current && stationaryPress\(\) \? SEGMENTED_HOLD_IMPACT_SCRIPT\.stiffness : 210/);
-  assert.match(componentSource, /if \(!impactLanded\.current\) return 15\.5/);
-  assert.match(componentSource, /return 22/);
+  assert.match(componentSource, /if \(!impactLanded\.current\) return 26/);
+  assert.match(componentSource, /return 30/);
   assert.match(componentSource, /typeof options\.stiffness === "function" \? options\.stiffness\(\) : options\.stiffness/);
   assert.match(componentSource, /typeof options\.damping === "function" \? options\.damping\(\) : options\.damping/);
-  assert.match(componentSource, /width \* \(1 \+ amount \* 1\.45\)/);
+  assert.match(componentSource, /width \* \(1 \+ amount \* 0\.75\)/);
   assert.match(componentSource, /height \* \(1 - amount \* 0\.52\)/);
   assert.match(libraryStylesSource, /\.dg-tabs__item:not\(\[data-selected\]\):hover\s*\{\s*background:\s*rgba\(18, 18, 22, \.035\)/s);
 });
 
 test("segmented arrival pins most velocity stretch behind the leading edge", () => {
   assert.match(componentSource, /const SEGMENTED_IMPACT_RETENTION = 0\.18/);
-  assert.match(componentSource, /const SEGMENTED_TRAIL_BIAS = 0\.82/);
+  assert.match(componentSource, /const SEGMENTED_TRAIL_BIAS = 0\.35/);
   assert.match(componentSource, /const impactTargetX = useRef\(0\.5\)/);
   assert.match(componentSource, /const impactDirection = useRef\(0\)/);
   assert.match(componentSource, /const impactLanded = useRef\(false\)/);
@@ -749,7 +749,7 @@ test("segmented stationary long press settles without being treated as a drag", 
 });
 
 test("segmented stationary hold uses one explicit Q-bounce impact script", () => {
-  assert.match(componentSource, /const SEGMENTED_HOLD_IMPACT_SCRIPT = \{\s*stiffness: 360,\s*damping: 24,\s*impulse: -7,\s*\} as const/s);
+  assert.match(componentSource, /const SEGMENTED_HOLD_IMPACT_SCRIPT = \{\s*stiffness: 360,\s*damping: 24,\s*impulse: -1\.6,\s*\} as const/s);
   assert.match(componentSource, /const velocityImpulseRef = useRef\(0\)/);
   assert.match(componentSource, /velocity \+= velocityImpulseRef\.current/);
   assert.match(componentSource, /velocityImpulseRef\.current = 0/);
@@ -759,7 +759,7 @@ test("segmented stationary hold uses one explicit Q-bounce impact script", () =>
 
 test("segmented glass stays slightly taller than the tab group", () => {
   assert.match(componentSource, /const glassHeight = useMotionValue\(0\)/);
-  assert.match(componentSource, /const heightBoost = useDerivedMotion2\(glassHeight, deformation, \(active, amount\) =>\s*active \* \(0\.34 - Math\.min\(0\.22, Math\.max\(0, amount\) \* 0\.72\)\)\)/s);
+  assert.match(componentSource, /const heightBoost = useDerivedMotion2\(glassHeight, deformation, \(active, amount\) =>\s*active \* \(0\.18 - Math\.min\(0\.10, Math\.max\(0, amount\) \* 0\.55\)\)\)/s);
   assert.match(componentSource, /const minimumGlassH = useDerivedMotion2\(lensH, heightBoost, \(height, boost\) => height \* \(1 \+ boost\)\)/);
   assert.match(componentSource, /const renderedLensH = useDerivedMotion2\(expandedLensH, minimumGlassH, \(height, minimum\) => Math\.max\(height, minimum\)\)/);
   assert.match(componentSource, /glassHeight\.set\(1\)/);
@@ -831,7 +831,7 @@ test("core library stays CSS-free while optional controls ship standalone styles
 
 
 
-test("control optics use a size-independent pixel gain without changing menu or motion", () => {
+test("control optics retain size-independent pixel gain and the approved menu material", () => {
   assert.match(componentSource, /\.\.\.LIQUID_LENS/);
   assert.equal((componentSource.match(/chromaAmount: \.24, edgeWidth: \.9/g) ?? []).length, 3);
   assert.equal((componentSource.match(/refractionPixels=\{thumbHeight \* \.22\}/g) ?? []).length, 2);
@@ -848,8 +848,8 @@ test("control optics use a size-independent pixel gain without changing menu or 
   }
   assert.deepEqual(gain({}, { scaleX: .08, scaleY: .12 }, { width: 124, height: 78 }), [.12, [.08 / .12, 1]], "existing objectBoundingBox callers keep their optics");
   assert.equal(LIQUID_GLASS_MATERIAL.chromaAmount, .55);
-  assert.match(componentSource, /SEGMENTED_TRAVEL_SPRING = \{ mass: 1, stiffness: 157\.9, damping: 17\.6 \}/);
-  assert.match(componentSource, /SEGMENTED_HOLD_IMPACT_SCRIPT = \{\s*stiffness: 360,\s*damping: 24,\s*impulse: -7,/s);
+  assert.match(componentSource, /SEGMENTED_TRAVEL_SPRING = \{ mass: 1, stiffness: 260, damping: 28 \}/);
+  assert.match(componentSource, /SEGMENTED_HOLD_IMPACT_SCRIPT = \{\s*stiffness: 360,\s*damping: 24,\s*impulse: -1\.6,/s);
 });
 
 test("Slider's refracted fill retains a moving round cap at every progress", () => {

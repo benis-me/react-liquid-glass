@@ -366,11 +366,7 @@ export function App() {
       </div>
       <footer className="site-footer">
         <Link href="/">React Liquid Glass</Link>
-        <span>
-          {zh
-            ? "材质有深度，交互有分量。"
-            : "A material with depth. Motion with weight."}
-        </span>
+
         <a
           href="https://github.com/benis-me/react-liquid-glass"
           target="_blank"

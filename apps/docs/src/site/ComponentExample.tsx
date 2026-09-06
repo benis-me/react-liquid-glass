@@ -273,7 +273,7 @@ export function ComponentExample({
           </GlassButton>
           <GlassToast
             open={open}
-            title={t("A small moment, saved.", "一个小小的瞬间，已保存。")}
+            title={t("Changes saved", "已保存")}
             onClose={() => setOpen(false)}
             closeLabel={closeLabel}
           />
@@ -288,10 +288,10 @@ export function ComponentExample({
           <GlassDialog
             open={open}
             onOpenChange={setOpen}
-            title={t("Make it yours", "让它属于你")}
+            title={t("Edit profile", "编辑资料")}
             description={t(
-              "A small change to your personal workspace.",
-              "为个人工作区做一点小调整。",
+              "Update your name.",
+              "修改姓名。",
             )}
             closeLabel={closeLabel}
           >
@@ -393,14 +393,14 @@ export function ComponentExample({
           <output className="example-status">
             {count
               ? t(`${count} copies created`, `已创建 ${count} 个副本`)
-              : t("Ready for an action", "选择一个操作")}
+              : ""}
           </output>
         </div>
       );
     case "tooltip":
       return (
         <GlassTooltip
-          label={t("Keep this idea for later", "为稍后留下这个想法")}
+          label={t("Save bookmark", "保存书签")}
         >
           <GlassButton aria-label={t("Bookmark", "收藏")}>
             <Bookmark />

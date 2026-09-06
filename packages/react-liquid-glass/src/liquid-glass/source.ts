@@ -82,7 +82,7 @@ export function liquidTrackSource(options: {
 }): LiquidSourceFactory {
   return (root, width, height) => {
     const background = liquidBackground(root.parentElement!);
-    const off = liquidCssColor(root, "var(--dg-control-track)");
+    const off = liquidCssColor(root, options.kind === "switch" ? "var(--dg-switch-off)" : "var(--dg-control-track)");
     const on = liquidCssColor(root, options.kind === "switch" ? "var(--dg-switch-on)" : "var(--dg-control-accent)");
     const rounded = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
       ctx.beginPath(); ctx.roundRect(-w / 2, -h / 2, w, h, h / 2); ctx.fill();
@@ -139,13 +139,14 @@ async function rasterSvg(svg: SVGSVGElement) {
  * ponytail: supports this project's images, grid, text and SVG; use an explicit
  * source factory/Canvas for arbitrary CSS effects instead of guessing their pixels.
  */
-export async function captureLiquidSource(root: HTMLElement, width: number, height: number) {
+export async function captureLiquidSource(root: HTMLElement, width: number, height: number, background?: LiquidSourcePainter) {
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.round(width * 2));
   canvas.height = Math.max(1, Math.round(height * 2));
   const ctx = canvas.getContext("2d")!;
   ctx.scale(2, 2);
   ctx.fillStyle = liquidBackground(root.parentElement!); ctx.fillRect(0, 0, width, height);
+  background?.(ctx);
   const bounds = root.getBoundingClientRect();
   for (const element of root.querySelectorAll<HTMLElement>("div, span, button, img")) {
     if (element.closest("svg")) continue;

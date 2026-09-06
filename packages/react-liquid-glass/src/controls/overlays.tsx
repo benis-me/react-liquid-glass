@@ -1,11 +1,11 @@
 import {
-  cloneElement,
   useEffect,
   useId,
   useLayoutEffect,
   useRef,
   useState,
   type ReactElement,
+  type ComponentProps,
   type ReactNode,
 } from "react";
 import {
@@ -16,6 +16,7 @@ import {
 } from "motion/react";
 import { springTo } from "../apple-motion/react";
 import { SEGMENTED_RELEASE_SPRING } from "../apple-motion/presets";
+import { LiquidPopover, useClosePopover } from "./LiquidPopover";
 import { GlassSurface } from "./GlassSurface";
 import { GlassButton } from "./primitives";
 import { GlassSegmented, type GlassSegmentItem } from "./GlassSegmented";
@@ -108,66 +109,16 @@ export interface GlassPopoverProps {
   children: ReactNode;
   label: string;
   role?: "dialog" | "menu";
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  className?: string;
 }
-export function GlassPopover({
-  trigger,
-  children,
-  label,
-  role = "dialog",
-}: GlassPopoverProps) {
-  const id = useId();
-  const anchor = useRef<HTMLSpanElement>(null);
-  const panel = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState(false);
-  const position = () => {
-    const rect = anchor.current?.getBoundingClientRect(),
-      element = panel.current;
-    if (!rect || !element) return;
-    element.style.left = `${Math.max(12, Math.min(innerWidth - element.offsetWidth - 12, rect.left))}px`;
-    const below = rect.bottom + 10;
-    element.style.top = `${Math.max(12, below + element.offsetHeight > innerHeight - 12 ? rect.top - element.offsetHeight - 10 : below)}px`;
-  };
-  useEffect(() => {
-    if (!open) return;
-    position();
-    window.addEventListener("resize", position);
-    window.addEventListener("scroll", position, true);
-    panel.current
-      ?.querySelector<HTMLElement>(
-        'button:not([disabled]), input, select, textarea, [tabindex="0"]',
-      )
-      ?.focus({ preventScroll: true });
-    return () => {
-      window.removeEventListener("resize", position);
-      window.removeEventListener("scroll", position, true);
-    };
-  }, [open]);
-  return (
-    <>
-      <span ref={anchor} className="dg-popover-anchor">
-        <GlassButton
-          popoverTarget={id}
-          aria-haspopup={role}
-          aria-expanded={open}
-        >
-          {trigger}
-        </GlassButton>
-      </span>
-      <div
-        ref={panel}
-        id={id}
-        popover="auto"
-        role={role}
-        aria-label={label}
-        className="dg-popover"
-        onToggle={(event) =>
-          setOpen(event.currentTarget.matches(":popover-open"))
-        }
-      >
-        <GlassSurface radius={22}>{children}</GlassSurface>
-      </div>
-    </>
-  );
+export function GlassPopover({ trigger, ...props }: GlassPopoverProps) {
+  return <LiquidPopover {...props} trigger={<GlassButton>{trigger}</GlassButton>} />;
+}
+function MenuItem({ item }: { item: { label: string; disabled?: boolean; onSelect: () => void } }) {
+  const close = useClosePopover();
+  return <button type="button" disabled={item.disabled} role="menuitem" onClick={() => { item.onSelect(); close(); }}>{item.label}</button>;
 }
 export function GlassDropdownMenu({
   trigger,
@@ -207,55 +158,16 @@ export function GlassDropdownMenu({
           ].focus();
         }}
       >
-        {items.map((item, i) => (
-          <button
-            type="button"
-            key={i}
-            disabled={item.disabled}
-            role="menuitem"
-            onClick={(event) => {
-              item.onSelect();
-              event.currentTarget
-                .closest<HTMLElement>("[popover]")
-                ?.hidePopover();
-            }}
-          >
-            {item.label}
-          </button>
-        ))}
+        {items.map((item, i) => <MenuItem key={i} item={item} />)}
       </div>
     </GlassPopover>
   );
 }
-export function GlassTooltip({
-  label,
-  children,
-}: {
+export function GlassTooltip({ label, children }: {
   label: string;
-  children: ReactElement<{ "aria-describedby"?: string }>;
+  children: ReactElement<ComponentProps<"button">>;
 }) {
-  const id = useId();
-  const [dismissed, setDismissed] = useState(false);
-  return (
-    <span
-      className="dg-tooltip-anchor"
-      data-dismissed={dismissed || undefined}
-      onKeyDown={(event) => {
-        if (event.key === "Escape") setDismissed(true);
-      }}
-      onMouseLeave={() => setDismissed(false)}
-      onBlur={() => setDismissed(false)}
-    >
-      {cloneElement(children, {
-        "aria-describedby": [children.props["aria-describedby"], id]
-          .filter(Boolean)
-          .join(" "),
-      })}
-      <span id={id} role="tooltip" className="dg-tooltip">
-        <GlassSurface radius={12}>{label}</GlassSurface>
-      </span>
-    </span>
-  );
+  return <LiquidPopover trigger={children} label={label} role="tooltip" tooltip>{label}</LiquidPopover>;
 }
 export interface GlassTabsProps {
   items: (GlassSegmentItem & { content: ReactNode })[];

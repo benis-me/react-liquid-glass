@@ -173,3 +173,11 @@ td code { font-size: 10px; }
   .playground-code { margin: 0 0 12px; }
   .material-inspector { z-index: 1; }
 }
+
+.catalog-material { position: fixed; right: 28px; bottom: 24px; z-index: 40; }
+.catalog-material > .dg-popover-anchor > .dg-button { font-size: 12px; }
+.catalog-material .dg-button small, .catalog-material .dg-popover__trigger-ink small { font-size: 10px; opacity: .5; }
+.catalog-material .material-inspector { width: min(276px, calc(100vw - 80px)); padding: 0; border: 0; background: none; position: static; max-height: none; }
+.catalog-material .dg-popover__panel { max-height: min(650px, calc(100dvh - 100px)); }
+.catalog-material .inspector-note { max-width: 260px; }
+@media (max-width: 640px) { .catalog-material { right: 16px; bottom: 16px; } }

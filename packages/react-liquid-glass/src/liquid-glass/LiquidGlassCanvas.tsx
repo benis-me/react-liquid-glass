@@ -12,6 +12,8 @@ export interface LiquidGlassCanvasProps extends Omit<LiquidGlassFrame, "source" 
   contentRevision?: MotionInput;
   /** Share a context for many small surfaces; direct media rendering avoids copies. */
   shared?: boolean;
+  /** Interaction adapters resolve the provider before composing their live state. */
+  inheritMaterial?: boolean;
   className?: string;
   style?: CSSProperties;
   ariaLabel?: string;
@@ -19,7 +21,7 @@ export interface LiquidGlassCanvasProps extends Omit<LiquidGlassFrame, "source" 
 
 export function LiquidGlassCanvas(props: LiquidGlassCanvasProps) {
   const material = useGlassMaterial();
-  props = { ...props, ...material };
+  props = props.inheritMaterial === false ? props : { ...props, ...material };
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const config = useRef(props);
   config.current = props;

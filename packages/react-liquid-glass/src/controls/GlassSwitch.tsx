@@ -170,6 +170,7 @@ export function GlassSwitch({
         tintBlur={tintBlur}
         shadowOpacity={shadowOpacity}
         filterResolution={2}
+        pixelAlign
         style={{ width: filterWidth, height: filterHeight, overflow: "visible", margin: -padding }}
         refractionTarget={
           <div className="dg-control__padded-target" style={{ padding, height }}>

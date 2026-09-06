@@ -21,7 +21,7 @@ import { SURFACE_PRESS_SPRING } from "../apple-motion/presets";
 import { LiquidGlassCanvas } from "../liquid-glass/LiquidGlassCanvas";
 
 export type GlassBackground = "grid" | "lines" | "plain";
-const StageContext = createContext<{
+export const StageContext = createContext<{
   canvas: HTMLCanvasElement | null;
   root: HTMLDivElement | null;
   revision: number;
@@ -118,8 +118,16 @@ export interface GlassSurfaceProps {
   pressed?: boolean;
 }
 
+export const FusionTriggerContext = createContext<((pressed: boolean) => void) | null>(null);
+
+export function GlassSurface(props: GlassSurfaceProps) {
+  const fused = useContext(FusionTriggerContext);
+  useEffect(() => { fused?.(props.pressed ?? false); }, [fused, props.pressed]);
+  return fused ? <span className={`dg-surface ${props.className ?? ""}`} style={{ ...props.style, borderRadius: props.radius ?? 18 }}><span className="dg-surface__content">{props.children}</span></span> : <OpticalSurface {...props} />;
+}
+
 /** The shared optical surface for library components. Text and native controls stay interactive. */
-export function GlassSurface({
+function OpticalSurface({
   children,
   className = "",
   style,

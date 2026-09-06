@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowDown,
   ArrowLeft,
@@ -7,6 +7,7 @@ import {
   Copy,
   ExternalLink,
   Search,
+  SlidersHorizontal,
 } from "lucide-react";
 import {
   GlassStage,
@@ -15,6 +16,7 @@ import {
   GlassSwitch,
   GlassSlider,
   GlassSegmented,
+  GlassPopover,
 } from "refractive-glass-react/controls";
 import {
   catalog,
@@ -23,6 +25,9 @@ import {
   exampleCode,
   type ComponentId,
 } from "./catalog";
+import { LiquidGlassProvider, type GlassMaterial } from "refractive-glass-react/liquid-glass";
+import { MaterialControls } from "./MaterialControls";
+import { sanitizeMaterial } from "./material";
 import { ComponentExample, PHOTO } from "./ComponentExample";
 import { Link } from "./router";
 import type { Locale } from "../i18n";
@@ -93,14 +98,12 @@ export function Home({ locale, theme }: PageProps) {
           <span className="status-dot" /> React · WebGL · Motion
         </div>
         <h1>
-          {zh ? "更通透。" : "A little more"}
-          <br />
-          <span>{zh ? "更灵动。" : "liquid."}</span>
+          Liquid Glass
         </h1>
         <p>
           {zh
-            ? "真正的折射，有分量的动态。为 React 打造的液态玻璃组件库。"
-            : "Real refraction. Motion with weight. A liquid glass component library for React."}
+            ? "React 液态玻璃组件库。"
+            : "Liquid glass components for React."}
         </p>
         <div className="page-actions">
           <Link className="link-button link-button--primary" href="/components">
@@ -131,7 +134,7 @@ export function Home({ locale, theme }: PageProps) {
         <div className="section-heading">
           <div>
             <span className="eyebrow">{zh ? "组件" : "THE COLLECTION"}</span>
-            <h2>{zh ? "拿起来，动一动。" : "Pick it up. Feel it move."}</h2>
+            <h2>{zh ? "组件" : "Components"}</h2>
           </div>
           <Link className="text-link" href="/components">
             {zh ? "所有组件" : "All components"}
@@ -158,11 +161,11 @@ export function Home({ locale, theme }: PageProps) {
       <section className="home-section home-playground">
         <div>
           <span className="eyebrow">PLAYGROUND</span>
-          <h2>{zh ? "让材质，跟着想象走。" : "Make the material yours."}</h2>
+          <h2>{zh ? "调节材质" : "Tune the material"}</h2>
           <p>
             {zh
-              ? "调折射、磨砂、色散和高光。在每个组件上实时看到变化。"
-              : "Refraction, frost, dispersion and light. Tune the material and see it on every component."}
+              ? "折射、磨砂、色散与高光。"
+              : "Refraction, frost, dispersion and light."}
           </p>
           <Link className="text-link" href="/playground">
             {zh ? "打开 Playground" : "Open the playground"}
@@ -196,8 +199,8 @@ export function Home({ locale, theme }: PageProps) {
             </span>
             <h2>
               {zh
-                ? "玻璃，也可以很好玩。"
-                : "A serious material. A playful side."}
+                ? "演示应用"
+                : "Showcase"}
             </h2>
           </div>
           <Link className="text-link" href="/showcase">
@@ -216,8 +219,8 @@ export const scenes = [
     number: "01",
     name: "Focus",
     zh: "专注舱",
-    description: "A quieter place to spend your next 25 minutes.",
-    summary: "给接下来的 25 分钟，一个安静的空间。",
+    description: "A timer and local notes.",
+    summary: "专注计时与本地笔记。",
     symbol: "25:00",
     tags: "Timer · Local notes",
   },
@@ -226,8 +229,8 @@ export const scenes = [
     number: "02",
     name: "Glass keys",
     zh: "玻璃音序器",
-    description: "Eight steps. A little rhythm. Something of your own.",
-    summary: "八个节拍，排列出属于自己的旋律。",
+    description: "An eight-step sequencer.",
+    summary: "八步音序器。",
     symbol: "▂ ▆ ▃ █ ▂ ▅ ▇ ▃",
     tags: "Web Audio · Sequencer",
   },
@@ -236,8 +239,8 @@ export const scenes = [
     number: "03",
     name: "Liquid orbit",
     zh: "流体磁场",
-    description: "Pull, release, merge. A small study of momentum.",
-    summary: "拖动、释放、融合，感受动量的传递。",
+    description: "Drag, release, merge.",
+    summary: "拖动、释放、融合。",
     symbol: "◯ ◯ ◯",
     tags: "Physics · SDF fusion",
   },
@@ -267,6 +270,10 @@ export function ShowcaseCards({ locale }: { locale: Locale }) {
   );
 }
 export function Catalog({ locale, theme }: PageProps) {
+  const [material, setMaterial] = useState<GlassMaterial>(() => {
+    try { return sanitizeMaterial(JSON.parse(localStorage.getItem("glass-catalog-material") ?? "{}")); } catch { return {}; }
+  });
+  useEffect(() => { try { localStorage.setItem("glass-catalog-material", JSON.stringify(material)); } catch {} }, [material]);
   const [query, setQuery] = useState(""),
     [group, setGroup] = useState("All");
   const zh = locale === "zh";
@@ -281,11 +288,11 @@ export function Catalog({ locale, theme }: PageProps) {
     <>
       <PageHeading
         kicker={zh ? "组件库" : "COMPONENTS"}
-        title={zh ? "每一个，都可以上手。" : "A collection to build with."}
+        title={zh ? "组件库" : "Components"}
         description={
           zh
-            ? "共用同一套光学材质与物理动态。从最小的开关，到完整的液态菜单。"
-            : "One optical material. One physical motion core. From a small switch to a liquid menu."
+            ? "预览组件，统一调节材质。"
+            : "Try the components. Tune the material."
         }
       />
       <div className="catalog-tools">
@@ -312,6 +319,7 @@ export function Catalog({ locale, theme }: PageProps) {
           ))}
         </div>
       </div>
+      <LiquidGlassProvider material={material}>
       <div className="component-grid">
         {entries.map((entry) => (
           <article className="component-tile" key={entry.id}>
@@ -328,6 +336,12 @@ export function Catalog({ locale, theme }: PageProps) {
             </Link>
           </article>
         ))}
+      </div>
+      </LiquidGlassProvider>
+      <div className="catalog-material">
+        <GlassPopover label={zh ? "全局材质" : "Global material"} trigger={<><SlidersHorizontal size={15} /><span>{zh ? "材质" : "Material"}</span><small>{Object.keys(material).length ? (zh ? "自定义" : "Custom") : (zh ? "默认" : "Default")}</small></>}>
+          <MaterialControls locale={locale} material={material} setMaterial={setMaterial} />
+        </GlassPopover>
       </div>
       {!entries.length && (
         <div className="empty-state">
@@ -424,22 +438,13 @@ export function ComponentPage({
       <section className="doc-section">
         <div className="preview-bar">
           <span>{zh ? "预览" : "Preview"}</span>
-          <span>{zh ? "实时交互" : "Live & interactive"}</span>
         </div>
         <Preview key={id} id={id} locale={locale} theme={theme} />
       </section>
       <section className="doc-section" id="usage">
         <h2>{zh ? "使用方式" : "Usage"}</h2>
         <CodeBlock code={exampleCode(id)} locale={locale} />
-        <p className="doc-note">
-          {zh
-            ? "GlassStage 提供明确的可折射底图。直接导入组件与可选样式，即可独立使用。"
-            : "GlassStage supplies an explicit refractive substrate. Import the component and optional stylesheet to use it independently."}{" "}
-          <Link href="/docs/installation">
-            {zh ? "安装与接入" : "Installation"}
-            <ExternalLink size={11} />
-          </Link>
-        </p>
+
       </section>
       <section className="doc-section" id="api">
         <h2>API</h2>
@@ -468,21 +473,7 @@ export function ComponentPage({
           </table>
         </div>
       </section>
-      <section className="doc-section">
-        <h2>{zh ? "交互与可访问性" : "Interaction & accessibility"}</h2>
-        <p>
-          {note
-            ? note[zh ? 1 : 0]
-            : zh
-              ? "使用原生 HTML 语义与可见键盘焦点。交互元素可使用 Tab 聚焦，按钮可使用 Enter 或空格触发。"
-              : "Native HTML semantics and visible keyboard focus. Interactive controls can be reached with Tab; buttons respond to Enter and Space."}
-        </p>
-        <p>
-          {zh
-            ? "材质可通过 LiquidGlassProvider 统一调整。系统的减少动态效果偏好会被保留。"
-            : "Material settings can be shared through LiquidGlassProvider. The system’s reduced-motion preference is respected."}
-        </p>
-      </section>
+      {note && <section className="doc-section"><h2>{zh ? "键盘操作" : "Keyboard"}</h2><p>{note[zh ? 1 : 0]}</p></section>}
       <nav
         className="doc-pagination"
         aria-label={zh ? "更多组件" : "More components"}

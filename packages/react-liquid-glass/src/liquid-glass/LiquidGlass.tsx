@@ -4,6 +4,7 @@ import { LiquidGlassCanvas } from "./LiquidGlassCanvas";
 import { LIQUID_GLASS_MATERIAL, type LiquidGlassFrame } from "./renderer";
 import { captureLiquidSource, liquidRgb, liquidTheme, subscribeLiquidTheme, type LiquidSourceFactory, type LiquidSourcePainter } from "./source";
 import { isMotionValue, motionValue, readMotion, type MotionInput } from "../shared/values";
+import { useGlassMaterial } from "./provider";
 import type { LensParams } from "../types";
 
 /** LensParams spelling for callers migrating from Glass. No second optical preset. */
@@ -24,6 +25,8 @@ export interface LiquidGlassProps {
   refractionTarget?: ReactNode;
   /** For live tracks/procedural content: prepare once, then repaint from MotionValues. */
   sourceFactory?: LiquidSourceFactory;
+  /** Explicit substrate underneath captured foreground ink. */
+  sourceBackground?: LiquidSourceFactory;
   sourceValues?: readonly MotionInput[];
   lens?: Partial<LensParams>;
   x?: MotionInput; y?: MotionInput;
@@ -32,6 +35,8 @@ export interface LiquidGlassProps {
   tintColor?: string; tintOpacity?: MotionInput; tintBlur?: MotionInput;
   shadowOpacity?: MotionInput;
   filterResolution?: number;
+  /** Align small control canvases to physical pixels, avoiding a second compositor resample. */
+  pixelAlign?: boolean;
   /** CSS-pixel displacement gain; independent of the padded source's dimensions. */
   refractionPixels?: number;
   zoom?: MotionInput; depth?: MotionInput;
@@ -41,6 +46,8 @@ export interface LiquidGlassProps {
 }
 
 export function LiquidGlass(props: LiquidGlassProps) {
+  const inheritedMaterial = useGlassMaterial();
+  const material = { ...props.material, ...inheritedMaterial };
   const rootRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const targetRef = useRef<HTMLDivElement>(null);
@@ -66,14 +73,23 @@ export function LiquidGlass(props: LiquidGlassProps) {
   useLayoutEffect(() => {
     const root = rootRef.current;
     if (!root) return;
+    let alignment = { x: 0, y: 0 };
     const measure = () => {
+      if (config.current.pixelAlign) {
+        const rect = root.getBoundingClientRect(), ratio = window.devicePixelRatio || 1;
+        const left = rect.left - alignment.x, top = rect.top - alignment.y;
+        alignment = { x: Math.round(left * ratio) / ratio - left, y: Math.round(top * ratio) / ratio - top };
+        root.style.translate = `${alignment.x}px ${alignment.y}px`;
+      }
       const width = root.clientWidth, height = root.clientHeight;
       setSize(old => old.width === width && old.height === height ? old : { width, height });
     };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(root);
-    return () => observer.disconnect();
+    window.addEventListener("resize", measure);
+    document.fonts.addEventListener("loadingdone", measure);
+    return () => { observer.disconnect(); window.removeEventListener("resize", measure); document.fonts.removeEventListener("loadingdone", measure); };
   }, []);
 
   // Retain content textures across optical/geometry updates. Never rasterize DOM per frame.
@@ -92,7 +108,7 @@ export function LiquidGlass(props: LiquidGlassProps) {
         scheduleSource();
       } else {
         painterRef.current = null;
-        void captureLiquidSource(root, size.width, size.height).then(canvas => {
+        void captureLiquidSource(root, size.width, size.height, props.sourceBackground?.(root, size.width, size.height)).then(canvas => {
           if (cancelled || generation.current !== token) return;
           sourceRef.current = canvas;
           sourceRevision.set(sourceRevision.get() + 1);
@@ -124,7 +140,7 @@ export function LiquidGlass(props: LiquidGlassProps) {
       root.removeEventListener("transitionend", settledStyle);
       document.fonts.removeEventListener("loadingdone", capture);
     };
-  }, [props.sourceFactory, props.tintColor, hasTarget, theme, size, scheduleSource, drawSource, sourceRevision]);
+  }, [props.sourceFactory, props.sourceBackground, props.tintColor, hasTarget, theme, size, scheduleSource, drawSource, sourceRevision]);
 
   useEffect(() => {
     const stops: Array<() => void> = [];
@@ -145,10 +161,10 @@ export function LiquidGlass(props: LiquidGlassProps) {
     ? derived(() => Math.min(readMotion(width), readMotion(height)), [width, height])
     : props.borderRadius ?? lens.borderRadius ?? 34;
   const tintStrength = derived(() => {
-    const base = lens.tint ?? .055;
+    const base = readMotion(material.tintStrength ?? lens.tint ?? .055);
     return base + (1 - base) * Math.max(0, Math.min(1, readMotion(props.tintOpacity ?? 0)));
-  }, [props.tintOpacity ?? 0]);
-  const blur = derived(() => (lens.blurAmount ?? .5) + readMotion(props.tintBlur ?? 0) * .4, [props.tintBlur ?? 0]);
+  }, [props.tintOpacity ?? 0, material.tintStrength ?? 0]);
+  const blur = derived(() => readMotion(material.blurStrength ?? lens.blurAmount ?? .5) + readMotion(props.tintBlur ?? 0) * .4, [props.tintBlur ?? 0, material.blurStrength ?? 0]);
   const shadow = derived(() => .04 + .07 * readMotion(props.shadowOpacity ?? 1), [props.shadowOpacity ?? 1]);
   const scale = props.refractionPixels === undefined
     ? Math.max(Math.abs(lens.scaleX ?? .11), Math.abs(lens.scaleY ?? .11))
@@ -159,10 +175,10 @@ export function LiquidGlass(props: LiquidGlassProps) {
     <div ref={contentRef} style={{ position: "relative", zIndex: 0 }}>{props.children}</div>
     {props.refractionTarget ? <div ref={targetRef} inert aria-hidden="true"
       style={{ position: "absolute", inset: 0, opacity: 0, pointerEvents: "none" }}>{props.refractionTarget}</div> : null}
-    {size.width > 0 && size.height > 0 ? <LiquidGlassCanvas shared
+    {size.width > 0 && size.height > 0 ? <LiquidGlassCanvas shared inheritMaterial={false}
       sourceRef={sourceRef} sourceRevision={sourceRevision} width={size.width} height={size.height}
       blobs={[{ x: props.x ?? .5, y: props.y ?? .5, radius, halfWidth: width, halfHeight: height }]}
-      mergeDistance={0} refractionStrength={scale}
+      mergeDistance={0}
       refractionRatio={props.refractionPixels !== undefined ? [1 / size.width, 1 / size.height]
         : scale ? [(lens.scaleX ?? scale) / scale, (lens.scaleY ?? scale) / scale] : [1, 1]}
       chromaAmount={lens.chromaAmount} specularStrength={lens.specularStrength}
@@ -170,11 +186,15 @@ export function LiquidGlass(props: LiquidGlassProps) {
       brightness={lens.brightness} specularRotation={lens.specularRotation}
       glowStrength={lens.glowStrength} glowSpread={lens.glowSpread} glowExponent={lens.glowExponent}
       edgeStrength={lens.edgeStrength} edgeWidth={lens.edgeWidth} edgeExponent={lens.edgeExponent}
-      tintColor={tint} tintStrength={tintStrength} blurStrength={blur}
+      tintColor={tint}
       shadowStrength={shadow} shadowBlur={Math.min(26, size.height * .2)} shadowOffset={Math.min(18, size.height * .12)}
-      magnification={props.zoom} pixelRatio={props.filterResolution ?? 2}
+      magnification={props.zoom}
       transparentOutside={!props.debug} debug={props.debug}
-      {...props.material}
+      {...material}
+      refractionStrength={props.refractionPixels !== undefined && material.refractionStrength !== undefined ? scale * readMotion(material.refractionStrength) / .11 : material.refractionStrength ?? scale}
+      // Provider tuning changes the optical material, not the opaque rest endpoint.
+      tintStrength={tintStrength} blurStrength={blur}
+      pixelRatio={props.tintOpacity !== undefined ? 2 : material.pixelRatio ?? props.filterResolution ?? 2}
       style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} /> : null}
   </div>;
 }

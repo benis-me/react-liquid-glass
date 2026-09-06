@@ -152,3 +152,5 @@ export function rubberBand(distance: number, limit: number, dampening: number) {
 
 export { usePointerReleaseFallback } from "./use-pointer-release-fallback";
 export { useMenuMotion, type MenuMotionOptions, type MenuLayout, type MenuTransition } from "./use-menu-motion";
+
+export { usePopoverMotion, popoverFrames, type PopoverLayout } from "./use-popover-motion";

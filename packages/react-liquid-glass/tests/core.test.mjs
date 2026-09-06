@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { readFileSync, readdirSync } from 'node:fs';
 import * as physics from 'refractive-glass-react/apple-motion';
-import { springTo } from 'refractive-glass-react/apple-motion/react';
+import { springTo, popoverFrames } from 'refractive-glass-react/apple-motion/react';
 import { motionValue } from 'motion';
 import { LiquidMenu, GlassSwitch, GlassSlider, GlassSegmented } from 'refractive-glass-react/controls';
 import { createLiquidGlassRenderer, LIQUID_GLASS_MATERIAL } from 'refractive-glass-react/liquid-glass/renderer';
@@ -118,4 +118,25 @@ test('the approved optical renderer and resource pipeline remain unchanged by th
   const source = readFileSync(new URL('../src/liquid-glass/renderer.ts', import.meta.url), 'utf8');
   const body = source.slice(source.indexOf('const MAX_BLOBS'));
   assert.equal(createHash('sha256').update(body).digest('hex'), '194db479fcbf221b4e8548af891807bf60253ea346a97916b7e853509619adbb');
+});
+
+test('popup trajectories keep a compact capsule, a live fusion neck, and one trigger recovery at every size', () => {
+  for (const [tw, th, pw, ph] of [[44, 34, 180, 38], [90, 42, 220, 160], [300, 44, 300, 156], [150, 42, 316, 620]]) {
+    const layout = { triggerX: 200, triggerY: 700, triggerWidth: tw, triggerHeight: th, triggerRadius: 16, panelX: 180, panelY: 700 - th / 2 - 10 - ph / 2, panelWidth: pw, panelHeight: ph, panelRadius: 22 };
+    const opened = popoverFrames(layout, true), closed = popoverFrames(layout, false);
+    assert.equal(opened.w.at(-1), pw / 2); assert.equal(opened.h.at(-1), ph / 2);
+    assert.equal(closed.x.at(-1), layout.triggerX); assert.equal(closed.y.at(-1), layout.triggerY);
+    assert.equal(closed.w.at(-1), 1); assert.equal(closed.h.at(-1), 1);
+    assert.ok(closed.merge[2] > 0 && closed.merge[3] > 0, 'absorption needs a neck through both middle stages');
+    assert.equal(closed.merge.at(-1), 0); assert.equal(closed.trigger.at(-1), 1);
+    assert.ok(Math.max(...closed.trigger) <= 1.04, 'trigger impact stays restrained');
+    for (const frames of [opened, closed]) for (const key of ['x', 'y', 'w', 'h', 'radius', 'merge', 'trigger', 'reveal']) {
+      const values = frames[key], ease = physics.liquidEasings(values, frames.times, .38);
+      for (let i = 0; i < ease.length; i++) for (let t = 0; t <= 1; t += .05) {
+        const value = values[i] + (values[i + 1] - values[i]) * ease[i](t);
+        assert.ok(Number.isFinite(value), 'all contour samples must remain finite');
+        if (['w', 'h', 'radius'].includes(key)) assert.ok(value >= 1 && value <= Math.max(...values) + .001, 'no balloon or negative contour between keyframes');
+      }
+    }
+  }
 });
