@@ -399,11 +399,12 @@ export function GlassAccordion({ items, multiple = false, lazy = false }: {
 function AccordionItem({ title, content, open, toggle, lazy }: { title: string; content: ReactNode; open: boolean; toggle: () => void; lazy: boolean }) {
   const id = useId(), reduce = useReducedMotion();
   const [retained, setRetained] = useState(open);
-  useEffect(() => { if (open) setRetained(true); }, [open]);
+  useEffect(() => { if (lazy && open) setRetained(true); }, [lazy, open]);
   return <GlassSurface radius={18}>
     <h3 className="dg-accordion__heading"><button type="button" id={`${id}-trigger`} aria-expanded={open} aria-controls={id} onClick={toggle}>{title}<motion.span className="dg-accordion__mark" aria-hidden="true" animate={{ rotate: open ? 45 : 0 }} transition={{ duration: reduce ? 0 : .18 }}>+</motion.span></button></h3>
-    <motion.div id={id} role="region" aria-labelledby={`${id}-trigger`} inert={!open} aria-hidden={!open} initial={false} animate={{ height: open ? "auto" : 0, opacity: open ? 1 : 0 }} transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 320, damping: 32 }} style={{ overflow: "hidden" }} onAnimationComplete={() => { if (!open) setRetained(false); }}>
-      <div className="dg-accordion__body">{(!lazy || open || retained) && content}</div>
+    {/* Fractional rows avoid auto-height measurement temporarily resizing and scrolling the page. */}
+    <motion.div id={id} role="region" aria-labelledby={`${id}-trigger`} inert={!open} aria-hidden={!open} initial={false} animate={{ gridTemplateRows: open ? "1fr" : "0fr", opacity: open ? 1 : 0 }} transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 320, damping: 32 }} style={{ display: "grid" }} onAnimationComplete={() => { if (lazy && !open) setRetained(false); }}>
+      <div style={{ overflow: "hidden" }}><div className="dg-accordion__body">{(!lazy || open || retained) && content}</div></div>
     </motion.div>
   </GlassSurface>;
 }
@@ -432,10 +433,10 @@ export function GlassToast({
   }, [open, duration]);
   return (
     <motion.div className="dg-toast" role="status" aria-live="polite" initial={false}
-      animate={{ height: open ? "auto" : 0 }} transition={{ duration: reduce ? 0 : .24, ease: [.32, 0, .2, 1] }}>
+      style={{ display: "grid" }} animate={{ gridTemplateRows: open ? "1fr" : "0fr" }} transition={{ duration: reduce ? 0 : .24, ease: [.32, 0, .2, 1] }}>
       <AnimatePresence initial={false}>
       {open && (
-        <motion.div key="toast" initial={reduce ? false : { opacity: 0, transform: "translateY(16px) scale(.96)" }} animate={{ opacity: 1, transform: "translateY(0px) scale(1)" }} exit={{ opacity: 0, transform: "translateY(16px) scale(.96)" }} transition={{ duration: reduce ? 0 : .24, ease: [.23, 1, .32, 1] }}>
+        <motion.div key="toast" style={{ minHeight: 0 }} initial={reduce ? false : { opacity: 0, transform: "translateY(16px) scale(.96)" }} animate={{ opacity: 1, transform: "translateY(0px) scale(1)" }} exit={{ opacity: 0, transform: "translateY(16px) scale(.96)" }} transition={{ duration: reduce ? 0 : .24, ease: [.23, 1, .32, 1] }}>
         <GlassSurface radius={20}>
           <div>
             <strong>{title}</strong>

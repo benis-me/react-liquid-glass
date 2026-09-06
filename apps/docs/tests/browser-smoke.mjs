@@ -88,6 +88,51 @@ export async function checkPlaygroundNavigation() {
   }
 }
 
+export async function checkDisclosureMotion() {
+  const {subscribeLiquidFrames}=await import('refractive-glass-react/liquid-glass/renderer');
+  await go('/playground?component=button');
+  const trigger=document.querySelector('.playground-code button[aria-expanded]');
+  const panel=document.querySelector('.playground-code [role=region]');
+  assert(trigger&&panel,'Material configuration missing');
+  trigger.focus({preventScroll:true});
+  window.scrollTo({top:Math.min(document.documentElement.scrollHeight-innerHeight,trigger.getBoundingClientRect().top+scrollY-180),behavior:'instant'});
+  await paint();
+  const initialScroll=scrollY,scrollTo=window.scrollTo,samples=[],calls=[];
+  const record=async duration=>samples.push(...await sampleMotion(duration,()=>({height:panel.offsetHeight,scroll:scrollY})));
+  window.scrollTo=function(...args){calls.push(args);return scrollTo.apply(this,args)};
+  let idleFrames=0,drift=0,stop=()=>{};
+  try {
+    trigger.click();await record(650);
+    assert(panel.offsetHeight>=panel.querySelector('.dg-accordion__body').offsetHeight,'Disclosure clipped its open content');
+    trigger.click();await record(650);
+    assert(panel.offsetHeight===0&&panel.inert,'Closed disclosure retained height or keyboard targets');
+    trigger.click();await record(90);trigger.click();await record(60);trigger.click();await record(90);trigger.click();await record(650);
+    assert(panel.offsetHeight===0&&trigger.getAttribute('aria-expanded')==='false','Rapid reversal did not settle closed');
+    assert(calls.length===0,`Disclosure animation scrolled the window ${calls.length} times`);
+    drift=Math.max(...samples.map(sample=>Math.abs(sample.scroll-initialScroll)));
+    assert(drift<=1,`Disclosure moved the page by ${drift}px`);
+    stop=subscribeLiquidFrames(()=>idleFrames++);await record(200);
+    assert(idleFrames===0,`Disclosure still renders at rest: ${idleFrames}`);
+  } finally {
+    stop();window.scrollTo=scrollTo;
+  }
+  await go('/components/toast');
+  calls.length=0;window.scrollTo=function(...args){calls.push(args);return scrollTo.apply(this,args)};
+  try {
+    click('.component-preview .dg-button');
+    const toast=document.querySelector('.dg-toast'),read=()=>toast.offsetHeight;
+    const opening=await sampleMotion(400,read),height=read();
+    assert(height>0,'Toast did not expand its occupied space');
+    click('.dg-toast .dg-dismiss');const closing=await sampleMotion(400,read);
+    assert(read()===0&&!toast.textContent,'Toast left space or content after dismissal');
+    if(!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      assert(opening.some(h=>h>1&&h<height-1)&&closing.some(h=>h>1&&h<height-1),'Toast changed layout without a transition');
+    }
+    assert(calls.length===0,'Toast animation scrolled the window');
+    return {cycles:3,rapidReversal:true,scrollDrift:drift,idleFrames,toast:'continuous height without scroll restoration'};
+  } finally { window.scrollTo=scrollTo; }
+}
+
 export async function checkBackdropBatching() {
   const {observeLiquidBackdrop}=await import('../../../packages/react-liquid-glass/src/liquid-glass/backdrop.ts');
   await go('/docs/installation');await document.fonts.ready;await new Promise(resolve=>setTimeout(resolve,600));
