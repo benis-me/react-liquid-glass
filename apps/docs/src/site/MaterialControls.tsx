@@ -1,5 +1,5 @@
 import { memo, useState, type Dispatch, type SetStateAction, type ReactNode } from "react";
-import { RotateCcw } from "lucide-react";
+import { ChevronDown, RotateCcw } from "lucide-react";
 import { GlassButton, GlassButtonGroup, GlassSlider, GlassSwitch } from "refractive-glass-react/controls";
 import { PRISM_MATERIAL, useGlassMaterial, type GlassMaterial } from "refractive-glass-react/liquid-glass";
 import type { Locale } from "../i18n";
@@ -118,16 +118,11 @@ export function MaterialControls({ locale, material, setMaterial, children }: {
               </GlassButton>
             ))}
           </GlassButtonGroup>
-          <p className="inspector-note">
-            {zh
-              ? "默认使用各组件参数；调整项全局生效。"
-              : "Defaults stay local. Adjustments apply to all."}
-          </p>
           <div className="material-fields">
             {materialFields.slice(0, 11).map(fieldControl)}
           </div>
           <details className="material-advanced" onToggle={event => setAdvanced(event.currentTarget.open)}>
-            <summary>{zh ? "其他参数" : "More parameters"}</summary>
+            <summary><ChevronDown size={14} aria-hidden="true" />{zh ? "其他参数" : "More parameters"}</summary>
             {advanced && (
               <div className="material-fields">
                 {materialFields.slice(11).map(fieldControl)}

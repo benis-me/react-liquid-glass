@@ -879,11 +879,20 @@ export async function checkModalMotion() {
   return results;
 }
 export async function checkHDRPreference() {
-  const original=window.matchMedia;
   const button=()=>document.querySelector('.header-tools button[aria-label="HDR"]');
+  const supported=matchMedia('(dynamic-range: high)').matches;
+  assert(button() && button().disabled===!supported,'HDR availability differs from the display');
+  if(!supported) {
+    const preference=localStorage.getItem('glass-hdr');
+    button().click();await paint();
+    assert(button().getAttribute('aria-pressed')==='false','Unsupported display still enables HDR');
+    assert(localStorage.getItem('glass-hdr')===preference,'Unsupported display overwrote the saved HDR preference');
+    assert(button().parentElement.title===button().title && /does not support HDR|不支持 HDR/.test(button().title),'Disabled HDR has no hover tip');
+    assert(![...document.querySelectorAll('[data-dg-highlight-hdr]')].some(canvas=>canvas.style.opacity==='1'),'SDR display left an HDR presenter lit');
+    return {displayHDR:false,disabled:true,preferencePreserved:true};
+  }
   const wasEnabled=button()?.getAttribute('aria-pressed')==='true';
-  // Exercise the real GPU presenter even when the test display itself is SDR.
-  window.matchMedia=query=>{const result=original.call(window,query);if(query==='(dynamic-range: high)')Object.defineProperty(result,'matches',{value:true});return result;};
+  // Run with HDR display emulation to also exercise this path on SDR hardware.
   const {subscribeLiquidFrames}=await import('../../../packages/react-liquid-glass/src/liquid-glass/renderer.ts');
   const parameters=new Map();
   const stop=subscribeLiquidFrames(canvas=>{
@@ -921,7 +930,7 @@ export async function checkHDRPreference() {
     assert(Math.abs(actual.uSpecular-.48)<1e-5&&Math.abs(actual.uChroma-.33)<1e-5&&actual.uDomeDepth===28,'Global defaults did not reach the renderer');
     return {toggle:'global, icon-only',defaults:actual,presets:'preserve HDR and custom highlight',persistence:true};
   } finally {
-    stop();window.matchMedia=original;
+    stop();
     if((button()?.getAttribute('aria-pressed')==='true')!==wasEnabled){button()?.click();await paint();}
     await go('/components/button');
   }

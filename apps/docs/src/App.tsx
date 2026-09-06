@@ -60,7 +60,15 @@ export function App() {
   );
   const [mobileOpen, setMobileOpen] = useState(false);
   const [hdr, setHDR] = useState(() => saved("glass-hdr") !== "false");
-  const displayMaterial = useMemo(() => ({ hdr }), [hdr]);
+  const [hdrSupported, setHDRSupported] = useState(() => matchMedia("(dynamic-range: high)").matches);
+  useEffect(() => {
+    const display = matchMedia("(dynamic-range: high)");
+    const update = () => setHDRSupported(display.matches);
+    update();
+    display.addEventListener("change", update);
+    return () => display.removeEventListener("change", update);
+  }, []);
+  const displayMaterial = useMemo(() => ({ hdr: hdr && hdrSupported }), [hdr, hdrSupported]);
   useEffect(() => {
     try { localStorage.setItem("glass-hdr", String(hdr)); } catch { /* Display preference still applies without storage. */ }
   }, [hdr]);
@@ -68,6 +76,9 @@ export function App() {
     pageProps = { locale, theme },
     isHome = path === "/",
     componentId = path.split("/")[2] as ComponentId;
+  const hdrTitle = !hdrSupported
+    ? (zh ? "当前显示器不支持 HDR" : "This display does not support HDR")
+    : hdr ? (zh ? "关闭 HDR" : "Disable HDR") : (zh ? "开启 HDR" : "Enable HDR");
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     try {
@@ -265,13 +276,15 @@ export function App() {
           </nav>
           <div className="header-tools">
             <div className="display-settings" role="group" aria-label={zh ? "显示设置" : "Display settings"}>
-            <button type="button" className="icon-button hdr-toggle" aria-label="HDR" aria-pressed={hdr}
-              title={hdr ? (zh ? "关闭 HDR" : "Disable HDR") : (zh ? "开启 HDR" : "Enable HDR")}
+            <span className="hdr-control" title={hdrTitle}>
+            <button type="button" className="icon-button hdr-toggle" aria-label="HDR" aria-pressed={displayMaterial.hdr}
+              disabled={!hdrSupported} title={hdrTitle}
               onClick={() => setHDR(current => !current)}>
               <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
                 <path d="M21,11.5V10.5C21,9.7 20.3,9 19.5,9H16V15H17.5V13H18.6L19.5,15H21L20.1,12.9C20.6,12.6 21,12.1 21,11.5M19.5,11.5H17.5V10.5H19.5V11.5M6.5,11H4.5V9H3V15H4.5V12.5H6.5V15H8V9H6.5V11M13,9H9.5V15H13C13.8,15 14.5,14.3 14.5,13.5V10.5C14.5,9.7 13.8,9 13,9M13,13.5H11V10.5H13V13.5Z" />
               </svg>
             </button>
+            </span>
             <button type="button"
               className="icon-button"
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
