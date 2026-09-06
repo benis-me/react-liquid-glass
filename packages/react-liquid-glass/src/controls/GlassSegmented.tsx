@@ -54,7 +54,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
   const [local, setLocal] = useState(defaultValue);
   const current = value ?? local;
   const hasLinks = segments.some(item => item.href);
-  const selected = segments.some((item) => item.value === current) ? current : hasLinks ? "" : segments[0].value;
+  const selected = segments.some((item) => item.value === current) ? current : current === "" || hasLinks ? "" : segments[0].value;
   const rootRef = useRef<HTMLDivElement>(null);
   const contact = useGlassContact(rootRef, { deform: false });
   const solidThumbRef = useRef<HTMLSpanElement>(null);
@@ -146,7 +146,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
   const updateGeometry = (targetValue = selectedRef.current, instant = false) => {
     const root = rootRef.current;
     let item = itemRefs.current.get(targetValue);
-    if (!root || (hasLinks && !targetValue)) return Promise.resolve();
+    if (!root || !targetValue) return Promise.resolve();
     if (!item || item.offsetParent === null) {
       const firstVisible = segments.map((segment) => ({ segment, node: itemRefs.current.get(segment.value) })).find(({ node }) => node?.offsetParent != null);
       if (firstVisible && firstVisible.segment.value !== targetValue) {
@@ -393,7 +393,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
       aria-controls={interactive && tablist && idPrefix ? `${idPrefix}-panel-${itemValue}` : undefined}
       aria-selected={interactive && !href && tablist ? selected === itemValue : undefined}
       aria-checked={interactive && !href && !tablist ? selected === itemValue : undefined}
-      tabIndex={interactive && (href || selected === itemValue) ? 0 : -1}
+      tabIndex={interactive && (href || selected === itemValue || (!selected && itemValue === segments[0].value)) ? 0 : -1}
       data-value={itemValue}
       data-selected={selected === itemValue ? "" : undefined}
       className={["dg-tabs__item", refracted ? "dg-tabs__item--overlay" : ""].filter(Boolean).join(" ")}

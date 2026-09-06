@@ -8,7 +8,8 @@ import {
   X,
 } from "lucide-react";
 import { GlassTabs, GlassSheet } from "refractive-glass-react/controls";
-import { LiquidGlassProvider } from "refractive-glass-react/liquid-glass";
+import { LiquidGlassProvider, type GlassMaterial } from "refractive-glass-react/liquid-glass";
+import { sanitizeMaterial } from "./site/material";
 import { catalog, groups, groupZh, componentAliases, type ComponentId } from "./site/catalog";
 import {
   Catalog,
@@ -59,6 +60,28 @@ export function App() {
     saved("glass-locale") === "zh" ? "zh" : "en",
   );
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [material, setMaterial] = useState<GlassMaterial>(() => {
+    const linked = location.pathname === "/playground" ? new URLSearchParams(location.search).get("material") : null;
+    const legacy = path === "/components" ? ["glass-catalog-material", "glass-playground"] : ["glass-playground", "glass-catalog-material"];
+    for (const json of [linked, saved("glass-material"), ...legacy.map(saved)]) {
+      if (json === null) continue;
+      try { return sanitizeMaterial(JSON.parse(json)); } catch { /* Try the saved configuration. */ }
+    }
+    return {};
+  });
+  useEffect(() => {
+    try { localStorage.setItem("glass-material", JSON.stringify(material)); } catch { /* Controls still work without storage. */ }
+  }, [material]);
+  useEffect(() => {
+    const readLink = () => {
+      if (location.pathname !== "/playground") return;
+      const json = new URLSearchParams(location.search).get("material");
+      if (json === null) return;
+      try { setMaterial(sanitizeMaterial(JSON.parse(json))); } catch { /* Keep the current material for invalid links. */ }
+    };
+    window.addEventListener("popstate", readLink);
+    return () => window.removeEventListener("popstate", readLink);
+  }, []);
   const [hdr, setHDR] = useState(() => saved("glass-hdr") !== "false");
   const [hdrSupported, setHDRSupported] = useState(() => matchMedia("(dynamic-range: high)").matches);
   useEffect(() => {
@@ -68,7 +91,7 @@ export function App() {
     display.addEventListener("change", update);
     return () => display.removeEventListener("change", update);
   }, []);
-  const displayMaterial = useMemo(() => ({ hdr: hdr && hdrSupported }), [hdr, hdrSupported]);
+  const displayMaterial = useMemo(() => ({ ...material, hdr: hdr && hdrSupported }), [material, hdr, hdrSupported]);
   useEffect(() => {
     try { localStorage.setItem("glass-hdr", String(hdr)); } catch { /* Display preference still applies without storage. */ }
   }, [hdr]);
@@ -112,12 +135,13 @@ export function App() {
     window.addEventListener("keydown", close);
     return () => window.removeEventListener("keydown", close);
   }, []);
-  const nav = [
+  const nav = useMemo(() => [
     { href: "/components", en: "Components", zh: "组件" },
     { href: "/playground", en: "Playground", zh: "Playground" },
     { href: "/showcase", en: "Showcase", zh: "展示" },
     { href: "/docs/installation", en: "Docs", zh: "文档" },
-  ];
+  ], []);
+  const navigationItems = useMemo(() => nav.map(item => ({ value: item.href, href: item.href, label: zh ? item.zh : item.en })), [nav, zh]);
   const sidebar = (
     <>
       <div className="sidebar-intro">
@@ -166,14 +190,14 @@ export function App() {
   );
   let page;
   if (isHome) page = <Home {...pageProps} />;
-  else if (path === "/components") page = <Catalog {...pageProps} />;
+  else if (path === "/components") page = <Catalog {...pageProps} material={material} setMaterial={setMaterial} />;
   else if (
     path.startsWith("/components/") &&
     catalog.some((item) => item.id === componentId) &&
     path === `/components/${componentId}`
   )
     page = <ComponentPage key={componentId} id={componentId} {...pageProps} />;
-  else if (path === "/playground") page = <Playground {...pageProps} />;
+  else if (path === "/playground") page = <Playground {...pageProps} material={material} setMaterial={setMaterial} />;
   else if (path === "/docs/installation")
     page = <Installation {...pageProps} />;
   else if (path === "/showcase")
@@ -270,7 +294,7 @@ export function App() {
             <GlassTabs
               label={zh ? "主导航" : "Main navigation"}
               value={nav.find(item => path.startsWith(item.href.split("/installation")[0]))?.href ?? ""}
-              items={nav.map(item => ({ value: item.href, href: item.href, label: zh ? item.zh : item.en }))}
+              items={navigationItems}
               onNavigate={navigate}
             />
           </nav>

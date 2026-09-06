@@ -1,9 +1,9 @@
-import { memo, useState, type Dispatch, type SetStateAction, type ReactNode } from "react";
+import { memo, useMemo, useState, type Dispatch, type SetStateAction, type ReactNode } from "react";
 import { ChevronDown, RotateCcw } from "lucide-react";
-import { GlassButton, GlassButtonGroup, GlassSlider, GlassSwitch } from "refractive-glass-react/controls";
+import { GlassButton, GlassTabs, GlassSlider, GlassSwitch } from "refractive-glass-react/controls";
 import { PRISM_MATERIAL, useGlassMaterial, type GlassMaterial } from "refractive-glass-react/liquid-glass";
 import type { Locale } from "../i18n";
-import { materialFields } from "./material";
+import { materialFields, type MaterialState } from "./material";
 const presets: {
   id: string;
   en: string;
@@ -80,8 +80,8 @@ const MaterialField = memo(function MaterialField({ field, value, initial, zh, s
 });
 
 export function MaterialControls({ locale, material, setMaterial, children }: {
-  locale: Locale; material: GlassMaterial; setMaterial: Dispatch<SetStateAction<GlassMaterial>>; children?: ReactNode;
-}) {
+  locale: Locale; children?: ReactNode;
+} & MaterialState) {
   const zh = locale === "zh";
   const [advanced, setAdvanced] = useState(false);
   const defaults = useGlassMaterial();
@@ -89,7 +89,8 @@ export function MaterialControls({ locale, material, setMaterial, children }: {
     presets.find(
       (preset) => Object.keys(preset.material).length === Object.keys(material).length &&
         Object.entries(preset.material).every(([key, value]) => material[key as keyof typeof material] === value),
-    )?.id ?? "custom";
+    )?.id ?? "";
+  const tabs = useMemo(() => presets.map(preset => ({ value: preset.id, label: zh ? preset.zh : preset.en })), [zh]);
   const fieldControl = (field: (typeof materialFields)[number]) => (
     <MaterialField key={field.key} field={field} value={material[field.key]} initial={defaults[field.key] ?? field.initial} zh={zh} setMaterial={setMaterial} />
   );
@@ -107,17 +108,10 @@ export function MaterialControls({ locale, material, setMaterial, children }: {
               <RotateCcw size={14} />
             </GlassButton>
           </div>
-          <GlassButtonGroup className="preset-list" label={zh ? "材质预设" : "Material presets"}>
-            {presets.map((preset) => (
-              <GlassButton size="small"
-                key={preset.id}
-                aria-pressed={activePreset === preset.id}
-                onClick={() => setMaterial({ ...preset.material })}
-              >
-                {zh ? preset.zh : preset.en}
-              </GlassButton>
-            ))}
-          </GlassButtonGroup>
+          <div className="preset-list filter-scroll">
+            <GlassTabs label={zh ? "材质预设" : "Material presets"} value={activePreset} items={tabs}
+              onValueChange={id => { const preset = presets.find(preset => preset.id === id); if (preset) setMaterial({ ...preset.material }); }} />
+          </div>
           <div className="material-fields">
             {materialFields.slice(0, 11).map(fieldControl)}
           </div>

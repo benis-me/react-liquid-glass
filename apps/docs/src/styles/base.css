@@ -95,12 +95,13 @@ figure { margin: 0; }
 ::selection { color: var(--text); background: var(--primary-soft); }
 
 :where(:focus-visible):not([tabindex="-1"]) {
-  outline: 2px solid transparent;
-  outline-offset: 3px;
-  box-shadow: 0 0 0 2px light-dark(#fffd, #fff9), 0 0 10px 3px light-dark(#7775, #fff3);
+  outline: none;
+  box-shadow: none;
 }
+:is(a, button, summary):focus-visible { text-decoration: underline; text-underline-offset: 4px; }
+.header-tools :is(.icon-button, .locale-button):focus-visible { background: var(--surface); }
 main[tabindex="-1"]:focus { outline: none; box-shadow: none; }
-@media (forced-colors: active) { :focus-visible { outline-color: Highlight; box-shadow: none; } }
+@media (forced-colors: active) { :focus-visible { outline: 2px solid Highlight; outline-offset: 3px; box-shadow: none; } }
 
 .skip-link {
   z-index: 100;

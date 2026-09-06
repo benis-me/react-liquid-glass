@@ -1,4 +1,6 @@
 import type { GlassMaterial } from "refractive-glass-react/liquid-glass";
+import type { Dispatch, SetStateAction } from "react";
+export type MaterialState = { material: GlassMaterial; setMaterial: Dispatch<SetStateAction<GlassMaterial>> };
 export const materialFields = [
   {
     key: "refractionStrength",

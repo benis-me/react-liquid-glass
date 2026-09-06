@@ -18,7 +18,7 @@ const TRIGGER = "button, a[href], input, select, textarea, [tabindex]";
 const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]';
 
 /** One stable compositor moves into the native top layer with its trigger and popup. */
-export function LiquidPopover({ trigger, children, label, role = "dialog", open: controlled, onOpenChange, tooltip = false, className = "", multiple, id: suppliedId, morphTrigger = false, placement, descriptionId, blurStrength }: {
+export function LiquidPopover({ trigger, children, label, role = "dialog", open: controlled, onOpenChange, tooltip = false, className = "", multiple, id: suppliedId, morphTrigger = false, placement, descriptionId, blurStrength, radius }: {
   trigger?: ReactElement<ComponentProps<"button">>;
   children: ReactNode;
   label: string;
@@ -33,8 +33,10 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
   placement?: "dialog" | "sheet";
   descriptionId?: string;
   blurStrength?: number;
+  radius?: number;
 }) {
   const modal = !!placement, absorbsTrigger = modal || morphTrigger;
+  const panelRadius = radius ?? (modal ? 28 : tooltip ? 14 : 22);
   const Layer = modal ? "dialog" : "div";
   const opener = useRef<HTMLElement | null>(null), point = useRef({ x: .5, y: .5 });
   const originalVisibility = useRef("");
@@ -74,7 +76,7 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
   const contentTransform = useTransform(() => `translate(${model.x.get() - frame.px}px, ${model.y.get() - frame.py}px) scale(${Math.max(.001, model.w.get() * 2 / frame.pw)}, ${Math.max(.001, model.h.get() * 2 / frame.ph)})`);
   const contentOpacity = useTransform(() => model.reveal.get() * inkActive.get());
   const nativeOpacity = useTransform(() => model.reveal.get() * (1 - inkActive.get()));
-  const opticalShape = useTransform(() => liquidContentOptics([model.w.get(), model.h.get(), model.radius.get()], { panelWidth: frame.pw, panelHeight: frame.ph, panelRadius: modal ? 28 : tooltip ? 14 : 22 }));
+  const opticalShape = useTransform(() => liquidContentOptics([model.w.get(), model.h.get(), model.radius.get()], { panelWidth: frame.pw, panelHeight: frame.ph, panelRadius }));
   const contentRefraction = useTransform(opticalShape, shape => shape.refraction);
   const contentBlur = useTransform(() => Math.max(opticalShape.get().blur, (1 - model.reveal.get()) * 2));
   const backgroundBlur = useTransform(() => liquidSurfaceBlur(model.w.get() * 2, model.h.get() * 2) * (blurStrength ?? (modal ? 18 : 12)) / 12);
@@ -136,7 +138,7 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
     const tx = rect.left + rect.width / 2 - fl, ty = rect.top + rect.height / 2 - ft;
     const style = getComputedStyle(button ?? anchor.current);
     const tr = Math.min(parseFloat(style.borderRadius) || 16, rect.width / 2, rect.height / 2);
-    const layout: PopoverLayout = { triggerX: tx, triggerY: ty, triggerWidth: rect.width, triggerHeight: rect.height, triggerRadius: tr, panelX: left + pw / 2 - fl, panelY: top + ph / 2 - ft, panelWidth: pw, panelHeight: ph, panelRadius: modal ? 28 : tooltip ? 14 : 22,
+    const layout: PopoverLayout = { triggerX: tx, triggerY: ty, triggerWidth: rect.width, triggerHeight: rect.height, triggerRadius: tr, panelX: left + pw / 2 - fl, panelY: top + ph / 2 - ft, panelWidth: pw, panelHeight: ph, panelRadius,
       ...(modal ? { originX: tx + rect.width * (point.current.x - .5), originY: ty + rect.height * (point.current.y - .5) } : {}),
     };
     layoutRef.current = layout;
@@ -205,7 +207,7 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
       () => liveOpen.current ? backdropBounds.current : anchor.current?.getBoundingClientRect() ?? { left: 0, top: 0, width: 0, height: 0 },
       [anchor.current, topLayer.current], refreshBackdrop, () => liveOpen.current ? undefined : anchor.current ?? undefined);
   }, [stage]);
-  useLayoutEffect(() => { mirrorDirty.current = true; measureRef.current(); }, [trigger, padding]);
+  useLayoutEffect(() => { mirrorDirty.current = true; measureRef.current(); }, [trigger, padding, panelRadius]);
   useLayoutEffect(() => {
     const element = topLayer.current;
     if (!element) return;
@@ -310,7 +312,7 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
       <motion.div ref={panel} id={modal ? `${id}-body` : id} role={modal ? undefined : role} aria-label={tooltip || modal ? undefined : label} aria-multiselectable={role === "listbox" ? multiple : undefined}
         className={modal ? "dg-dialog__body" : `dg-popover__panel ${tooltip ? "dg-popover__panel--tooltip" : ""}`}
         inert={!open} aria-hidden={!open || undefined}
-        style={{ opacity: nativeOpacity, transform: contentTransform, filter: contentFilter, borderRadius: modal ? 28 : tooltip ? 14 : 22 }}
+        style={{ opacity: nativeOpacity, transform: contentTransform, filter: contentFilter, borderRadius: panelRadius }}
         onFocus={refreshInk} onPointerOver={refreshInk} onPointerOut={refreshInk}
         onScroll={refreshInk}
         onPointerEnter={() => { if (tooltip) clearTimeout(timer.current); }} onPointerLeave={() => hover(false)}>

@@ -20,6 +20,7 @@ export interface GlassPopoverProps {
   onOpenChange?: (open: boolean) => void;
   className?: string;
   blurStrength?: number;
+  radius?: number;
 }
 export function GlassPopover({ trigger, ...props }: GlassPopoverProps) {
   return <LiquidPopover {...props} trigger={<GlassButton>{trigger}</GlassButton>} />;
@@ -101,7 +102,7 @@ export function GlassTabs({
   const candidate = value ?? local;
   const selected = items.some((item) => item.value === candidate)
     ? candidate
-    : items.some(item => item.href) ? "" : items[0]?.value;
+    : candidate === "" || items.some(item => item.href) ? "" : items[0]?.value;
   const id = useId();
   const hasContent = items.some(item => item.content != null);
   return (

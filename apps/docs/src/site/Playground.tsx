@@ -1,9 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Check, Link2 } from "lucide-react";
-import {
-  LiquidGlassProvider,
-  type GlassMaterial,
-} from "refractive-glass-react/liquid-glass";
 import {
   GlassStage,
   GlassAccordion,
@@ -17,8 +13,8 @@ import { ComponentExample } from "./ComponentExample";
 import { CodeBlock, PageHeading, type PageProps } from "./Pages";
 import { Link } from "./router";
 import { MaterialControls } from "./MaterialControls";
-import { sanitizeMaterial } from "./material";
-export function Playground({ locale, theme }: PageProps) {
+import type { MaterialState } from "./material";
+export function Playground({ locale, theme, material, setMaterial }: PageProps & MaterialState) {
   const [component, setComponent] = useState<ComponentId | "all">(() => {
     const requested = new URLSearchParams(location.search).get("component");
     const id = componentAliases[requested ?? ""] ?? requested;
@@ -26,29 +22,9 @@ export function Playground({ locale, theme }: PageProps) {
       ? (id as ComponentId | "all")
       : "tabs";
   });
-  const [material, setMaterial] = useState<GlassMaterial>(() => {
-    try {
-      return sanitizeMaterial(
-        JSON.parse(
-          new URLSearchParams(location.search).get("material") ??
-            localStorage.getItem("glass-playground") ??
-            "{}",
-        ),
-      );
-    } catch {
-      return {};
-    }
-  });
   const [background, setBackground] = useState<GlassBackground>("grid"),
     [shared, setShared] = useState("");
   const zh = locale === "zh";
-  useEffect(() => {
-    try {
-      localStorage.setItem("glass-playground", JSON.stringify(material));
-    } catch {
-      /* Storage may be unavailable in private browsing. */
-    }
-  }, [material]);
   const selected =
     component === "all"
       ? catalog
@@ -68,7 +44,8 @@ export function Playground({ locale, theme }: PageProps) {
     }
   };
   return (
-    <>
+      <div className="playground-layout">
+        <div className="playground-main">
       <PageHeading
         kicker="PLAYGROUND"
         title={"Playground"}
@@ -78,8 +55,6 @@ export function Playground({ locale, theme }: PageProps) {
             : "Tune the material. Try every component."
         }
       />
-      <div className="playground-layout">
-        <div className="playground-main">
           <div className="playground-toolbar">
               <GlassSelect label={zh ? "组件" : "Component"}
                 value={component}
@@ -107,7 +82,6 @@ export function Playground({ locale, theme }: PageProps) {
                 <option value="plain">{zh ? "纯色" : "Plain"}</option>
               </GlassSelect>
           </div>
-          <LiquidGlassProvider material={material}>
             <div
               className={
                 component === "all" ? "playground-all" : "playground-single"
@@ -132,7 +106,6 @@ export function Playground({ locale, theme }: PageProps) {
                 </div>
               ))}
             </div>
-          </LiquidGlassProvider>
           <div className="playground-code">
             <GlassAccordion items={[{ title: zh ? "材质配置" : "Material configuration", content: (
             <CodeBlock
@@ -142,7 +115,7 @@ export function Playground({ locale, theme }: PageProps) {
             ) }]} />
           </div>
         </div>
-        <GlassSurface className="playground-inspector" radius={24} blurStrength={18} interactive="light">
+        <GlassSurface className="playground-inspector" radius={32} blurStrength={18} interactive="light">
         <MaterialControls locale={locale} material={material} setMaterial={setMaterial}>
           <GlassButton size="small" className="share-material" onClick={share}>
             {shared ? <Check size={14} /> : <Link2 size={14} />}
@@ -153,6 +126,5 @@ export function Playground({ locale, theme }: PageProps) {
         </MaterialControls>
         </GlassSurface>
       </div>
-    </>
   );
 }

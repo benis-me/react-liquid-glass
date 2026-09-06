@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   ArrowDown,
   ArrowLeft,
@@ -23,9 +23,8 @@ import {
   exampleCode,
   type ComponentId,
 } from "./catalog";
-import { LiquidGlassProvider, type GlassMaterial } from "refractive-glass-react/liquid-glass";
 import { MaterialControls } from "./MaterialControls";
-import { sanitizeMaterial } from "./material";
+import type { MaterialState } from "./material";
 import { ComponentExample, PHOTO } from "./ComponentExample";
 import { Link } from "./router";
 import type { Locale } from "../i18n";
@@ -254,11 +253,7 @@ export function ShowcaseCards({ locale }: { locale: Locale }) {
     </div>
   );
 }
-export function Catalog({ locale, theme }: PageProps) {
-  const [material, setMaterial] = useState<GlassMaterial>(() => {
-    try { return sanitizeMaterial(JSON.parse(localStorage.getItem("glass-catalog-material") ?? "{}")); } catch { return {}; }
-  });
-  useEffect(() => { try { localStorage.setItem("glass-catalog-material", JSON.stringify(material)); } catch {} }, [material]);
+export function Catalog({ locale, theme, material, setMaterial }: PageProps & MaterialState) {
   const [group, setGroup] = useState("All");
   const zh = locale === "zh";
   const entries = catalog.filter(item => group === "All" || item.group === group);
@@ -280,7 +275,6 @@ export function Catalog({ locale, theme }: PageProps) {
           />
         </div>
       </div>
-      <LiquidGlassProvider material={material}>
       <div className="component-grid">
         {entries.map((entry) => (
           <article className="component-tile" key={entry.id}>
@@ -298,9 +292,8 @@ export function Catalog({ locale, theme }: PageProps) {
           </article>
         ))}
       </div>
-      </LiquidGlassProvider>
       <div className="catalog-material">
-        <GlassPopover blurStrength={18} label={zh ? "全局材质" : "Global material"} trigger={<><SlidersHorizontal size={15} /><span>{zh ? "材质" : "Material"}</span><small>{Object.keys(material).length ? (zh ? "自定义" : "Custom") : (zh ? "默认" : "Default")}</small></>}>
+        <GlassPopover radius={32} blurStrength={18} label={zh ? "全局材质" : "Global material"} trigger={<><SlidersHorizontal size={15} /><span>{zh ? "材质" : "Material"}</span><small>{Object.keys(material).length ? (zh ? "自定义" : "Custom") : (zh ? "默认" : "Default")}</small></>}>
           <MaterialControls locale={locale} material={material} setMaterial={setMaterial} />
         </GlassPopover>
       </div>
