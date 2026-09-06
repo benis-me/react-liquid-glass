@@ -16,11 +16,12 @@ import {
   useReducedMotion,
   useTransform,
 } from "motion/react";
+import { cancelFrame, frame } from "motion";
 import { springTo, useGlassContact } from "../apple-motion/react";
 import { contactTransform } from "../apple-motion/contact";
 import { SURFACE_PRESS_SPRING } from "../apple-motion/presets";
 import { LiquidGlassCanvas } from "../liquid-glass/LiquidGlassCanvas";
-import { liquidBackground } from "../liquid-glass/source";
+import { liquidBackground, paintLiquidBackground } from "../liquid-glass/source";
 
 export type GlassBackground = "grid" | "lines" | "plain";
 export const StageContext = createContext<{
@@ -184,6 +185,12 @@ function OpticalSurface({
       const ctx = canvas.getContext("2d")!;
       ctx.fillStyle = liquidBackground(element.parentElement!);
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+      if (!stage) {
+        const rect = element.getBoundingClientRect();
+        ctx.save(); ctx.scale(2, 2);
+        paintLiquidBackground(element.parentElement!, ctx, { left: rect.left - 40, top: rect.top - 40, width: width + 80, height: height + 80 });
+        ctx.restore();
+      }
       if (stage?.canvas?.width && stage.root) {
         const rect = element.getBoundingClientRect(),
           parent = stage.root.getBoundingClientRect();
@@ -201,6 +208,11 @@ function OpticalSurface({
       }
       revision.set(revision.get() + 1);
     };
+    const scroll = () => {
+      if (stage || document.hidden) return;
+      const rect = element.getBoundingClientRect();
+      if (rect.bottom > 0 && rect.top < innerHeight && rect.right > 0 && rect.left < innerWidth) frame.preRender(paint);
+    };
     paint();
     const resize = new ResizeObserver(paint);
     resize.observe(element);
@@ -211,11 +223,14 @@ function OpticalSurface({
     });
     document.fonts.addEventListener("loadingdone", paint);
     window.addEventListener("resize", paint);
+    window.addEventListener("scroll", scroll, true);
     return () => {
+      cancelFrame(paint);
       resize.disconnect();
       theme.disconnect();
       document.fonts.removeEventListener("loadingdone", paint);
       window.removeEventListener("resize", paint);
+      window.removeEventListener("scroll", scroll, true);
     };
   }, [stage, revision, widthValue, heightValue]);
   return (

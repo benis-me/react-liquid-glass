@@ -1,6 +1,6 @@
 import { cancelFrame, frame } from "motion";
 import { paintLiquidSvg, paintLiquidText } from "./menu-content";
-import { liquidBackground } from "./source";
+import { liquidBackground, paintLiquidHatch } from "./source";
 import { subscribeLiquidFrames } from "./renderer";
 
 type Bounds = { left: number; top: number; width: number; height: number };
@@ -28,6 +28,7 @@ export function paintLiquidBackdrop(root: HTMLElement, canvas: HTMLCanvasElement
     ctx.save(); ctx.globalAlpha *= Number(css.opacity);
     ctx.fillStyle = css.backgroundColor;
     ctx.beginPath(); ctx.roundRect(x, y, rect.width, rect.height, corners); ctx.fill();
+    ctx.save(); ctx.clip(); paintLiquidHatch(ctx, css, rect, bounds); ctx.restore();
     const border = parseFloat(css.borderTopWidth);
     if (border > 0 && css.borderTopStyle !== "none") {
       ctx.lineWidth = border; ctx.strokeStyle = css.borderTopColor; ctx.stroke();

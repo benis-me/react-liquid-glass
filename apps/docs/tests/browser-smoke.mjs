@@ -326,6 +326,28 @@ export async function checkViewportBackdrop() {
   } finally { stop();renderer.dispose();probe.remove();document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); }
 }
 
+export async function checkPageTexture() {
+  const {paintLiquidBackground} = await import('../../../packages/react-liquid-glass/src/liquid-glass/source.ts');
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:fixed;left:-1000px;top:0;width:128px;height:96px;background:#fafaf9 repeating-linear-gradient(135deg,rgba(24,24,24,.25) 0px,rgba(24,24,24,.25) 1px,transparent 1px,transparent 12px)';
+  document.body.append(probe);
+  try {
+    const css = getComputedStyle(probe), rect = probe.getBoundingClientRect();
+    const actual = document.createElement('canvas'), expected = document.createElement('canvas');
+    actual.width = expected.width = 256; actual.height = expected.height = 192;
+    const ctx = actual.getContext('2d'); ctx.scale(2,2); paintLiquidBackground(probe,ctx,rect);
+    const native = new Image();
+    native.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="256" height="192" viewBox="0 0 128 96"><foreignObject width="128" height="96"><div xmlns="http://www.w3.org/1999/xhtml" style="width:128px;height:96px;background:${css.backgroundColor};background-image:${css.backgroundImage}"></div></foreignObject></svg>`);
+    await native.decode(); expected.getContext('2d').drawImage(native,0,0);
+    const a = ctx.getImageData(0,0,256,192).data, b = expected.getContext('2d').getImageData(0,0,256,192).data;
+    let error = 0; for(let i=0;i<a.length;i+=4) error += Math.abs(a[i]-b[i]);
+    const mean = error / (256*192);
+    assert(mean < 2, `The sampled hatch differs from native CSS (mean ${mean})`);
+    assert(getComputedStyle(document.body).backgroundImage.startsWith('repeating-linear-gradient(135deg'), 'Page texture missing');
+    return {nativeCssMeanPixelError:mean, page:'faint diagonal hatch'};
+  } finally { probe.remove(); }
+}
+
 export async function checkContactHDR() {
   const { createContactHDR } = await import('../../../packages/react-liquid-glass/src/liquid-glass/contact-hdr.ts');
   const { createLiquidGlassRenderer } = await import('refractive-glass-react/liquid-glass/renderer');
