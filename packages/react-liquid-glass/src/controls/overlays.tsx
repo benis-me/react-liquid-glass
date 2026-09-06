@@ -85,6 +85,8 @@ export interface GlassTabsProps {
   value?: string;
   defaultValue?: string;
   onValueChange?: (value: string) => void;
+  /** Optional client-side routing for items with an href. Modified clicks stay native. */
+  onNavigate?: (href: string) => void;
   label?: string;
 }
 export function GlassTabs({
@@ -92,13 +94,14 @@ export function GlassTabs({
   value,
   defaultValue,
   onValueChange,
+  onNavigate,
   label = "Sections",
 }: GlassTabsProps) {
   const [local, setLocal] = useState(defaultValue ?? items[0]?.value ?? "");
   const candidate = value ?? local;
   const selected = items.some((item) => item.value === candidate)
     ? candidate
-    : items[0]?.value;
+    : items.some(item => item.href) ? "" : items[0]?.value;
   const id = useId();
   const hasContent = items.some(item => item.content != null);
   return (
@@ -111,6 +114,7 @@ export function GlassTabs({
           onValueChange?.(next);
         }}
         ariaLabel={label}
+        onNavigate={onNavigate}
         tablist
         idPrefix={hasContent ? id : undefined}
       />

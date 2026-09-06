@@ -7,7 +7,7 @@ import {
   Sun,
   X,
 } from "lucide-react";
-import { GlassButtonGroup, GlassSheet } from "refractive-glass-react/controls";
+import { GlassTabs, GlassSheet } from "refractive-glass-react/controls";
 import { catalog, groups, groupZh, componentAliases, type ComponentId } from "./site/catalog";
 import {
   Catalog,
@@ -19,7 +19,7 @@ import {
   ShowcaseCards,
 } from "./site/Pages";
 import { Playground } from "./site/Playground";
-import { Link, usePath } from "./site/router";
+import { Link, navigate, usePath } from "./site/router";
 import type { Locale } from "./i18n";
 const Focus = lazy(() =>
   import("./showcases/Focus").then((module) => ({ default: module.Focus })),
@@ -57,8 +57,7 @@ export function App() {
   const [locale, setLocale] = useState<Locale>(() =>
     saved("glass-locale") === "zh" ? "zh" : "en",
   );
-  const [mobileOpen, setMobileOpen] = useState(false),
-    [search, setSearch] = useState("");
+  const [mobileOpen, setMobileOpen] = useState(false);
   const zh = locale === "zh",
     pageProps = { locale, theme },
     isHome = path === "/",
@@ -124,21 +123,8 @@ export function App() {
           {zh ? "应用展示" : "Showcase"}
         </Link>
       </div>
-        <input className="sidebar-search site-input"
-          type="search"
-          aria-label={zh ? "查找组件" : "Find a component"}
-          placeholder={zh ? "查找组件…" : "Find a component…"}
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
       {groups.map((group) => {
-        const items = catalog.filter(
-          (item) =>
-            item.group === group &&
-            `${item.name} ${item.zh}`
-              .toLowerCase()
-              .includes(search.toLowerCase().trim()),
-        );
+        const items = catalog.filter(item => item.group === group);
         return items.length ? (
           <div className="sidebar-group" key={group}>
             <h2>{zh ? groupZh[group] : group}</h2>
@@ -264,21 +250,12 @@ export function App() {
             className="top-nav"
             aria-label={zh ? "主导航" : "Main navigation"}
           >
-            <GlassButtonGroup label={zh ? "主导航" : "Main navigation"}>
-            {nav.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-current={
-                  path.startsWith(item.href.split("/installation")[0])
-                    ? "page"
-                    : undefined
-                }
-              >
-                {zh ? item.zh : item.en}
-              </Link>
-            ))}
-            </GlassButtonGroup>
+            <GlassTabs
+              label={zh ? "主导航" : "Main navigation"}
+              value={nav.find(item => path.startsWith(item.href.split("/installation")[0]))?.href ?? ""}
+              items={nav.map(item => ({ value: item.href, href: item.href, label: zh ? item.zh : item.en }))}
+              onNavigate={navigate}
+            />
           </nav>
           <div className="header-tools">
             <div className="display-settings" role="group" aria-label={zh ? "显示设置" : "Display settings"}>

@@ -214,7 +214,7 @@ export function GlassVideo({ src, poster, caption, autoPlay = false, loop = true
     };
 
     const scheduleVideoFrame = () => {
-      if (!visible || video.paused || videoFrameRef.current || !requestVideoFrame) return;
+      if (!visible || (video.paused && textureReady && !textureDirtyRef.current) || videoFrameRef.current || !requestVideoFrame) return;
       videoFrameRef.current = requestVideoFrame((now) => {
         videoFrameRef.current = 0;
         draw(true, now);
@@ -234,9 +234,9 @@ export function GlassVideo({ src, poster, caption, autoPlay = false, loop = true
 
     const ensureDraw = () => {
       if (!visible) return;
-      if (!video.paused && requestVideoFrame) {
-        scheduleVideoFrame();
-      }
+      // A paused video's first/seeked frame can reach the compositor after
+      // loadeddata. Refresh it once on presentation, just like playback frames.
+      scheduleVideoFrame();
       if (video.paused || controlsMoving() || !requestVideoFrame) {
         scheduleAnimationFrame();
       }

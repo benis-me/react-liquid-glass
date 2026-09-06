@@ -634,7 +634,7 @@ test("segmented control is solid at rest and directly tracks drag as glass", () 
 
 test("segmented click expands, travels as glass, then collapses", () => {
   assert.match(componentSource, /return x\.on\("change", \(position\) => \{[\s\S]*pointerX\.set\(expandedLeft \+ position \* expandedWidth\)/);
-  assert.match(componentSource, /choose\(nearest\.value\);\s*travelSettled\.current = updateGeometry\(nearest\.value, false\);/);
+  assert.match(componentSource, /choose\(nearest\.value\);\s*travelSettled\.current = updateGeometry\(nearest\.value, hasLinks && !selected\);/);
   assert.match(componentSource, /if \(dragMoved\.current\) moveDrag\(event\.clientX\)/);
   assert.match(componentSource, /releaseInteraction\(0, dragMoved\.current\)/);
   assert.match(componentSource, /const releaseInteraction = \(delay = 0, settle = true\)/);
@@ -773,7 +773,7 @@ test("segmented vertical boost collapses during settling instead of lingering", 
 });
 
 test("segmented final crossfade keeps content colors stable and compositor-only", () => {
-  assert.match(componentSource, /<motion\.span ref=\{solidThumbRef\} className="dg-tabs__solid-thumb" aria-hidden style=\{\{ opacity: solidOpacity \}\} \/>/);
+  assert.match(componentSource, /<motion\.span ref=\{solidThumbRef\} className="dg-tabs__solid-thumb" aria-hidden style=\{\{ opacity: selected \? solidOpacity : 0 \}\} \/>/);
   assert.doesNotMatch(componentSource, /style\.setProperty\("--segmented-glass"/);
   assert.match(componentSource, /setAttribute\("data-crossfading", ""\)/);
   assert.match(componentSource, /removeAttribute\("data-crossfading"\)/);

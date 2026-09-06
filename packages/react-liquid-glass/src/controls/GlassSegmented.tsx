@@ -34,7 +34,7 @@ const DEFAULT_SEGMENTS = [
 
 const SEGMENTED_PAD_X = 80;
 const SEGMENTED_PAD_Y = 80;
-export interface GlassSegmentItem { value: string; label: string; Icon?: ComponentType<{ className?: string }>; color1?: string; color2?: string; }
+export interface GlassSegmentItem { value: string; label: string; href?: string; Icon?: ComponentType<{ className?: string }>; color1?: string; color2?: string; }
 export interface GlassSegmentedProps {
   items?: readonly GlassSegmentItem[];
   tablist?: boolean;
@@ -42,21 +42,23 @@ export interface GlassSegmentedProps {
   value?: string;
   defaultValue?: string;
   onValueChange?: (value: string) => void;
+  onNavigate?: (href: string) => void;
   className?: string;
   labels?: Partial<Record<string, string>>;
   ariaLabel?: string;
 }
 
-export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, className, labels, items: suppliedItems, tablist = false, idPrefix, ariaLabel = "选项" }: GlassSegmentedProps) {
+export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, onNavigate, className, labels, items: suppliedItems, tablist = false, idPrefix, ariaLabel = "选项" }: GlassSegmentedProps) {
   const reduce = useReducedMotion();
-  const segments = useMemo(() => suppliedItems?.length ? suppliedItems.map(item => ({ color1: "currentColor", color2: "currentColor", ...item })) : DEFAULT_SEGMENTS, [suppliedItems]);
+  const segments = useMemo<readonly GlassSegmentItem[]>(() => suppliedItems?.length ? suppliedItems.map(item => ({ color1: "currentColor", color2: "currentColor", ...item })) : DEFAULT_SEGMENTS, [suppliedItems]);
   const [local, setLocal] = useState(defaultValue);
   const current = value ?? local;
-  const selected = segments.some((item) => item.value === current) ? current : segments[0].value;
+  const hasLinks = segments.some(item => item.href);
+  const selected = segments.some((item) => item.value === current) ? current : hasLinks ? "" : segments[0].value;
   const rootRef = useRef<HTMLDivElement>(null);
   const contact = useGlassContact(rootRef, { deform: false });
   const solidThumbRef = useRef<HTMLSpanElement>(null);
-  const itemRefs = useRef(new Map<string, HTMLButtonElement>());
+  const itemRefs = useRef(new Map<string, HTMLButtonElement | HTMLAnchorElement>());
   const dragPointer = useRef<number | null>(null);
   const dragStart = useRef({ x: 0, y: 0 });
   const dragOffsetX = useRef(0);
@@ -70,7 +72,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, cl
   const impactKickRef = useRef<(impulse: number) => void>(() => undefined);
   const impactWidth = useRef(1);
   const selectedRef = useRef(selected);
-  selectedRef.current = selected;
+  if (!hasLinks || dragPointer.current === null) selectedRef.current = selected;
   const x = useMotionValue(0.5);
   const y = useMotionValue(0.5);
   const lensW = useMotionValue(50);
@@ -144,7 +146,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, cl
   const updateGeometry = (targetValue = selectedRef.current, instant = false) => {
     const root = rootRef.current;
     let item = itemRefs.current.get(targetValue);
-    if (!root) return Promise.resolve();
+    if (!root || (hasLinks && !targetValue)) return Promise.resolve();
     if (!item || item.offsetParent === null) {
       const firstVisible = segments.map((segment) => ({ segment, node: itemRefs.current.get(segment.value) })).find(({ node }) => node?.offsetParent != null);
       if (firstVisible && firstVisible.segment.value !== targetValue) {
@@ -374,19 +376,25 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, cl
     chromaAmount: .24, edgeWidth: .9, brightness: darkTheme() ? .035 : .015,
   };
 
-  const items = (interactive: boolean, refracted = false) => segments.map(({ value: itemValue, label, Icon, color1, color2 }) => {
+  const items = (interactive: boolean, refracted = false) => segments.map((segment) => {
+    const { value: itemValue, label, Icon, color1, color2 } = segment;
+    const href = segment.href;
+    const Item = interactive && href ? "a" : "button";
     const displayLabel = labels?.[itemValue] ?? label;
-    return <button
+    return <Item
       key={itemValue}
-      ref={interactive ? (node) => { if (node) itemRefs.current.set(itemValue, node); else itemRefs.current.delete(itemValue); } : undefined}
-      type="button"
-      role={interactive ? (tablist ? "tab" : "radio") : undefined}
+      ref={interactive ? (node: HTMLButtonElement | HTMLAnchorElement | null) => { if (node) itemRefs.current.set(itemValue, node); else itemRefs.current.delete(itemValue); } : undefined}
+      type={href ? undefined : "button"}
+      href={interactive ? href : undefined}
+      role={interactive && !href ? (tablist ? "tab" : "radio") : undefined}
+      aria-current={interactive && href && selected === itemValue ? "page" : undefined}
       aria-hidden={!interactive || undefined}
       id={interactive && idPrefix ? `${idPrefix}-${itemValue}` : undefined}
       aria-controls={interactive && tablist && idPrefix ? `${idPrefix}-panel-${itemValue}` : undefined}
-      aria-selected={interactive && tablist ? selected === itemValue : undefined}
-      aria-checked={interactive && !tablist ? selected === itemValue : undefined}
-      tabIndex={interactive && selected === itemValue ? 0 : -1}
+      aria-selected={interactive && !href && tablist ? selected === itemValue : undefined}
+      aria-checked={interactive && !href && !tablist ? selected === itemValue : undefined}
+      tabIndex={interactive && (href || selected === itemValue) ? 0 : -1}
+      data-value={itemValue}
       data-selected={selected === itemValue ? "" : undefined}
       className={["dg-tabs__item", refracted ? "dg-tabs__item--overlay" : ""].filter(Boolean).join(" ")}
       style={{
@@ -397,9 +405,11 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, cl
       } as React.CSSProperties}
       onClick={interactive ? (event) => {
         if (suppressDragClick.current) { event.preventDefault(); return; }
+        if (href && (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0)) return;
         choose(itemValue);
+        if (href && onNavigate) { event.preventDefault(); onNavigate(href); }
       } : undefined}
-    >{Icon && <Icon className="dg-tabs__icon"/>}<span>{displayLabel}</span></button>;
+    >{Icon && <Icon className="dg-tabs__icon"/>}<span>{displayLabel}</span></Item>;
   });
 
   return (
@@ -407,10 +417,10 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, cl
       <GlassSurface className="dg-tabs__container" radius={999} />
       <div
         className="dg-tabs__group"
-        role={tablist ? "tablist" : "radiogroup"}
+        role={hasLinks ? "group" : tablist ? "tablist" : "radiogroup"}
         aria-label={ariaLabel}
         onPointerDown={(event) => {
-          if ((event.pointerType === "mouse" && event.button !== 0) || dragPointer.current !== null) return;
+          if ((event.pointerType === "mouse" && event.button !== 0) || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || dragPointer.current !== null) return;
           if (reduce) return;
           const nearest = nearestSegment(event.clientX);
           if (!nearest) return;
@@ -431,7 +441,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, cl
           interactionStop.current?.stop();
           interactionStop.current = springTo(interaction, 1, SEGMENTED_PRESS_SPRING);
           choose(nearest.value);
-          travelSettled.current = updateGeometry(nearest.value, false);
+          travelSettled.current = updateGeometry(nearest.value, hasLinks && !selected);
           dragPointer.current = event.pointerId;
           armPointerFallback(event.pointerId);
           event.currentTarget.setPointerCapture(event.pointerId);
@@ -451,7 +461,13 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, cl
         onPointerUp={(event) => {
           if (event.pointerId !== dragPointer.current) return;
           if (dragMoved.current) moveDrag(event.clientX);
+          const destination = hasLinks ? segments.find(item => item.value === selectedRef.current)?.href : undefined;
           finishDrag(event.pointerId, event.currentTarget);
+          if (destination) {
+            suppressDragClick.current = true;
+            requestAnimationFrame(() => { suppressDragClick.current = false; });
+            if (onNavigate) onNavigate(destination); else window.location.assign(destination);
+          }
         }}
         onPointerCancel={(event) => finishDrag(event.pointerId, event.currentTarget)}
         onLostPointerCapture={(event) => {
@@ -465,14 +481,15 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, cl
         onKeyDown={(event) => {
           if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
           event.preventDefault();
-          const index = segments.findIndex((item) => item.value === selected);
+          const focused = (event.target as HTMLElement).closest<HTMLElement>(".dg-tabs__item")?.dataset.value;
+          const index = segments.findIndex((item) => item.value === (hasLinks ? focused : selected));
           const nextIndex = event.key === "Home" ? 0 : event.key === "End" ? segments.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + segments.length) % segments.length;
           const next = segments[nextIndex];
-          choose(next.value);
+          if (!hasLinks) choose(next.value);
           requestAnimationFrame(() => itemRefs.current.get(next.value)?.focus());
         }}
       >
-        <motion.span ref={solidThumbRef} className="dg-tabs__solid-thumb" aria-hidden style={{ opacity: solidOpacity }} />
+        <motion.span ref={solidThumbRef} className="dg-tabs__solid-thumb" aria-hidden style={{ opacity: selected ? solidOpacity : 0 }} />
         {items(true)}
       </div>
       <motion.div className="dg-tabs__glass-layer" aria-hidden style={{ opacity: glassOpacity }}>

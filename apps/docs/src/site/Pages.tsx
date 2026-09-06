@@ -12,7 +12,7 @@ import {
   GlassStage,
   GlassSpotlight,
   GlassButton,
-  GlassButtonGroup,
+  GlassTabs,
   GlassInput,
   GlassPopover,
 } from "refractive-glass-react/controls";
@@ -259,16 +259,9 @@ export function Catalog({ locale, theme }: PageProps) {
     try { return sanitizeMaterial(JSON.parse(localStorage.getItem("glass-catalog-material") ?? "{}")); } catch { return {}; }
   });
   useEffect(() => { try { localStorage.setItem("glass-catalog-material", JSON.stringify(material)); } catch {} }, [material]);
-  const [query, setQuery] = useState(""),
-    [group, setGroup] = useState("All");
+  const [group, setGroup] = useState("All");
   const zh = locale === "zh";
-  const entries = catalog.filter(
-    (item) =>
-      (group === "All" || item.group === group) &&
-      `${item.name} ${item.zh} ${item.description}`
-        .toLowerCase()
-        .includes(query.toLowerCase().trim()),
-  );
+  const entries = catalog.filter(item => group === "All" || item.group === group);
   return (
     <>
       <PageHeading
@@ -281,25 +274,10 @@ export function Catalog({ locale, theme }: PageProps) {
         }
       />
       <div className="catalog-tools">
-          <GlassInput className="search-field"
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder={zh ? "搜索组件…" : "Find a component…"}
-            aria-label={zh ? "搜索组件" : "Search components"}
-          />
         <div className="filter-scroll">
-        <GlassButtonGroup className="filter-list" label={zh ? "分类" : "Categories"}>
-          {["All", ...groups].map((value) => (
-            <GlassButton size="small"
-              key={value}
-              aria-pressed={group === value}
-              onClick={() => setGroup(value)}
-            >
-              {zh ? (value === "All" ? "全部" : groupZh[value]) : value}
-            </GlassButton>
-          ))}
-        </GlassButtonGroup>
+          <GlassTabs label={zh ? "分类" : "Categories"} value={group} onValueChange={setGroup}
+            items={["All", ...groups].map(value => ({ value, label: zh ? (value === "All" ? "全部" : groupZh[value]) : value }))}
+          />
         </div>
       </div>
       <LiquidGlassProvider material={material}>
@@ -326,19 +304,6 @@ export function Catalog({ locale, theme }: PageProps) {
           <MaterialControls locale={locale} material={material} setMaterial={setMaterial} />
         </GlassPopover>
       </div>
-      {!entries.length && (
-        <div className="empty-state">
-          <p>{zh ? "没有找到匹配的组件。" : "No matching components."}</p>
-          <GlassButton
-            onClick={() => {
-              setQuery("");
-              setGroup("All");
-            }}
-          >
-            {zh ? "清除筛选" : "Clear filters"}
-          </GlassButton>
-        </div>
-      )}
     </>
   );
 }

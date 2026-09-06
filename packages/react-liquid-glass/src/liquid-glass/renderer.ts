@@ -643,7 +643,12 @@ export function createLiquidGlassRenderer(
     gl.bindTexture(gl.TEXTURE_2D, texture);
     if (lastSource !== source || sourceRevision !== (p.sourceRevision ?? 0) || sw !== sourceWidth || sh !== sourceHeight) {
       if (sw !== sourceWidth || sh !== sourceHeight) {
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+        if (source instanceof HTMLVideoElement) {
+          // Allocate before the first video copy: the browser's direct video
+          // texImage path can leave empty storage and reject later frame updates.
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, sw, sh, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+          gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, source);
+        } else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
       } else {
         gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, source);
       }

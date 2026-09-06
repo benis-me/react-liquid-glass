@@ -94,11 +94,12 @@ img { display: block; max-width: 100%; }
 figure { margin: 0; }
 ::selection { color: var(--text); background: var(--primary-soft); }
 
-:focus-visible {
+:where(:focus-visible):not([tabindex="-1"]) {
   outline: 2px solid transparent;
   outline-offset: 3px;
   box-shadow: 0 0 0 2px light-dark(#fffd, #fff9), 0 0 10px 3px light-dark(#7775, #fff3);
 }
+main[tabindex="-1"]:focus { outline: none; box-shadow: none; }
 @media (forced-colors: active) { :focus-visible { outline-color: Highlight; box-shadow: none; } }
 
 .skip-link {

@@ -18,7 +18,7 @@ const input = (element, value) => { assert(element, 'Input missing'); Object.get
 export async function checkCatalog() {
   const passed = [];
   await go('/components');
-  await until(() => document.querySelector('.search-field canvas')?.width > 0, 'Catalog optics did not mount');
+  await until(() => document.querySelector('.filter-scroll .dg-tabs canvas')?.width > 0, 'Category tabs did not mount');
   assert(document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1, 'Optical padding enlarged the catalog viewport');
   for (const entry of catalog) {
     await go(`/components/${entry.id}`);
@@ -60,6 +60,50 @@ export async function checkPlayground() {
   click('.material-advanced .debug-field input'); await paint(); assert(document.querySelector('.playground-code code')?.textContent.includes('"debug": true'), 'Optical field is not connected');
   click('button[aria-label="Reset material"]'); await paint(); assert(localStorage.getItem('glass-playground') === '{}', 'Reset failed');
   return { material: 'live, persisted, reset', parameters: 21, debug: true };
+}
+
+export async function checkVideoPixels() {
+  const { subscribeLiquidFrames } = await import('../../../packages/react-liquid-glass/src/liquid-glass/renderer.ts');
+  const reference = document.createElement('canvas'), ctx = reference.getContext('2d', {willReadFrequently:true});
+  const pixel = new Uint8Array(4), points = [[.14,.18],[.5,.18],[.83,.28]];
+  const spacer = document.createElement('div'); spacer.style.height = '150vh';
+  let frames = 0, failure, worstError = 0, video;
+  const stop = subscribeLiquidFrames(canvas => {
+    if (!canvas.isConnected || !canvas.matches('.dg-video-player__canvas')) return;
+    const source = document.querySelector('video'), gl = canvas.getContext('webgl2');
+    if (!source || source.readyState < 2 || canvas.width < 2 || canvas.height < 2) return;
+    const actual = points.map(([x,y]) => {
+      gl.readPixels(Math.floor(x*canvas.width),canvas.height-1-Math.floor(y*canvas.height),1,1,gl.RGBA,gl.UNSIGNED_BYTE,pixel);
+      return [...pixel];
+    });
+    if (gl.getError() !== gl.NO_ERROR) failure = 'Video texture upload produced a WebGL error';
+    reference.width = canvas.width; reference.height = canvas.height;
+    ctx.drawImage(source,0,0,reference.width,reference.height);
+    const expected = points.map(([x,y])=>ctx.getImageData(Math.floor(x*canvas.width),Math.floor(y*canvas.height),1,1).data);
+    if (expected.some(value=>value[3]===0)) return; // Decoder has not presented a frame yet.
+    const error = Math.max(...actual.map((value,i)=>(Math.abs(value[0]-expected[i][0])+Math.abs(value[1]-expected[i][1])+Math.abs(value[2]-expected[i][2]))/3));
+    const matches = error <= 24 && actual.every(value=>value[3]===255 && (value[0]+value[1]+value[2])/3>=10);
+    if (!frames && !matches) return; // First-frame timeout below catches a permanently empty texture.
+    worstError = Math.max(worstError,error);
+    if (!matches) failure = `Video canvas lost the decoded frame (${error.toFixed(1)})`;
+    frames++;
+  });
+  try {
+    await go('/components/button'); await go('/components/video');
+    await until(()=>frames>0,'First video frame was not painted');
+    video = document.querySelector('video'); assert(video.paused, 'Video should start paused'); assert(!failure,failure);
+    await video.play(); const first = frames;
+    await until(()=>frames>first+3 && video.currentTime>.2,'Playback stopped updating its texture');
+    video.pause(); await paint();
+    const beforeSeek = frames; video.currentTime = Math.min(4,video.duration/2);
+    await until(()=>!video.seeking && frames>beforeSeek,'Paused seeking did not repaint'); assert(!failure,failure);
+    document.body.append(spacer); await video.play(); window.scrollTo(0,document.body.scrollHeight);
+    await until(()=>video.paused,'Offscreen video did not pause'); await paint();
+    const idle = frames; await new Promise(resolve=>setTimeout(resolve,120)); assert(frames===idle,'Offscreen video kept rendering');
+    document.querySelector('.dg-video-player').scrollIntoView({block:'center'});
+    await until(()=>!video.paused && frames>idle+2,'Video did not resume on visibility restoration');
+    assert(!failure,failure); return {frames,worstPixelError:worstError,firstFrame:true,playback:true,pausedSeek:true,visibility:true};
+  } finally { stop(); video?.pause(); spacer.remove(); window.scrollTo(0,0); }
 }
 
 export async function checkRefinements() {
@@ -136,14 +180,29 @@ export async function checkPopupRetargeting() {
 
 export async function checkSiteControls() {
   await go('/components');
-  for (const selector of ['.wordmark', '.header-tools', '.docs-sidebar', '.component-tile__label', '.site-footer']) {
+  for (const selector of ['.wordmark', '.display-settings', '.github-link', '.docs-sidebar', '.component-tile__label', '.site-footer']) {
     assert(!document.querySelector(`${selector} canvas`), `${selector} must stay free of decorative glass`);
   }
-  const search = document.querySelector('input[aria-label="Search components"]');
-  assert(search.closest('.dg-surface')?.querySelector('canvas'), 'Catalog search must use the library glass surface');
-  input(search, 'button group'); await paint();
-  assert(document.querySelectorAll('.component-tile').length === 1, 'Glass search did not filter the catalog');
-  click('.component-tile__label'); await until(() => document.querySelector('main h1')?.textContent === 'Button Group', 'Glass link did not navigate');
+  assert(!document.querySelector('input[type="search"]'), 'Component search fields remain');
+  assert(getComputedStyle(document.querySelector('.site-header')).borderBottomWidth === '0px', 'Header divider remains');
+  for (const selector of ['.top-nav', '.filter-scroll']) {
+    assert(document.querySelector(`${selector} .dg-tabs__container`) && document.querySelector(`${selector} .dg-tabs__glass-layer`), `${selector} does not use real Tabs`);
+    if (document.querySelector(selector).offsetParent) await until(()=>document.querySelector(`${selector} .dg-tabs__container canvas`)?.width>0, `${selector} has no glass renderer`);
+  }
+  click('.filter-scroll [data-value="Actions"]'); await paint();
+  assert(document.querySelectorAll('.component-tile').length === 3, 'Category tabs did not filter actions');
+  const links = document.querySelectorAll('.top-nav .dg-tabs__group > a');
+  assert(links.length === 4 && links[1].getAttribute('href') === '/playground', 'Header lost native route links');
+  if (links[0].offsetParent) {
+    links[0].focus(); links[0].dispatchEvent(new KeyboardEvent('keydown', {key:'ArrowRight',bubbles:true,cancelable:true})); await paint();
+    assert(document.activeElement === links[1] && location.pathname === '/components', 'Arrow navigation should focus a link before activation');
+    assert(getComputedStyle(links[1]).boxShadow === 'none', 'Tabs still have a focus shadow frame');
+  }
+  links[1].click(); await until(()=>location.pathname === '/playground','Header link did not navigate'); await paint();
+  assert(document.querySelector('.top-nav [aria-current="page"]')?.getAttribute('href') === '/playground', 'Header selection is out of sync with the route');
+  assert(getComputedStyle(document.querySelector('main')).boxShadow === 'none' && getComputedStyle(document.querySelector('main')).outlineStyle === 'none', 'Routing paints a page focus frame');
+  await go('/components');
+  click('.component-tile__label[href="/components/button-group"]'); await until(() => document.querySelector('main h1')?.textContent === 'Button Group', 'Component link did not navigate');
   const group = document.querySelector('.component-preview .dg-button-group');
   await until(() => group.querySelector('canvas')?.width > 0, 'Button group has no optics');
   assert(group.querySelectorAll('canvas').length === 1, 'Joined buttons must share one optical body');
@@ -176,7 +235,7 @@ export async function checkSiteControls() {
   const close = click('.material-advanced summary');
   await until(() => inspector.querySelectorAll('.dg-slider').length === 11, 'Advanced sliders did not release resources');
   assert(!close.parentElement.open, 'Advanced disclosure state incorrect');
-  return { search: true, navigation: true, buttonGroup: 'one canvas, actions, disabled, horizontal/vertical/RTL focus', playground: 'liquid select, 21 glass sliders, lazy release' };
+  return { search: 'removed', navigation: 'shared Tabs, native links, quiet focus', buttonGroup: 'one canvas, actions, disabled, horizontal/vertical/RTL focus', playground: 'liquid select, 21 glass sliders, lazy release' };
 }
 
 export async function checkPopupPolish() {
