@@ -7,7 +7,7 @@ import { useGlassContact } from "../apple-motion/use-glass-contact";
 import { paintLiquidMenuContent } from "../liquid-glass/menu-content";
 import { liquidContentOptics, liquidSurfaceBlur } from "../liquid-glass/geometry";
 import { LiquidGlassCanvas } from "../liquid-glass/LiquidGlassCanvas";
-import { paintLiquidBackdrop, observeLiquidBackdrop } from "../liquid-glass/backdrop";
+import { paintLiquidBackdrop, observeLiquidBackdrop, scheduleLiquidBackdrop, cancelLiquidBackdrop } from "../liquid-glass/backdrop";
 import { useGlassMaterial } from "../liquid-glass/provider";
 import { StageContext, FusionTriggerContext, SURFACE_MATERIAL } from "./GlassSurface";
 
@@ -68,6 +68,14 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
   const contentRefraction = useTransform(opticalShape, shape => shape.refraction);
   const contentBlur = useTransform(() => Math.max(opticalShape.get().blur, (1 - model.reveal.get()) * 2));
   const backgroundBlur = useTransform(() => liquidSurfaceBlur(model.w.get() * 2, model.h.get() * 2));
+  const triggerClip = useTransform(() => {
+    if (!active) return "none";
+    const w = Math.max(0, model.w.get()), h = Math.max(0, model.h.get());
+    const r = Math.min(w, h, Math.max(0, model.radius.get()));
+    const x = model.x.get() - w - frame.tx + frame.tw / 2, y = model.y.get() - h - frame.ty + frame.th / 2;
+    // Keep the returning trigger ink, except where the live panel covers it.
+    return `path(evenodd, "M0 0H${frame.tw}V${frame.th}H0Z M${x + r} ${y}h${2 * (w - r)}a${r} ${r} 0 0 1 ${r} ${r}v${2 * (h - r)}a${r} ${r} 0 0 1 ${-r} ${r}h${-2 * (w - r)}a${r} ${r} 0 0 1 ${-r} ${-r}v${-2 * (h - r)}a${r} ${r} 0 0 1 ${r} ${-r}Z")`;
+  });
   const capture = () => {
     if (!panel.current) return;
     const canvas = ink.current ?? document.createElement("canvas"); ink.current = canvas;
@@ -85,7 +93,7 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
     // Custom frost/refraction may sample farther; retain their full source area.
     const full = topLayer.current.matches(":popover-open") || material.blurStrength !== undefined || material.refractionStrength !== undefined;
     const region = full ? backdropBounds.current : { left: rect.left - 24, top: rect.top - 24, width: rect.width + 48, height: rect.height + 48 };
-    if (paintLiquidBackdrop(document.body, source.current, backdropBounds.current, [anchor.current, topLayer.current], region)) revision.set(revision.get() + 1);
+    if (paintLiquidBackdrop(document.body, source.current, backdropBounds.current, [anchor.current, topLayer.current], region, topLayer.current.matches(":popover-open") ? undefined : anchor.current)) revision.set(revision.get() + 1);
   };
   const paintBackdropRef = useRef(paintBackdrop); paintBackdropRef.current = paintBackdrop;
   const refreshBackdrop = useCallback(() => paintBackdropRef.current(), []);
@@ -146,15 +154,7 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
     Object.assign(host.style, { position: "absolute", left: `${fl - origin.left}px`, top: `${ft - origin.top}px`, width: `${fw}px`, height: `${fh}px`, pointerEvents: "none", zIndex: "0" });
     const canvas = source.current ?? document.createElement("canvas"); source.current = canvas;
     backdropBounds.current = { left: fl, top: ft, width: fw, height: fh };
-    if (stage?.canvas?.width && stage.root) {
-      if (canvas.width !== fw * 2) canvas.width = fw * 2;
-      if (canvas.height !== fh * 2) canvas.height = fh * 2;
-      const ctx = canvas.getContext("2d")!;
-      ctx.fillStyle = style.colorScheme.includes("dark") ? "#202020" : "#eeeeec"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-      const substrate = stage.root.getBoundingClientRect();
-      ctx.drawImage(stage.canvas, (substrate.left - fl) * 2, (substrate.top - ft) * 2);
-      revision.set(revision.get() + 1);
-    } else motionFrame.preRender(refreshBackdrop);
+    scheduleLiquidBackdrop(refreshBackdrop);
   };
   useLayoutEffect(() => {
     measureRef.current();
@@ -166,7 +166,7 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
     const update = () => motionFrame.read(measure);
     const scroll = (event: Event) => {
       if (event.target instanceof Node && panel.current?.contains(event.target)) return;
-      if (!stage || liveOpen.current) update();
+      update();
     };
     const resize = new ResizeObserver(() => { mirrorDirty.current = true; update(); });
     if (anchor.current) resize.observe(anchor.current);
@@ -175,16 +175,16 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
     const viewport = window.visualViewport;
     viewport?.addEventListener("resize", update); viewport?.addEventListener("scroll", update);
     return () => {
-      cancelFrame(measure); cancelFrame(refreshBackdrop); resize.disconnect();
+      cancelFrame(measure); cancelLiquidBackdrop(refreshBackdrop); resize.disconnect();
       window.removeEventListener("resize", update); window.removeEventListener("scroll", scroll, true);
       viewport?.removeEventListener("resize", update); viewport?.removeEventListener("scroll", update); host?.remove();
     };
   }, [host, stage]);
   useEffect(() => {
-    if (stage || !anchor.current || !topLayer.current) return;
+    if (!anchor.current || !topLayer.current) return;
     return observeLiquidBackdrop(document.documentElement,
       () => liveOpen.current ? backdropBounds.current : anchor.current?.getBoundingClientRect() ?? { left: 0, top: 0, width: 0, height: 0 },
-      [anchor.current, topLayer.current], refreshBackdrop);
+      [anchor.current, topLayer.current], refreshBackdrop, () => liveOpen.current ? undefined : anchor.current ?? undefined);
   }, [stage]);
   useLayoutEffect(() => { mirrorDirty.current = true; measureRef.current(); }, [trigger, padding]);
   useLayoutEffect(() => {
@@ -267,7 +267,7 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
           focusTrigger.current = false; change(false);
         }
       }}>
-      <div ref={mirror} className="dg-popover__trigger-ink" aria-hidden="true" inert />
+      <motion.div ref={mirror} className="dg-popover__trigger-ink" aria-hidden="true" inert style={{ clipPath: triggerClip }} />
       <motion.div ref={panel} id={id} role={role} aria-label={tooltip ? undefined : label} aria-multiselectable={role === "listbox" ? multiple : undefined}
         className={`dg-popover__panel ${tooltip ? "dg-popover__panel--tooltip" : ""}`}
         inert={!open} aria-hidden={!open || undefined}

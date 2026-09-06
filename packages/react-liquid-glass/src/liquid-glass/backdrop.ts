@@ -4,10 +4,42 @@ import { liquidBackground, paintLiquidHatch } from "./source";
 import { subscribeLiquidFrames } from "./renderer";
 
 type Bounds = { left: number; top: number; width: number; height: number };
+const pending = new Set<() => void>();
+let batchLayout: WeakMap<Element, { rect: DOMRect; css?: CSSStyleDeclaration }> | undefined;
+const layout = (element: Element) => {
+  let value = batchLayout?.get(element);
+  if (!value) { value = { rect: element.getBoundingClientRect() }; batchLayout?.set(element, value); }
+  return value;
+};
+const style = (element: Element) => { const value = layout(element); return value.css ??= getComputedStyle(element); };
+const flush = () => {
+  const work = [...pending]; pending.clear();
+  batchLayout = new WeakMap();
+  try { for (const refresh of work) refresh(); }
+  finally { batchLayout = undefined; }
+};
+/** One layout snapshot per render batch, never a stale cache across DOM edits. */
+export function scheduleLiquidBackdrop(refresh: () => void) { pending.add(refresh); frame.preRender(flush); }
+export function cancelLiquidBackdrop(refresh: () => void) { pending.delete(refresh); if (!pending.size) cancelFrame(flush); }
 const intersects = (a: Bounds, b: Bounds) => a.width > 0 && a.height > 0 && b.width > 0 && b.height > 0 && a.left < b.left + b.width && a.left + a.width > b.left && a.top < b.top + b.height && a.top + a.height > b.top;
+// Normal surfaces only read preceding paint layers, never themselves or later
+// glass. This also prevents two overlapping surfaces from invalidating each other.
+const behind = (element: Element, before?: Element) => !before || (element !== before && !(before.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING));
+
+// An opaque ancestor fully covering the sample bounds cuts off everything behind
+// it. Keep the same DOM painter, but do not walk the entire page for every control.
+function backdropRoot(owner: HTMLElement, bounds: Bounds) {
+  for (let node = owner.parentElement; node && node !== document.body; node = node.parentElement) {
+    const rect = layout(node).rect;
+    if (rect.left > bounds.left || rect.top > bounds.top || rect.right < bounds.left + bounds.width || rect.bottom < bounds.top + bounds.height) continue;
+    const css = style(node), inset = parseFloat(css.borderRadius) || 0;
+    if (/^rgb\(/.test(css.backgroundColor) && Number(css.opacity) === 1 && rect.left + inset <= bounds.left && rect.top + inset <= bounds.top && rect.right - inset >= bounds.left + bounds.width && rect.bottom - inset >= bounds.top + bounds.height) return node;
+  }
+  return document.body;
+}
 
 /** Redraw the visible DOM region beneath a glass overlay into its existing material. */
-export function paintLiquidBackdrop(root: HTMLElement, canvas: HTMLCanvasElement, bounds: Bounds, exclude: readonly Element[] = [], region: Bounds = bounds) {
+export function paintLiquidBackdrop(root: HTMLElement, canvas: HTMLCanvasElement, bounds: Bounds, exclude: readonly Element[] = [], region: Bounds = bounds, before?: Element) {
   if (!Object.values(bounds).every(Number.isFinite) || bounds.width <= 0 || bounds.height <= 0) return false;
   const ctx = canvas.getContext("2d");
   if (!ctx) return false;
@@ -20,11 +52,11 @@ export function paintLiquidBackdrop(root: HTMLElement, canvas: HTMLCanvasElement
   const visit = (element: Element) => {
     // Sample the SDR optical base once. Reading its additive HDR presentation
     // through a 2D canvas stalls WebKit and tone-maps that light a second time.
-    if (exclude.includes(element) || element.matches("script, style, link, template, [popover], [data-dg-highlight-hdr], dialog:not([open])")) return;
-    const rect = element.getBoundingClientRect();
+    if (!behind(element, before) || exclude.includes(element) || element.matches("script, style, link, template, [popover], [data-dg-highlight-hdr], dialog:not([open])")) return;
+    const rect = layout(element).rect;
     // Reject off-region boxes before resolving all their computed styles.
     if ((rect.width || rect.height) && !intersects(rect, region)) return;
-    const css = getComputedStyle(element);
+    const css = style(element);
     if (css.display === "none" || css.visibility === "hidden" || Number(css.opacity) === 0 || (!rect.width && !rect.height && css.display !== "contents")) return;
     const x = rect.left - bounds.left, y = rect.top - bounds.top;
     const radius = (value: string) => value.endsWith("%") ? Math.min(rect.width, rect.height) * parseFloat(value) / 100 : parseFloat(value) || 0;
@@ -78,22 +110,63 @@ export function paintLiquidBackdrop(root: HTMLElement, canvas: HTMLCanvasElement
 }
 
 /** Coalesce visible source changes; no polling or work while the page is hidden. */
-export function observeLiquidBackdrop(root: HTMLElement, bounds: () => Bounds, exclude: readonly Element[], refresh: () => void) {
+export function observeLiquidBackdrop(root: HTMLElement, bounds: () => Bounds, exclude: readonly Element[], refresh: () => void, before?: () => Element | undefined) {
   const relevant = (node: Node) => {
     const element = node instanceof Element ? node : node.parentElement;
-    return element && !element.closest("[popover], [data-dg-highlight-hdr]") && !exclude.some(item => item.contains(element)) && intersects(element.getBoundingClientRect(), bounds());
+    if (!element || !behind(element, before?.()) || element.closest("[popover], [data-dg-highlight-hdr]") || exclude.some(item => item.contains(element))) return false;
+    const rect = element.getBoundingClientRect();
+    return intersects(rect.width && rect.height ? rect : element.parentElement?.getBoundingClientRect() ?? rect, bounds());
   };
-  const update = () => { if (!document.hidden && intersects(bounds(), { left: 0, top: 0, width: innerWidth, height: innerHeight })) frame.preRender(refresh); };
+  const update = () => { if (!document.hidden && intersects(bounds(), { left: 0, top: 0, width: innerWidth, height: innerHeight })) scheduleLiquidBackdrop(refresh); };
   const observer = new MutationObserver(records => { if (records.some(record => relevant(record.target))) update(); });
-  observer.observe(root, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ["style", "class", "src", "value", "checked", "data-theme"] });
+  observer.observe(root, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ["style", "class", "src", "width", "height", "hidden", "value", "checked", "data-theme"] });
   const sourceFrame = subscribeLiquidFrames(canvas => { if (relevant(canvas)) update(); });
   const event = (event: Event) => { if (event.target instanceof Node && relevant(event.target)) update(); };
   for (const type of ["input", "change", "load", "seeked"]) root.addEventListener(type, event, true);
   document.fonts.addEventListener("loadingdone", update);
   document.addEventListener("visibilitychange", update);
   return () => {
-    observer.disconnect(); sourceFrame(); cancelFrame(refresh);
+    observer.disconnect(); sourceFrame(); cancelLiquidBackdrop(refresh);
     for (const type of ["input", "change", "load", "seeked"]) root.removeEventListener(type, event, true);
     document.fonts.removeEventListener("loadingdone", update); document.removeEventListener("visibilitychange", update);
   };
+}
+
+/** Retain the same bounded DOM backdrop for inline controls and explicit lenses. */
+export function createLiquidBackdrop(owner: HTMLElement, bounds: () => Bounds, changed: (canvas: HTMLCanvasElement) => void, visible: () => boolean = () => true) {
+  const canvas = document.createElement("canvas");
+  let sourceRoot: HTMLElement | undefined, offsetX = 0, offsetY = 0;
+  const refresh = () => {
+    const rect = bounds();
+    if (!visible() || document.hidden || !owner.isConnected || !owner.getClientRects().length || !intersects(rect, { left: 0, top: 0, width: innerWidth, height: innerHeight })) return;
+    sourceRoot = backdropRoot(owner, rect);
+    const sourceRect = layout(sourceRoot).rect;
+    offsetX = rect.left - sourceRect.left; offsetY = rect.top - sourceRect.top;
+    if (paintLiquidBackdrop(sourceRoot, canvas, rect, [owner], rect, owner)) changed(canvas);
+  };
+  const update = () => scheduleLiquidBackdrop(refresh);
+  const scroll = () => {
+    if (!visible()) return;
+    const rect = bounds();
+    // Offscreen source changes are intentionally skipped; repaint on return.
+    if (!intersects(rect, { left: 0, top: 0, width: innerWidth, height: innerHeight })) { sourceRoot = undefined; return; }
+    if (sourceRoot) {
+      const parent = sourceRoot.getBoundingClientRect();
+      // A page-flow scene and its lens move together during page scrolling.
+      // DOM changes and canvas frames still invalidate the retained pixels.
+      if (Math.abs(rect.left - parent.left - offsetX) < .01 && Math.abs(rect.top - parent.top - offsetY) < .01) return;
+    }
+    update();
+  };
+  const stop = observeLiquidBackdrop(document.documentElement, bounds, [owner], refresh, () => owner);
+  const resize = new ResizeObserver(update); resize.observe(owner);
+  window.addEventListener("resize", update); window.addEventListener("scroll", scroll, true);
+  const viewport = window.visualViewport;
+  viewport?.addEventListener("resize", update); viewport?.addEventListener("scroll", update);
+  update();
+  return { refresh: update, dispose() {
+    stop(); resize.disconnect(); cancelLiquidBackdrop(refresh);
+    window.removeEventListener("resize", update); window.removeEventListener("scroll", scroll, true);
+    viewport?.removeEventListener("resize", update); viewport?.removeEventListener("scroll", update);
+  } };
 }

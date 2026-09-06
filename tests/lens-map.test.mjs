@@ -266,7 +266,7 @@ test("liquid uses the shared smooth-union compositor for its full lifecycle", ()
   assert.match(libraryIndexSource, /LiquidGlassBlob/);
 });
 
-test("liquid menu keeps one core-compatible Canvas material over the centered grid", () => {
+test("liquid menu keeps one core-compatible Canvas material over the shared backdrop", () => {
   assert.doesNotMatch(liquidDemoSource, /buildQrGeometry|QR_SIZE|QR_GEOMETRY|occupancy|MENU_ACTIONS/);
   assert.match(liquidDemoSource, /import type \{ LensParams \} from "\.\.\/types"/);
   assert.match(liquidDemoSource, /import \{ LiquidGlassCanvas \} from "\.\.\/liquid-glass\/LiquidGlassCanvas"/);
@@ -390,7 +390,8 @@ test("liquid menu keeps one core-compatible Canvas material over the centered gr
   assert.match(liquidDemoSource, /window\.addEventListener\("keydown", closeOnEscape\)/);
   assert.match(liquidDemoSource, /最近玩过的游戏/);
   assert.match(liquidDemoSource, /筛选/);
-  assert.match(demoStylesSource, /\.dg-liquid-glass \{[\s\S]*?background-size:\s*72px 72px, 72px 72px, auto;[\s\S]*?background-position:\s*center;/s);
+  assert.match(liquidDemoSource, /createLiquidBackdrop\(owner/);
+  assert.doesNotMatch(demoStylesSource, /--dg-liquid-grid/);
   assert.doesNotMatch(demoStylesSource, /dg-liquid-menu__grid|dg-liquid-menu__core-layer/);
   assert.match(demoStylesSource, /\.dg-liquid-menu__fusion-layer \{[\s\S]*?position:\s*absolute;[\s\S]*?inset:\s*0;/s);
   assert.match(demoStylesSource, /\.dg-liquid-menu__fusion-canvas \{[\s\S]*?width:\s*100%;[\s\S]*?height:\s*100%;/s);

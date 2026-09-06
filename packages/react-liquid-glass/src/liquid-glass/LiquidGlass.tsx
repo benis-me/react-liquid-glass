@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { cancelFrame, frame } from "motion";
 import { LiquidGlassCanvas } from "./LiquidGlassCanvas";
 import { LIQUID_GLASS_MATERIAL, type LiquidGlassFrame, type LiquidGlassBlob } from "./renderer";
 import { captureLiquidSource, liquidRgb, liquidTheme, subscribeLiquidTheme, type LiquidSourceFactory, type LiquidSourcePainter } from "./source";
 import { isMotionValue, motionValue, readMotion, type MotionInput } from "../shared/values";
 import { useGlassMaterial } from "./provider";
+import { createLiquidBackdrop } from "./backdrop";
 import type { LensParams } from "../types";
 
 /** LensParams spelling for callers migrating from Glass. No second optical preset. */
@@ -27,6 +28,8 @@ export interface LiquidGlassProps {
   sourceFactory?: LiquidSourceFactory;
   /** Explicit substrate underneath captured foreground ink. */
   sourceBackground?: LiquidSourceFactory;
+  /** Exclude a composite control's native ink when it supplies its own foreground. */
+  backdropRoot?: RefObject<HTMLElement | null>;
   sourceValues?: readonly MotionInput[];
   lens?: Partial<LensParams>;
   x?: MotionInput; y?: MotionInput;
@@ -54,6 +57,8 @@ export function LiquidGlass(props: LiquidGlassProps) {
   const targetRef = useRef<HTMLDivElement>(null);
   const sourceRef = useRef<HTMLCanvasElement | null>(null);
   const painterRef = useRef<LiquidSourcePainter | null>(null);
+  const backdropRef = useRef<HTMLCanvasElement | null>(null);
+  const captureRef = useRef<() => void>(() => undefined);
   const sourceRevision = useRef(motionValue(0)).current;
   const config = useRef(props); config.current = props;
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -66,6 +71,8 @@ export function LiquidGlass(props: LiquidGlassProps) {
     if (!canvas || !painter || document.hidden) return;
     const ctx = canvas.getContext("2d")!;
     ctx.setTransform(2, 0, 0, 2, 0, 0);
+    ctx.clearRect(0, 0, canvas.width / 2, canvas.height / 2);
+    if (backdropRef.current) ctx.drawImage(backdropRef.current, 0, 0, canvas.width / 2, canvas.height / 2);
     painter(ctx);
     sourceRevision.set(sourceRevision.get() + 1);
   }, [sourceRevision]);
@@ -112,14 +119,19 @@ export function LiquidGlass(props: LiquidGlassProps) {
         scheduleSource();
       } else {
         painterRef.current = null;
-        void captureLiquidSource(root, size.width, size.height, props.sourceBackground?.(root, size.width, size.height)).then(canvas => {
+        const background = props.sourceBackground?.(root, size.width, size.height);
+        void captureLiquidSource(root, size.width, size.height, ctx => {
+          if (backdropRef.current) ctx.drawImage(backdropRef.current, 0, 0, size.width, size.height);
+          background?.(ctx);
+        }).then(canvas => {
           if (cancelled || generation.current !== token) return;
           sourceRef.current = canvas;
           sourceRevision.set(sourceRevision.get() + 1);
         }).catch(error => { if (!cancelled) console.error("Liquid source capture failed", error); });
       }
-      setTint(liquidRgb(root, config.current.tintColor ?? "white"));
     };
+    captureRef.current = capture;
+    setTint(liquidRgb(root, config.current.tintColor ?? "white"));
     capture();
     const changes = props.sourceFactory ? null : new MutationObserver(capture);
     changes?.observe(root, {
@@ -136,6 +148,7 @@ export function LiquidGlass(props: LiquidGlassProps) {
     document.fonts.addEventListener("loadingdone", capture);
     return () => {
       cancelled = true;
+      captureRef.current = () => undefined;
       changes?.disconnect();
       cancelFrame(drawSource);
       root.removeEventListener("load", capture, true);
@@ -145,6 +158,26 @@ export function LiquidGlass(props: LiquidGlassProps) {
       document.fonts.removeEventListener("loadingdone", capture);
     };
   }, [props.sourceFactory, props.sourceBackground, props.tintColor, hasTarget, theme, size, scheduleSource, drawSource, sourceRevision]);
+
+  useEffect(() => {
+    const owner = rootRef.current;
+    if (!owner || !size.width || !size.height) return;
+    const visible = () => readMotion(config.current.tintOpacity ?? 0) < 1;
+    const backdrop = createLiquidBackdrop(props.backdropRoot?.current ?? owner, () => {
+      const rect = owner.getBoundingClientRect();
+      return { left: rect.left, top: rect.top, width: size.width, height: size.height };
+    }, canvas => {
+      backdropRef.current = canvas;
+      if (painterRef.current) scheduleSource(); else captureRef.current();
+    }, visible);
+    let wasVisible = visible();
+    const stop = isMotionValue(props.tintOpacity) ? props.tintOpacity.on("change", () => {
+      const next = visible();
+      if (next && !wasVisible) backdrop.refresh();
+      wasVisible = next;
+    }) : undefined;
+    return () => { stop?.(); backdrop.dispose(); };
+  }, [size, props.backdropRoot, props.tintOpacity, scheduleSource]);
 
   useEffect(() => {
     const stops: Array<() => void> = [];

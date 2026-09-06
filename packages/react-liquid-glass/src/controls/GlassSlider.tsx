@@ -137,6 +137,7 @@ export function GlassSlider({
       <Glass
         contact={{ ...contact, contactX, contactY }}
         sourceFactory={sourceFactory}
+        backdropRoot={wrapperRef}
         sourceValues={[offset, targetScaleX, targetScaleY]}
         refractionPixels={thumbHeight * .22}
         lens={lens}

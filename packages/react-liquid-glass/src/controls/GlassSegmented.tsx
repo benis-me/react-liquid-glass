@@ -1,7 +1,7 @@
-import { memo, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
+import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { animate, motion, useMotionValue, useReducedMotion } from "motion/react";
 import { LiquidGlass as Glass, LIQUID_LENS } from "../liquid-glass/LiquidGlass";
-import { GlassSurface, StageContext } from "./GlassSurface";
+import { GlassSurface } from "./GlassSurface";
 import type { LensParams } from "../types";
 import { springTo, useGlassContact, usePointerReleaseFallback, waitForRest, useDerivedMotion, useDerivedMotion2, useVelocityDeformation, type SpringRun } from "../apple-motion/react";
 import { SEGMENTED_TRAVEL_SPRING, SEGMENTED_PRESS_SPRING, SEGMENTED_DRAG_CATCHUP_SPRING, SEGMENTED_RELEASE_SPRING, SEGMENTED_HEIGHT_RELEASE_SPRING, SEGMENTED_IMPACT_RETENTION, SEGMENTED_TRAIL_BIAS, SEGMENTED_HOLD_IMPACT_SCRIPT } from "../apple-motion/presets";
@@ -49,11 +49,6 @@ export interface GlassSegmentedProps {
 
 export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, className, labels, items: suppliedItems, tablist = false, idPrefix, ariaLabel = "选项" }: GlassSegmentedProps) {
   const reduce = useReducedMotion();
-  const stage = useContext(StageContext);
-  const sourceBackground = useMemo(() => stage?.canvas && stage.root ? (root: HTMLElement) => {
-    const source = stage.canvas!, bounds = root.getBoundingClientRect(), substrate = stage.root!.getBoundingClientRect();
-    return (ctx: CanvasRenderingContext2D) => ctx.drawImage(source, substrate.left - bounds.left, substrate.top - bounds.top, source.width / 2, source.height / 2);
-  } : undefined, [stage]);
   const segments = useMemo(() => suppliedItems?.length ? suppliedItems.map(item => ({ color1: "currentColor", color2: "currentColor", ...item })) : DEFAULT_SEGMENTS, [suppliedItems]);
   const [local, setLocal] = useState(defaultValue);
   const current = value ?? local;
@@ -484,8 +479,8 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, cl
         <Glass
           contact={{ ...contact, contactX }}
           className="dg-tabs__glass"
+          backdropRoot={rootRef}
           refractionPixels={5.5}
-          sourceBackground={sourceBackground}
           lens={lens}
           x={impactX}
           y={y}

@@ -5,6 +5,7 @@ import { LiquidGlassCanvas } from "../liquid-glass/LiquidGlassCanvas";
 import { LIQUID_LENS } from "../liquid-glass/LiquidGlass";
 import { liquidContentPose, liquidContentOptics } from "../liquid-glass/geometry";
 import { paintLiquidMenuContent } from "../liquid-glass/menu-content";
+import { createLiquidBackdrop } from "../liquid-glass/backdrop";
 import { useMenuMotion, type MenuLayout } from "../apple-motion/use-menu-motion";
 import { TRIGGER_RADIUS } from "../apple-motion/menu";
 import { useMenuMaterial } from "./use-menu-material";
@@ -186,38 +187,18 @@ export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, cla
   }, [captureContent, contentActive, children, stageSize, theme]);
 
   useEffect(() => {
-    const canvas = fusionSourceRef.current;
-    if (!canvas) return;
-
-    const width = Math.max(1, stageSize.width);
-    const height = Math.max(1, stageSize.height);
-    canvas.width = width;
-    canvas.height = height;
-
-    const context = canvas.getContext("2d");
-    if (!context) return;
-
-    const dark = theme === "dark";
-    const spacing = 72;
-    const phaseX = ((width / 2 - spacing / 2) % spacing + spacing) % spacing;
-    const phaseY = ((height / 2 - spacing / 2) % spacing + spacing) % spacing;
-    context.fillStyle = dark ? "#1a1a1a" : "#ebebe8";
-    context.fillRect(0, 0, width, height);
-    context.fillStyle = dark ? "rgb(255 255 255 / 8.5%)" : "rgb(0 0 0 / 7.5%)";
-    for (let x = phaseX; x < width; x += spacing) context.fillRect(x, 0, 1, height);
-    for (let y = phaseY; y < height; y += spacing) context.fillRect(0, y, width, 1);
-    setFusionSourceRevision((revision) => revision + 1);
+    const owner = stageRef.current;
+    if (!owner) return;
+    return createLiquidBackdrop(owner, () => owner.getBoundingClientRect(), canvas => {
+      fusionSourceRef.current = canvas;
+      setFusionSourceRevision(revision => revision + 1);
+    }).dispose;
   }, [stageSize.height, stageSize.width, theme]);
 
   const layout = menuLayout(stageSize.width, stageSize.height);
 
   return (
     <div ref={stageRef} className={["dg-liquid-glass", className].filter(Boolean).join(" ")} data-liquid-theme={theme}>
-      <canvas
-        ref={fusionSourceRef}
-        className="dg-liquid-menu__fusion-source"
-        aria-hidden="true"
-      />
       <canvas ref={contentSourceRef} className="dg-liquid-menu__fusion-source" aria-hidden="true" />
       <div className="dg-liquid-menu__fusion-layer" aria-hidden="true">
         <LiquidGlassCanvas

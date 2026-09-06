@@ -161,6 +161,7 @@ export function GlassSwitch({
       <Glass
         contact={{ ...contact, contactX, contactY }}
         sourceFactory={sourceFactory}
+        backdropRoot={rootRef}
         sourceValues={[offset, targetScaleX, targetScaleY]}
         refractionPixels={thumbHeight * .22}
         lens={lens}

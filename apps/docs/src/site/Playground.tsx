@@ -38,7 +38,7 @@ export function Playground({ locale, theme }: PageProps) {
       return {};
     }
   });
-  const [background, setBackground] = useState<GlassBackground>("lines"),
+  const [background, setBackground] = useState<GlassBackground>("grid"),
     [shared, setShared] = useState("");
   const zh = locale === "zh";
   useEffect(() => {
@@ -101,8 +101,8 @@ export function Playground({ locale, theme }: PageProps) {
                   setBackground(event.target.value as GlassBackground)
                 }
               >
-                <option value="lines">{zh ? "条纹" : "Lines"}</option>
                 <option value="grid">{zh ? "网格" : "Grid"}</option>
+                <option value="lines">{zh ? "条纹" : "Lines"}</option>
                 <option value="plain">{zh ? "纯色" : "Plain"}</option>
               </GlassSelect>
           </div>

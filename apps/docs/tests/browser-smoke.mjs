@@ -314,6 +314,74 @@ async function captureLiquidCanvas(canvas) {
   return {snapshot,stop};
 }
 
+export async function checkSharedBackdrops() {
+  const passed = [];
+  for (const id of ['liquid-button', 'button', 'button-group', 'input', 'textarea', 'segmented', 'select', 'liquid-menu']) {
+    await go(`/components/${id}`);
+    const stage = document.querySelector('.component-preview'), substrate = stage.querySelector('.dg-stage__substrate');
+    await until(() => stage.querySelector('canvas[data-dg-renderer]')?.width > 1, `${id} did not render`);
+    const captured = await captureLiquidCanvas(stage.querySelector('canvas[data-dg-renderer]'));
+    const spacer = document.createElement('div');
+    const hasColor = channel => {
+      const {width,height} = captured.snapshot, data = captured.snapshot.getContext('2d').getImageData(0,0,width,height).data;
+      let pixels = 0;
+      for(let i=0;i<data.length;i+=4) if(data[i+3]>200 && data[i+channel]>data[i+(1-channel)]+40 && data[i+channel]>data[i+2]+30) pixels++;
+      return pixels>50;
+    };
+    try {
+      substrate.style.display='none'; stage.style.backgroundColor='rgb(25, 190, 65)';
+      await until(()=>hasColor(1),`${id} retained the hidden substrate`);
+      if(id==='button') { spacer.style.height='200vh';document.body.append(spacer);window.scrollTo({top:document.body.scrollHeight,behavior:'instant'});await paint(); }
+      substrate.remove(); stage.style.backgroundColor='rgb(205, 35, 55)';
+      if(id==='button') { await paint();window.scrollTo({top:0,behavior:'instant'}); }
+      await until(()=>hasColor(0),`${id} retained the removed substrate`);
+      passed.push(id);
+    } finally { captured.stop();spacer.remove();substrate.style.display='';stage.prepend(substrate);stage.style.backgroundColor=''; }
+  }
+  await go('/components/button');
+  const {subscribeLiquidFrames}=await import('refractive-glass-react/liquid-glass/renderer');
+  await new Promise(resolve=>setTimeout(resolve,600));
+  let frames=0;const stop=subscribeLiquidFrames(()=>frames++);
+  try { await new Promise(resolve=>setTimeout(resolve,250));assert(frames===0,`Backdrop feedback keeps rendering at rest: ${frames}`); }
+  finally { stop(); }
+  return {backdrops:passed,hiddenAndRemoved:'live page pixels',idleFrames:frames};
+}
+
+export async function checkFieldAndGroupPolish() {
+  for(const id of ['input','textarea']) {
+    await go(`/components/${id}`);
+    const field=document.querySelector(`.component-preview ${id}`),surface=field.closest('.dg-surface');
+    const appearance=element=>{const s=getComputedStyle(element);return [s.boxShadow,s.borderWidth,s.outlineWidth,s.outlineStyle].join('|')};
+    field.blur();const before=[appearance(field),appearance(surface)];field.focus();await paint();
+    assert(before.join(';')===[appearance(field),appearance(surface)].join(';'),`${id} changed its focus shadow or border`);
+    if(id==='textarea')assert(getComputedStyle(field).resize==='none','Textarea still has a resize handle');
+  }
+  await go('/components/button-group');
+  for(const group of document.querySelectorAll('.component-preview .dg-button-group')) {
+    const outer=parseFloat(getComputedStyle(group.querySelector('.dg-surface')).borderRadius),padding=parseFloat(getComputedStyle(group.querySelector('.dg-button-group__items')).paddingTop);
+    for(const inner of group.querySelectorAll('.dg-button > .dg-surface'))assert(parseFloat(getComputedStyle(inner).borderRadius)===outer-padding,'Button group radii do not follow the container inset');
+  }
+  return {fields:'stable focus',textarea:'no resizer',buttonGroup:'concentric corners'};
+}
+
+export async function checkSelectOcclusion() {
+  await go('/playground');
+  const inspector=document.querySelector('.playground-inspector'),inspectorBox=inspector.getBoundingClientRect(),opticsBox=inspector.querySelector('.dg-surface__optics').getBoundingClientRect();
+  assert(Math.abs(opticsBox.left-inspectorBox.left+40)<1 && Math.abs(opticsBox.top-inspectorBox.top+40)<1,'Mobile inspector glass escaped its containing block');
+  const trigger=document.querySelector('.playground-controls [role="combobox"]') ?? document.querySelector('main [role="combobox"]');
+  trigger.click();const layer=trigger.closest('.dg-popover-anchor').nextElementSibling;
+  await until(()=>layer.matches(':popover-open'),'Component Select did not open');
+  await new Promise(resolve=>setTimeout(resolve,500));
+  try {
+    const mirror=layer.querySelector('.dg-popover__trigger-ink'),rect=mirror.getBoundingClientRect();
+    const clip=getComputedStyle(mirror).clipPath.match(/^path\(evenodd, "(.+)"\)$/);
+    assert(clip,'Trigger ink has no panel occlusion mask');
+    const ctx=document.createElement('canvas').getContext('2d'),path=new Path2D(clip[1]);
+    assert(!ctx.isPointInPath(path,20,rect.height/2,'evenodd') && !ctx.isPointInPath(path,rect.width-24,rect.height/2,'evenodd'),'Trigger text or arrow paints through the expanded panel');
+    return {triggerInk:'occluded by live panel geometry'};
+  } finally { document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); }
+}
+
 export async function checkViewportAlignment() {
   await go('/components/button'); await go('/components');
   const trigger=document.querySelector('.catalog-material .dg-popover-anchor button');

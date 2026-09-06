@@ -570,8 +570,8 @@ export function Installation({ locale }: PageProps) {
         </h2>
         <p>
           {zh
-            ? "这是 WebGL2 渲染的玻璃，不是自动捕获整个浏览器页面。GlassStage 为基础组件提供明确的 Canvas 底图；视频与镜片组件使用自己的真实媒体源。自定义内容捕获是有边界的 DOM 重绘适配器。"
-            : "This is WebGL2 glass, not automatic capture of the entire browser page. GlassStage supplies an explicit canvas substrate; Video and Spotlight use their own real media sources. Custom content capture uses a bounded DOM redraw adapter."}
+            ? "UI 组件共用 WebGL2 材质与 DOM 底图采样。GlassStage 只提供可见背景；视频和 Spotlight 使用媒体源。采样支持常见内容，并非完整的浏览器画面捕获。"
+            : "UI components share the WebGL2 material and DOM backdrop adapter. GlassStage provides a visible background; Video and Spotlight use media sources. The adapter supports common content, not every browser effect."}
         </p>
         <p>
           {zh

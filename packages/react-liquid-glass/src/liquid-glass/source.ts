@@ -113,14 +113,12 @@ export function liquidTrackSource(options: {
   offset: MotionInput; scaleX: MotionInput; scaleY: MotionInput;
 }): LiquidSourceFactory {
   return (root, width, height) => {
-    const background = liquidBackground(root.parentElement!);
     const off = liquidCssColor(root, options.kind === "switch" ? "var(--dg-switch-off)" : "var(--dg-control-track)");
     const on = liquidCssColor(root, options.kind === "switch" ? "var(--dg-switch-on)" : "var(--dg-control-accent)");
     const rounded = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
       ctx.beginPath(); ctx.roundRect(-w / 2, -h / 2, w, h, h / 2); ctx.fill();
     };
     return ctx => {
-      ctx.fillStyle = background; ctx.fillRect(0, 0, width, height);
       ctx.save();
       ctx.translate(width / 2, height / 2);
       const w = options.width * readMotion(options.scaleX);
@@ -191,16 +189,7 @@ export async function captureLiquidSource(root: HTMLElement, width: number, heig
     ctx.beginPath(); ctx.roundRect(x, y, rect.width, rect.height, parseFloat(css.borderRadius) || 0);
     ctx.clip();
     ctx.fillStyle = css.backgroundColor; ctx.fillRect(x, y, rect.width, rect.height);
-    if (css.backgroundImage.includes("linear-gradient")) {
-      const step = parseFloat(css.backgroundSize) || 64;
-      const color = css.backgroundImage.match(/rgba?\([^)]+\)/)?.[0] ?? "rgba(0,0,0,.05)";
-      ctx.fillStyle = color;
-      const centered = css.backgroundPosition.startsWith("50%");
-      const ox = centered ? (rect.width - step) / 2 % step : 0;
-      const oy = centered ? (rect.height - step) / 2 % step : 0;
-      for (let dx = ox; dx < rect.width; dx += step) ctx.fillRect(x + dx, y, 1, rect.height);
-      for (let dy = oy; dy < rect.height; dy += step) ctx.fillRect(x, y + dy, rect.width, 1);
-    }
+    paintLiquidHatch(ctx, css, rect, bounds);
     if (element instanceof HTMLImageElement && element.complete && element.naturalWidth) {
       const ratio = css.objectFit === "cover" ? Math.max(rect.width / element.naturalWidth, rect.height / element.naturalHeight) : 0;
       const w = ratio ? element.naturalWidth * ratio : rect.width;
