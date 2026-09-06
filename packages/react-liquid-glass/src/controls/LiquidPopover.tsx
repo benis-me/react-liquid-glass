@@ -39,6 +39,7 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
   const ink = useRef<HTMLCanvasElement | null>(null);
   const inkRevision = useMotionValue(0), inkActive = useMotionValue(0);
   const settled = useRef(false);
+  const hasOpened = useRef(false);
   const stage = useContext(StageContext);
   const model = usePopoverMotion();
   const layoutRef = useRef<PopoverLayout | null>(null);
@@ -65,6 +66,7 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
     if (panel.current.querySelector("input, textarea, select, canvas")) { inkActive.set(0); return; }
     if (paintLiquidMenuContent(panel.current, canvas)) { inkRevision.set(inkRevision.get() + 1); inkActive.set(1); }
   };
+  const refreshInk = () => { if (!settled.current && inkActive.get()) capture(); };
   const contentFilter = useTransform(model.reveal, value => `blur(${(1 - value) * 3}px)`);
   const measureRef = useRef<() => void>(() => undefined);
   measureRef.current = () => {
@@ -73,11 +75,14 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
     const rect = button.getBoundingClientRect();
     const showing = topLayer.current?.matches(":popover-open") ?? false;
     if (role === "listbox") element.style.minWidth = `${Math.min(innerWidth - 24, rect.width)}px`;
-    const pw = showing ? element.offsetWidth : 1, ph = showing ? element.offsetHeight : 1;
+    // Retain the opened frame at rest. Resizing its last bitmap down to the trigger
+    // before Motion draws the next frame caused a one-frame closing flash.
+    const pw = showing ? element.offsetWidth : layoutRef.current?.panelWidth ?? 1;
+    const ph = showing ? element.offsetHeight : layoutRef.current?.panelHeight ?? 1;
     let left = Math.max(12, Math.min(innerWidth - pw - 12, tooltip ? rect.left + (rect.width - pw) / 2 : rect.left));
     const below = rect.bottom + 10, above = rect.top - ph - 10;
     let top = tooltip && above >= 12 ? above : below + ph <= innerHeight - 12 ? below : Math.max(12, above);
-    if (!showing) { left = rect.left; top = rect.top; }
+    if (!showing && !hasOpened.current) { left = rect.left; top = rect.top; }
     const fl = Math.floor(Math.min(left, rect.left) - PAD), ft = Math.floor(Math.min(top, rect.top) - PAD);
     const fw = Math.ceil(Math.max(left + pw, rect.right) + PAD - fl), fh = Math.ceil(Math.max(top + ph, rect.bottom) + PAD - ft);
     const tx = rect.left + rect.width / 2 - fl, ty = rect.top + rect.height / 2 - ft;
@@ -93,10 +98,20 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
     element.style.left = `${left}px`; element.style.top = `${top}px`;
     if (mirror.current) {
       const copy = button.cloneNode(true) as HTMLElement;
+      // Computed `font` can be empty for variable fonts. Copy the longhands so
+      // moving into the top layer preserves both trigger metrics and local styles.
+      const originals = [button, ...button.querySelectorAll<HTMLElement>("*")];
+      const copies = [copy, ...copy.querySelectorAll<HTMLElement>("*")];
+      originals.forEach((node, index) => {
+        const computed = getComputedStyle(node);
+        for (const property of ["font-family", "font-size", "font-weight", "font-style", "font-stretch", "font-variant", "font-feature-settings", "font-variation-settings", "font-kerning", "font-optical-sizing", "line-height", "letter-spacing", "text-transform", "color", "white-space"]) {
+          copies[index].style.setProperty(property, computed.getPropertyValue(property));
+        }
+      });
       for (const element of [copy, ...copy.querySelectorAll<HTMLElement>("[id], [tabindex]")]) { element.removeAttribute("id"); element.removeAttribute("tabindex"); }
       Object.assign(copy.style, { width: "100%", height: "100%" });
       mirror.current.replaceChildren(copy);
-      Object.assign(mirror.current.style, { left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px`, font: style.font, letterSpacing: style.letterSpacing, color: style.color });
+      Object.assign(mirror.current.style, { left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px` });
     }
     const parent = showing ? topLayer.current! : anchor.current;
     if (host.parentElement !== parent) parent.appendChild(host);
@@ -128,16 +143,23 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
     if (!element) return;
     settled.current = false;
     if (open) {
+      hasOpened.current = true;
       element.showPopover(); setActive(true);
       const previous = openLayers.indexOf(element); if (previous >= 0) openLayers.splice(previous, 1);
       openLayers.push(element);
     } else if (!element.matches(":popover-open")) return;
     measureRef.current();
     if (!layoutRef.current) return;
+    // Focus styling belongs in the captured ink from the start, not just after
+    // the native DOM returns at the end of opening.
+    if (open && !tooltip && !panel.current?.contains(document.activeElement)) {
+      panel.current?.querySelector<HTMLElement>('[aria-selected="true"], ' + FOCUSABLE)?.focus({ preventScroll: true });
+    }
     capture();
     model.transition(layoutRef.current, open, () => {
       settled.current = true; inkActive.jump(0);
       if (!liveOpen.current) {
+        anchor.current?.removeAttribute("data-open");
         element.hidePopover(); setActive(false);
         const index = openLayers.indexOf(element); if (index >= 0) openLayers.splice(index, 1); measureRef.current();
         if (focusTrigger.current) anchor.current?.querySelector<HTMLElement>(TRIGGER)?.focus({ preventScroll: true });
@@ -201,6 +223,7 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
         className={`dg-popover__panel ${tooltip ? "dg-popover__panel--tooltip" : ""}`}
         inert={!open} aria-hidden={!open || undefined}
         style={{ opacity: nativeOpacity, transform: contentTransform, filter: contentFilter, borderRadius: tooltip ? 14 : 22 }}
+        onFocus={refreshInk} onPointerOver={refreshInk} onPointerOut={refreshInk}
         onPointerEnter={() => { if (tooltip) clearTimeout(timer.current); }} onPointerLeave={() => hover(false)}>
         <ClosePopoverContext.Provider value={close}>{children}</ClosePopoverContext.Provider>
       </motion.div>

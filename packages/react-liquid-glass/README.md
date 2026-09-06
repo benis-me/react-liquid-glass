@@ -37,7 +37,7 @@ An empty `material={{}}` preserves every control's calibrated defaults. Nested p
 
 ## Components
 
-`GlassButton`, `GlassActionButton`, `GlassSwitch`, `GlassSlider`, `GlassSegmented`, `GlassTabs`, `GlassInput`, `GlassTextarea`, `GlassCheckbox`, `GlassRadioGroup`, `GlassSelect`, `GlassToggle`, `GlassCard`, `GlassBadge`, `GlassAvatar`, `GlassProgress`, `GlassAlert`, `GlassToast`, `GlassDialog`, `GlassSheet`, `GlassPopover`, `GlassDropdownMenu`, `GlassTooltip`, `GlassAccordion`, `LiquidMenu`, `GlassSpotlight`, `GlassVideo`.
+`GlassButton`, `GlassButtonGroup`, `GlassActionButton`, `GlassSwitch`, `GlassSlider`, `GlassSegmented`, `GlassTabs`, `GlassInput`, `GlassTextarea`, `GlassCheckbox`, `GlassRadioGroup`, `GlassSelect`, `GlassToggle`, `GlassCard`, `GlassBadge`, `GlassAvatar`, `GlassProgress`, `GlassAlert`, `GlassToast`, `GlassDialog`, `GlassSheet`, `GlassPopover`, `GlassDropdownMenu`, `GlassTooltip`, `GlassAccordion`, `LiquidMenu`, `GlassSpotlight`, `GlassVideo`.
 
 `GlassSurface` and `GlassStage` support custom compositions. Anchored Select, Popover, DropdownMenu and Tooltip share a native popover and one liquid compositor for the trigger, panel and fusion neck. Inputs use native form semantics. Dialogs use native modal focus handling; popovers use the browser top layer. Supply meaningful labels and native button/form props. `GlassPopover.trigger` is button content, not another button. `GlassTooltip` expects a focusable child. `GlassToast` is an inline live region; place it where notifications belong in your layout.
 

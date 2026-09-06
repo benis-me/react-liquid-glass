@@ -33,7 +33,7 @@ export default defineConfig({
       fileName: (format, name) => `${name}.${format === "es" ? "js" : "cjs"}`,
     },
     rollupOptions: {
-      external: ["react", "react/jsx-runtime", "react-dom", "motion", "motion/react"],
+      external: ["react", "react/jsx-runtime", "react-dom", "motion", "motion/react", "lucide-react"],
     },
   },
 });

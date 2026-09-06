@@ -14,9 +14,19 @@ export function paintLiquidMenuContent(panel: HTMLElement, canvas: HTMLCanvasEle
       const rect = element.getBoundingClientRect();
       return { x: rect.left - bounds.left, y: rect.top - bounds.top, width: rect.width, height: rect.height };
     };
+    const opacity = (element: Element) => {
+      let alpha = 1;
+      for (let node: Element | null = element; node && node !== panel; node = node.parentElement) {
+        const style = getComputedStyle(node);
+        if (style.visibility === "hidden" || style.display === "none") return 0;
+        alpha *= Number(style.opacity);
+      }
+      return alpha;
+    };
     for (const element of panel.querySelectorAll<HTMLElement>("button, .dg-liquid-menu__divider")) {
       const rect = box(element);
       const style = getComputedStyle(element);
+      context.globalAlpha = opacity(element);
       context.fillStyle = style.backgroundColor;
       context.beginPath();
       const radius = parseFloat(style.borderRadius) || 0;
@@ -39,6 +49,7 @@ export function paintLiquidMenuContent(panel: HTMLElement, canvas: HTMLCanvasEle
       const parent = node.parentElement;
       if (!text.trim() || !parent || parent.closest("svg")) continue;
       const style = getComputedStyle(parent);
+      context.globalAlpha = opacity(parent);
       context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
       context.letterSpacing = style.letterSpacing === "normal" ? "0px" : style.letterSpacing;
       context.fillStyle = style.color;
@@ -88,6 +99,7 @@ export function paintLiquidMenuContent(panel: HTMLElement, canvas: HTMLCanvasEle
           if (shape.tagName === "polygon") path.closePath();
         }
         const style = getComputedStyle(shape);
+        context.globalAlpha = opacity(shape);
         context.lineWidth = parseFloat(style.strokeWidth);
         context.lineCap = style.strokeLinecap as CanvasLineCap;
         context.lineJoin = style.strokeLinejoin as CanvasLineJoin;

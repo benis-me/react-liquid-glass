@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Bookmark, Check, Copy, SlidersHorizontal } from "lucide-react";
+import { Bookmark, Check, Copy, SlidersHorizontal, Minus, Plus, AlignLeft, AlignCenter, AlignRight } from "lucide-react";
 import {
   GlassActionButton,
   GlassAccordion,
@@ -7,6 +7,7 @@ import {
   GlassAvatar,
   GlassBadge,
   GlassButton,
+  GlassButtonGroup,
   GlassCard,
   GlassCheckbox,
   GlassDialog,
@@ -50,6 +51,7 @@ export function ComponentExample({
     [choice, setChoice] = useState("design"),
     [open, setOpen] = useState(false),
     [count, setCount] = useState(0);
+  const [zoom, setZoom] = useState(100), [alignment, setAlignment] = useState("left");
   const t = (en: string, zh: string) => (locale === "zh" ? zh : en);
   const options = [
     { value: "design", label: t("Design", "设计") },
@@ -83,6 +85,17 @@ export function ComponentExample({
           )}
         </div>
       );
+    case "button-group":
+      return <div className="example-stack">
+        <GlassButtonGroup label={t("Zoom", "缩放")}>
+          <GlassButton onClick={() => setZoom(value => Math.max(25, value - 25))} disabled={zoom <= 25} aria-label={t("Zoom out", "缩小")}><Minus /></GlassButton>
+          <GlassButton onClick={() => setZoom(100)} aria-label={t("Reset zoom", "重置缩放")}><output>{zoom}%</output></GlassButton>
+          <GlassButton onClick={() => setZoom(value => Math.min(200, value + 25))} disabled={zoom >= 200} aria-label={t("Zoom in", "放大")}><Plus /></GlassButton>
+        </GlassButtonGroup>
+        {!compact && <GlassButtonGroup label={t("Alignment", "对齐")} orientation="vertical">
+          {([["left", AlignLeft, t("Align left", "左对齐")], ["center", AlignCenter, t("Align center", "居中")], ["right", AlignRight, t("Align right", "右对齐")]] as const).map(([value, Icon, label]) => <GlassButton key={value as string} size="small" aria-pressed={alignment === value} onClick={() => setAlignment(value as string)}><Icon size={14} />{label as string}</GlassButton>)}
+        </GlassButtonGroup>}
+      </div>;
     case "switch":
       return (
         <div className="example-stack">

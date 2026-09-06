@@ -130,6 +130,11 @@ test('popup trajectories keep a compact capsule, a live fusion neck, and one tri
     assert.ok(closed.merge[2] > 0 && closed.merge[3] > 0, 'absorption needs a neck through both middle stages');
     assert.equal(closed.merge.at(-1), 0); assert.equal(closed.trigger.at(-1), 1);
     assert.ok(Math.max(...closed.trigger) <= 1.04, 'trigger impact stays restrained');
+    for (const values of [closed.w, closed.h]) {
+      assert.ok(values.every((value, index) => !index || value <= values[index - 1]), 'popup body must not swell again during absorption');
+    }
+    const distances = closed.x.map((x, index) => Math.hypot(x - layout.triggerX, closed.y[index] - layout.triggerY));
+    assert.ok(distances.every((value, index) => !index || value <= distances[index - 1]), 'closing must gather toward the trigger without a positional reversal');
     for (const frames of [opened, closed]) for (const key of ['x', 'y', 'w', 'h', 'radius', 'merge', 'trigger', 'reveal']) {
       const values = frames[key], ease = physics.liquidEasings(values, frames.times, .38);
       for (let i = 0; i < ease.length; i++) for (let t = 0; t <= 1; t += .05) {

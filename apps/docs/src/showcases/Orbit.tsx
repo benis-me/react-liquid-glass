@@ -9,6 +9,7 @@ import { LiquidGlassCanvas } from "refractive-glass-react/liquid-glass";
 import { stepSpring } from "refractive-glass-react/apple-motion";
 import {
   GlassButton,
+  GlassButtonGroup,
   GlassSlider,
   GlassSwitch,
 } from "refractive-glass-react/controls";
@@ -368,14 +369,14 @@ export function Orbit({ locale, theme }: PageProps) {
         </span>
       </div>
       <div className="orbit-toolbar">
-        <div className="example-row">
+        <GlassButtonGroup label={zh ? "排列玻璃体" : "Arrange bodies"}>
           <GlassButton onClick={() => arrange(true)}>
             {zh ? "融合" : "Gather"}
           </GlassButton>
           <GlassButton onClick={() => arrange(false)}>
             {zh ? "散开" : "Scatter"}
           </GlassButton>
-        </div>
+        </GlassButtonGroup>
         <label className="example-between">
           {zh ? "环绕" : "Orbit"}
           <GlassSwitch

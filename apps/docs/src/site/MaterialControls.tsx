@@ -1,5 +1,6 @@
-import { useState, type Dispatch, type SetStateAction, type ReactNode } from "react";
+import { memo, type Dispatch, type SetStateAction, type ReactNode } from "react";
 import { RotateCcw } from "lucide-react";
+import { GlassAccordion, GlassButton, GlassButtonGroup, GlassSlider, GlassSwitch } from "refractive-glass-react/controls";
 import type { GlassMaterial } from "refractive-glass-react/liquid-glass";
 import type { Locale } from "../i18n";
 import { materialFields } from "./material";
@@ -46,45 +47,53 @@ const presets: {
   },
 ];
 
+const MaterialField = memo(function MaterialField({ field, value, zh, setMaterial }: {
+  field: (typeof materialFields)[number]; value: number | undefined; zh: boolean;
+  setMaterial: Dispatch<SetStateAction<GlassMaterial>>;
+}) {
+  return (
+    <div className="material-field">
+      <span>
+        {zh ? field.zh : field.en}
+        <output>
+          {value === undefined ? (
+            <small>{zh ? "默认" : "auto"}</small>
+          ) : (
+            Number(value!.toFixed(2))
+          )}
+          {field.key === "specularRotation" && value !== undefined
+            ? "°"
+            : ""}
+        </output>
+      </span>
+      <GlassSlider
+        size="small"
+        ariaLabel={zh ? field.zh : field.en}
+        min={field.min}
+        max={field.max}
+        step={field.step}
+        value={value ?? field.initial}
+        onValueChange={(value) =>
+          setMaterial((current) => ({
+            ...current,
+            [field.key]: value,
+          }))
+        }
+      />
+    </div>
+  );
+});
+
 export function MaterialControls({ locale, material, setMaterial, children }: {
   locale: Locale; material: GlassMaterial; setMaterial: Dispatch<SetStateAction<GlassMaterial>>; children?: ReactNode;
 }) {
   const zh = locale === "zh";
-  const [advancedOpen, setAdvancedOpen] = useState(false);
   const activePreset =
     presets.find(
       (preset) => JSON.stringify(preset.material) === JSON.stringify(material),
     )?.id ?? "custom";
   const fieldControl = (field: (typeof materialFields)[number]) => (
-    <label key={field.key} className="material-field">
-      <span>
-        {zh ? field.zh : field.en}
-        <output>
-          {material[field.key] === undefined ? (
-            <small>{zh ? "默认" : "auto"}</small>
-          ) : (
-            Number(material[field.key]!.toFixed(2))
-          )}
-          {field.key === "specularRotation" && material[field.key] !== undefined
-            ? "°"
-            : ""}
-        </output>
-      </span>
-      <input
-        type="range"
-        aria-label={zh ? field.zh : field.en}
-        min={field.min}
-        max={field.max}
-        step={field.step}
-        value={material[field.key] ?? field.initial}
-        onChange={(event) =>
-          setMaterial((current) => ({
-            ...current,
-            [field.key]: Number(event.target.value),
-          }))
-        }
-      />
-    </label>
+    <MaterialField key={field.key} field={field} value={material[field.key]} zh={zh} setMaterial={setMaterial} />
   );
   return (
         <aside
@@ -93,25 +102,24 @@ export function MaterialControls({ locale, material, setMaterial, children }: {
         >
           <div className="inspector-heading">
             <h2>{zh ? "材质" : "Material"}</h2>
-            <button
+            <GlassButton size="small"
               onClick={() => setMaterial({})}
               aria-label={zh ? "重置材质" : "Reset material"}
-              title={zh ? "重置" : "Reset"}
             >
               <RotateCcw size={14} />
-            </button>
+            </GlassButton>
           </div>
-          <div className="preset-list">
+          <GlassButtonGroup className="preset-list" label={zh ? "材质预设" : "Material presets"}>
             {presets.map((preset) => (
-              <button
+              <GlassButton size="small"
                 key={preset.id}
                 aria-pressed={activePreset === preset.id}
                 onClick={() => setMaterial(preset.material)}
               >
                 {zh ? preset.zh : preset.en}
-              </button>
+              </GlassButton>
             ))}
-          </div>
+          </GlassButtonGroup>
           <p className="inspector-note">
             {zh
               ? "默认使用各组件参数；调整项全局生效。"
@@ -120,30 +128,26 @@ export function MaterialControls({ locale, material, setMaterial, children }: {
           <div className="material-fields">
             {materialFields.slice(0, 11).map(fieldControl)}
           </div>
-          <details
-            className="material-advanced"
-            onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}
-          >
-            <summary>{zh ? "其他参数" : "More parameters"}</summary>
-            {advancedOpen && (
+          <div className="material-advanced">
+            <GlassAccordion lazy items={[{ title: zh ? "其他参数" : "More parameters", content: (
               <div className="material-fields">
                 {materialFields.slice(11).map(fieldControl)}
-                <label className="debug-field">
-                  <input
-                    type="checkbox"
+                <div className="debug-field">
+                  <span>{zh ? "实时光学场" : "Live optical field"}</span>
+                  <GlassSwitch size="small"
+                    ariaLabel={zh ? "实时光学场" : "Live optical field"}
                     checked={material.debug ?? false}
-                    onChange={(event) =>
+                    onCheckedChange={(checked) =>
                       setMaterial((current) => ({
                         ...current,
-                        debug: event.target.checked,
+                        debug: checked,
                       }))
                     }
                   />
-                  {zh ? "实时光学场" : "Live optical field"}
-                </label>
+                </div>
               </div>
-            )}
-          </details>
+            ) }]} />
+          </div>
           {children}
 
         </aside>

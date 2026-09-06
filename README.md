@@ -2,7 +2,7 @@
 
 A React component library built on project-owned liquid glass optics and physical motion. This repository is an npm-workspaces monorepo.
 
-- **`packages/react-liquid-glass`** — the independently buildable `refractive-glass-react` package, including the `liquid-glass` and `apple-motion` cores, 27 components, optional styles, and declarations.
+- **`packages/react-liquid-glass`** — the independently buildable `refractive-glass-react` package, including the `liquid-glass` and `apple-motion` cores, 28 components, optional styles, and declarations.
 - **`apps/docs`** — the documentation site: homepage, interactive component catalog, individual usage/API pages, shared-material Playground, and three working showcase applications.
 - **`tests`** — cross-workspace optical regression checks and the existing Sites worker checks.
 

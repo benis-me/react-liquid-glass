@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Pause, Play, RotateCcw } from "lucide-react";
 import {
   GlassButton,
+  GlassButtonGroup,
   GlassProgress,
   GlassSegmented,
   GlassStage,
@@ -92,7 +93,7 @@ export function Focus({ locale }: PageProps) {
                   ? "准备好时，再开始。"
                   : "Start when you are ready."}
           </span>
-          <div className="example-row">
+          <GlassButtonGroup label={zh ? "计时操作" : "Timer controls"}>
             <GlassButton variant="solid" onClick={toggle}>
               {deadline ? <Pause size={15} /> : <Play size={15} />}
               {deadline
@@ -109,7 +110,7 @@ export function Focus({ locale }: PageProps) {
             >
               <RotateCcw size={15} />
             </GlassButton>
-          </div>
+          </GlassButtonGroup>
           <GlassProgress
             value={Number(minutes) * 60 - remaining}
             max={Number(minutes) * 60}

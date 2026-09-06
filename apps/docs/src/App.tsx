@@ -4,10 +4,10 @@ import {
   ArrowUpRight,
   Menu,
   Moon,
-  Search,
   Sun,
   X,
 } from "lucide-react";
+import { GlassButton, GlassButtonGroup, GlassInput, GlassSheet } from "refractive-glass-react/controls";
 import { catalog, groups, groupZh, type ComponentId } from "./site/catalog";
 import {
   Catalog,
@@ -63,7 +63,6 @@ export function App() {
     componentId = path.split("/")[2] as ComponentId;
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    document.documentElement.style.colorScheme = theme;
     try {
       localStorage.setItem("glass-theme", theme);
     } catch {
@@ -103,7 +102,7 @@ export function App() {
   ];
   const sidebar = (
     <>
-      <div className="sidebar-intro">
+      <GlassButtonGroup className="sidebar-intro" label={zh ? "快速导航" : "Quick navigation"} orientation="vertical">
         <Link
           aria-current={path === "/docs/installation" ? "page" : undefined}
           href="/docs/installation"
@@ -122,17 +121,14 @@ export function App() {
         >
           {zh ? "应用展示" : "Showcase"}
         </Link>
-      </div>
-      <label className="sidebar-search">
-        <Search size={14} />
-        <input
+      </GlassButtonGroup>
+        <GlassInput className="sidebar-search"
           type="search"
           aria-label={zh ? "查找组件" : "Find a component"}
           placeholder={zh ? "查找组件…" : "Find a component…"}
           value={search}
           onChange={(event) => setSearch(event.target.value)}
         />
-      </label>
       {groups.map((group) => {
         const items = catalog.filter(
           (item) =>
@@ -144,6 +140,7 @@ export function App() {
         return items.length ? (
           <div className="sidebar-group" key={group}>
             <h2>{zh ? groupZh[group] : group}</h2>
+            <GlassButtonGroup label={zh ? groupZh[group] : group} orientation="vertical">
             {items.map((item) => (
               <Link
                 key={item.id}
@@ -156,6 +153,7 @@ export function App() {
                 {zh && <span>{item.zh}</span>}
               </Link>
             ))}
+            </GlassButtonGroup>
           </div>
         ) : null;
       })}
@@ -178,11 +176,11 @@ export function App() {
       <>
         <PageHeading
           kicker="SHOWCASE"
-          title={zh ? "玻璃的另一面。" : "The playful side of glass."}
+          title={zh ? "应用展示" : "Showcase"}
           description={
             zh
-              ? "几款可以真正使用的小应用。每一块玻璃，都来自同一个核心。"
-              : "Small, working applications. Every glass surface comes from the same core."
+              ? "用玻璃组件搭建的小应用。"
+              : "Small apps built with glass components."
           }
         />
         <ShowcaseCards locale={locale} />
@@ -241,9 +239,9 @@ export function App() {
     );
   return (
     <>
-      <a className="skip-link" href="#main-content">
+      <Link className="skip-link" href="#main-content">
         {zh ? "跳到内容" : "Skip to content"}
-      </a>
+      </Link>
       <header className="site-header">
         <div className="header-inner">
           <Link
@@ -264,6 +262,7 @@ export function App() {
             className="top-nav"
             aria-label={zh ? "主导航" : "Main navigation"}
           >
+            <GlassButtonGroup label={zh ? "主导航" : "Main navigation"}>
             {nav.map((item) => (
               <Link
                 key={item.href}
@@ -277,9 +276,11 @@ export function App() {
                 {zh ? item.zh : item.en}
               </Link>
             ))}
+            </GlassButtonGroup>
           </nav>
           <div className="header-tools">
-            <button
+            <GlassButtonGroup label={zh ? "显示设置" : "Display settings"}>
+            <GlassButton size="small"
               className="icon-button"
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
               aria-label={
@@ -293,15 +294,16 @@ export function App() {
               }
             >
               {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
-            </button>
-            <button
+            </GlassButton>
+            <GlassButton size="small"
               className="locale-button"
               onClick={() => setLocale(zh ? "en" : "zh")}
               aria-label={zh ? "Switch to English" : "切换到中文"}
             >
               {zh ? "中" : "EN"}
-            </button>
-            <a
+            </GlassButton>
+            </GlassButtonGroup>
+            <Link
               className="github-link"
               href="https://github.com/benis-me/react-liquid-glass"
               target="_blank"
@@ -309,8 +311,8 @@ export function App() {
               aria-label="GitHub"
             >
               GitHub <ArrowUpRight size={12} />
-            </a>
-            <button
+            </Link>
+            <GlassButton size="small"
               className="icon-button mobile-menu-button"
               aria-label={zh ? "导航菜单" : "Navigation menu"}
               aria-expanded={mobileOpen}
@@ -318,16 +320,17 @@ export function App() {
               onClick={() => setMobileOpen(!mobileOpen)}
             >
               {mobileOpen ? <X size={18} /> : <Menu size={18} />}
-            </button>
+            </GlassButton>
           </div>
         </div>
       </header>
-      {mobileOpen && (
+      <GlassSheet open={mobileOpen} onOpenChange={setMobileOpen} title={zh ? "导航" : "Navigation"} closeLabel={zh ? "关闭导航" : "Close navigation"}>
         <nav
           id="mobile-navigation"
           className="mobile-navigation"
           aria-label={zh ? "移动导航" : "Mobile navigation"}
         >
+          <GlassButtonGroup label={zh ? "主导航" : "Main navigation"} orientation="vertical">
           {nav.map((item) => (
             <Link
               key={item.href}
@@ -337,6 +340,7 @@ export function App() {
               {zh ? item.zh : item.en}
             </Link>
           ))}
+          </GlassButtonGroup>
           <div
             onClick={(event) => {
               if ((event.target as HTMLElement).closest("a"))
@@ -346,7 +350,7 @@ export function App() {
             {sidebar}
           </div>
         </nav>
-      )}
+      </GlassSheet>
       <div className={isHome ? "site-container" : "site-container docs-layout"}>
         {!isHome && (
           <aside className="docs-sidebar">
@@ -367,14 +371,14 @@ export function App() {
       <footer className="site-footer">
         <Link href="/">React Liquid Glass</Link>
 
-        <a
+        <Link
           href="https://github.com/benis-me/react-liquid-glass"
           target="_blank"
           rel="noreferrer"
         >
           {zh ? "源代码" : "Source code"}
           <ArrowUpRight size={12} />
-        </a>
+        </Link>
       </footer>
     </>
   );

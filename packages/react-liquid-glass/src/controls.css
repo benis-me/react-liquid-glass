@@ -447,6 +447,16 @@ html[data-theme="dark"] .dg-liquid-glass {
 .dg-button:disabled, .dg-choice:has(input:disabled), .dg-field:has(:disabled) { opacity: .45; cursor: not-allowed; }
 .dg-button[aria-pressed="true"] .dg-surface__content { background: color-mix(in srgb, currentColor 12%, transparent); border-radius: inherit; }
 .dg-button svg { width: 16px; height: 16px; flex-shrink: 0; }
+.dg-button-group { display: inline-block; max-width: 100%; vertical-align: middle; }
+.dg-button-group__items { display: flex; align-items: stretch; padding: 4px; gap: 1px; }
+.dg-button-group[data-orientation="vertical"] > .dg-surface > .dg-surface__content > .dg-button-group__items { flex-direction: column; }
+.dg-button-group__items > :is(.dg-button, a) { flex: 1 0 auto; border-radius: 12px; }
+.dg-button-group__items > .dg-button > .dg-surface > .dg-surface__content { border-radius: 12px; transition: background-color .15s ease, transform .18s ease; }
+.dg-button-group__items > .dg-button:hover:not(:disabled) > .dg-surface > .dg-surface__content { background-color: color-mix(in srgb, currentColor 6%, transparent); }
+.dg-button-group__items > .dg-button[data-pressed] > .dg-surface > .dg-surface__content { transform: scale(.96); }
+@media (prefers-reduced-motion: reduce) {
+  .dg-button-group__items > .dg-button > .dg-surface > .dg-surface__content { transition: none; }
+}
 .dg-button:focus-visible, .dg-field:focus-within, .dg-choice:has(:focus-visible), .dg-dropdown button:focus-visible, .dg-dismiss:focus-visible, .dg-video-player__bar:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
 .dg-card { margin: 0; min-width: 0; }
 .dg-card > .dg-surface > .dg-surface__content { padding: 26px; }

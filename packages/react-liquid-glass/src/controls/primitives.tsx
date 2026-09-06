@@ -12,6 +12,7 @@ import {
   type TextareaHTMLAttributes,
 } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { Check, ChevronDown } from "lucide-react";
 import { LiquidPopover, useClosePopover } from "./LiquidPopover";
 import { usePointerReleaseFallback } from "../apple-motion/react";
 import { GlassSurface } from "./GlassSurface";
@@ -45,6 +46,7 @@ export function GlassButton({
       className={`dg-button ${className}`}
       data-variant={variant}
       data-size={size}
+      data-pressed={pressed || undefined}
       onPointerDown={(event) => {
         if (!disabled && event.button === 0) {
           setPressed(true);
@@ -190,7 +192,7 @@ export function GlassSelect({ label, children, className = "", id: suppliedId, r
     </select>
     <LiquidPopover label={label ?? props["aria-label"] ?? "Options"} role="listbox" multiple={props.multiple}
       trigger={<GlassButton id={id} disabled={props.disabled} role="combobox" aria-invalid={invalid || props["aria-invalid"]} aria-describedby={invalid ? `${id}-error` : props["aria-describedby"]} aria-label={props["aria-label"]} aria-labelledby={label ? `${id}-label ${id}-value` : undefined}>
-        <span id={`${id}-value`}>{options.filter(option => option.selected).map(option => option.label).join(", ") || "—"}</span><span aria-hidden="true">⌄</span>
+        <span id={`${id}-value`}>{options.filter(option => option.selected).map(option => option.label).join(", ") || "—"}</span><ChevronDown aria-hidden="true" />
       </GlassButton>}>
       <div className="dg-select-options" onKeyDown={event => {
         const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not([disabled])")];
@@ -211,7 +213,7 @@ export function GlassSelect({ label, children, className = "", id: suppliedId, r
 }
 function SelectOption({ option, group, multiple, choose }: { option: { value: string; label: string; disabled: boolean; selected: boolean }; group: string; multiple?: boolean; choose: (value: string) => void }) {
   const close = useClosePopover();
-  return <>{group && <small>{group}</small>}<button type="button" role="option" aria-selected={option.selected} disabled={option.disabled} onClick={() => { choose(option.value); if (!multiple) close(); }}>{option.label}<span aria-hidden="true">{option.selected ? "✓" : ""}</span></button></>;
+  return <>{group && <small>{group}</small>}<button type="button" role="option" aria-selected={option.selected} disabled={option.disabled} onClick={() => { choose(option.value); if (!multiple) close(); }}>{option.label}<Check aria-hidden="true" size={16} style={{ opacity: option.selected ? 1 : 0 }} /></button></>;
 }
 export function GlassCheckbox({
   children,
@@ -383,19 +385,23 @@ export function GlassAlert({
     </motion.div>
   );
 }
-export function GlassAccordion({ items, multiple = false }: {
+export function GlassAccordion({ items, multiple = false, lazy = false }: {
   items: { title: string; content: ReactNode }[];
   multiple?: boolean;
+  /** Mount expensive content on opening and release it after the closing animation. */
+  lazy?: boolean;
 }) {
   const [expanded, setExpanded] = useState<number[]>([]);
-  return <div className="dg-accordion">{items.map((item, i) => <AccordionItem key={i} {...item} open={expanded.includes(i)} toggle={() => setExpanded(current => current.includes(i) ? current.filter(value => value !== i) : multiple ? [...current, i] : [i])} />)}</div>;
+  return <div className="dg-accordion">{items.map((item, i) => <AccordionItem key={i} {...item} lazy={lazy} open={expanded.includes(i)} toggle={() => setExpanded(current => current.includes(i) ? current.filter(value => value !== i) : multiple ? [...current, i] : [i])} />)}</div>;
 }
-function AccordionItem({ title, content, open, toggle }: { title: string; content: ReactNode; open: boolean; toggle: () => void }) {
+function AccordionItem({ title, content, open, toggle, lazy }: { title: string; content: ReactNode; open: boolean; toggle: () => void; lazy: boolean }) {
   const id = useId(), reduce = useReducedMotion();
+  const [retained, setRetained] = useState(open);
+  useEffect(() => { if (open) setRetained(true); }, [open]);
   return <GlassSurface radius={18}>
     <h3 className="dg-accordion__heading"><button type="button" id={`${id}-trigger`} aria-expanded={open} aria-controls={id} onClick={toggle}>{title}<motion.span className="dg-accordion__mark" aria-hidden="true" animate={{ rotate: open ? 45 : 0 }} transition={{ duration: reduce ? 0 : .18 }}>+</motion.span></button></h3>
-    <motion.div id={id} role="region" aria-labelledby={`${id}-trigger`} inert={!open} aria-hidden={!open} initial={false} animate={{ height: open ? "auto" : 0, opacity: open ? 1 : 0 }} transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 320, damping: 32 }} style={{ overflow: "hidden" }}>
-      <div className="dg-accordion__body">{content}</div>
+    <motion.div id={id} role="region" aria-labelledby={`${id}-trigger`} inert={!open} aria-hidden={!open} initial={false} animate={{ height: open ? "auto" : 0, opacity: open ? 1 : 0 }} transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 320, damping: 32 }} style={{ overflow: "hidden" }} onAnimationComplete={() => { if (!open) setRetained(false); }}>
+      <div className="dg-accordion__body">{(!lazy || open || retained) && content}</div>
     </motion.div>
   </GlassSurface>;
 }

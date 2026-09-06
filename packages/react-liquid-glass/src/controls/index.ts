@@ -10,3 +10,4 @@ export { GlassSpotlight, type GlassSpotlightProps } from "./GlassSpotlight";
 export { GlassVideo, type GlassVideoProps } from "./GlassVideo";
 
 export { GlassActionButton } from "./GlassActionButton";
+export { GlassButtonGroup, type GlassButtonGroupProps } from "./GlassButtonGroup";

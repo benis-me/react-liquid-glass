@@ -6,13 +6,15 @@ import {
   Check,
   Copy,
   ExternalLink,
-  Search,
   SlidersHorizontal,
 } from "lucide-react";
 import {
   GlassStage,
   GlassSpotlight,
   GlassButton,
+  GlassButtonGroup,
+  GlassInput,
+  GlassSurface,
   GlassSwitch,
   GlassSlider,
   GlassSegmented,
@@ -51,10 +53,10 @@ export function CodeBlock({
     }
   };
   return (
-    <div className="code-block">
+    <GlassSurface className="code-block" radius={18}>
       <div className="code-block__bar">
         <span>{label}</span>
-        <button
+        <GlassButton size="small"
           onClick={copy}
           aria-label={locale === "zh" ? "复制代码" : "Copy code"}
         >
@@ -62,12 +64,12 @@ export function CodeBlock({
           <span aria-live="polite">
             {status || (locale === "zh" ? "复制" : "Copy")}
           </span>
-        </button>
+        </GlassButton>
       </div>
       <pre tabIndex={0}>
         <code>{code}</code>
       </pre>
-    </div>
+    </GlassSurface>
   );
 }
 export function Preview({
@@ -296,27 +298,25 @@ export function Catalog({ locale, theme }: PageProps) {
         }
       />
       <div className="catalog-tools">
-        <label className="search-field">
-          <Search size={15} />
-          <input
+          <GlassInput className="search-field"
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={zh ? "搜索组件…" : "Find a component…"}
             aria-label={zh ? "搜索组件" : "Search components"}
           />
-          <kbd>{entries.length}</kbd>
-        </label>
-        <div className="filter-list" aria-label={zh ? "分类" : "Categories"}>
+        <div className="filter-scroll">
+        <GlassButtonGroup className="filter-list" label={zh ? "分类" : "Categories"}>
           {["All", ...groups].map((value) => (
-            <button
+            <GlassButton size="small"
               key={value}
               aria-pressed={group === value}
               onClick={() => setGroup(value)}
             >
               {zh ? (value === "All" ? "全部" : groupZh[value]) : value}
-            </button>
+            </GlassButton>
           ))}
+        </GlassButtonGroup>
         </div>
       </div>
       <LiquidGlassProvider material={material}>
@@ -346,15 +346,14 @@ export function Catalog({ locale, theme }: PageProps) {
       {!entries.length && (
         <div className="empty-state">
           <p>{zh ? "没有找到匹配的组件。" : "No matching components."}</p>
-          <button
-            className="link-button"
+          <GlassButton
             onClick={() => {
               setQuery("");
               setGroup("All");
             }}
           >
             {zh ? "清除筛选" : "Clear filters"}
-          </button>
+          </GlassButton>
         </div>
       )}
     </>
@@ -381,6 +380,10 @@ export function PageHeading({
   );
 }
 const keyboardNotes: Partial<Record<ComponentId, [string, string]>> = {
+  "button-group": [
+    "Arrow keys move focus. Home / End jump to either end; Enter / Space runs the focused action. Disabled buttons are skipped.",
+    "方向键移动焦点，Home / End 跳到首尾，Enter / 空格执行当前操作。自动跳过禁用按钮。",
+  ],
   slider: [
     "Use the arrow keys to adjust, Home / End to jump to the bounds. Click the track or drag the thumb.",
     "方向键微调，Home / End 跳到边界。点击轨道或直接拖动滑块。",

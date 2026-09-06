@@ -6,6 +6,10 @@ import {
 } from "refractive-glass-react/liquid-glass";
 import {
   GlassStage,
+  GlassAccordion,
+  GlassButton,
+  GlassSelect,
+  GlassSurface,
   type GlassBackground,
 } from "refractive-glass-react/controls";
 import { catalog, type ComponentId } from "./catalog";
@@ -76,9 +80,7 @@ export function Playground({ locale, theme }: PageProps) {
       <div className="playground-layout">
         <div className="playground-main">
           <div className="playground-toolbar">
-            <label>
-              <span>{zh ? "组件" : "Component"}</span>
-              <select
+              <GlassSelect label={zh ? "组件" : "Component"}
                 value={component}
                 onChange={(event) =>
                   setComponent(event.target.value as ComponentId | "all")
@@ -92,11 +94,8 @@ export function Playground({ locale, theme }: PageProps) {
                     {item.name}
                   </option>
                 ))}
-              </select>
-            </label>
-            <label>
-              <span>{zh ? "底图" : "Substrate"}</span>
-              <select
+              </GlassSelect>
+              <GlassSelect label={zh ? "底图" : "Substrate"}
                 value={background}
                 onChange={(event) =>
                   setBackground(event.target.value as GlassBackground)
@@ -105,8 +104,7 @@ export function Playground({ locale, theme }: PageProps) {
                 <option value="lines">{zh ? "条纹" : "Lines"}</option>
                 <option value="grid">{zh ? "网格" : "Grid"}</option>
                 <option value="plain">{zh ? "纯色" : "Plain"}</option>
-              </select>
-            </label>
+              </GlassSelect>
           </div>
           <LiquidGlassProvider material={material}>
             <div
@@ -129,32 +127,30 @@ export function Playground({ locale, theme }: PageProps) {
                   </GlassStage>
                   <div className="playground-caption">
                     <Link href={`/components/${item.id}`}>{item.name} ↗</Link>
-                    <span>
-                      {zh
-                        ? ""
-                        : ""}
-                    </span>
                   </div>
                 </div>
               ))}
             </div>
           </LiquidGlassProvider>
-          <details className="playground-code">
-            <summary>{zh ? "复制材质配置" : "Material configuration"}</summary>
+          <div className="playground-code">
+            <GlassAccordion items={[{ title: zh ? "材质配置" : "Material configuration", content: (
             <CodeBlock
               locale={locale}
               code={`import { LiquidGlassProvider } from "refractive-glass-react/liquid-glass";\n\n<LiquidGlassProvider material={${JSON.stringify(material, null, 2)}}>\n  {/* Your glass components */}\n</LiquidGlassProvider>`}
             />
-          </details>
+            ) }]} />
+          </div>
         </div>
+        <GlassSurface className="playground-inspector" radius={24}>
         <MaterialControls locale={locale} material={material} setMaterial={setMaterial}>
-          <button className="link-button share-material" onClick={share}>
+          <GlassButton size="small" className="share-material" onClick={share}>
             {shared ? <Check size={14} /> : <Link2 size={14} />}
             <span aria-live="polite">
               {shared || (zh ? "分享配置" : "Share configuration")}
             </span>
-          </button>
+          </GlassButton>
         </MaterialControls>
+        </GlassSurface>
       </div>
     </>
   );

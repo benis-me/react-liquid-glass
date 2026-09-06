@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Pause, Play, Shuffle, Trash2 } from "lucide-react";
 import {
   GlassButton,
+  GlassButtonGroup,
   GlassSelect,
   GlassSlider,
   GlassStage,
@@ -171,7 +172,7 @@ export function Sequencer({ locale }: PageProps) {
         ))}
       </div>
       <div className="sequencer-transport">
-        <div className="example-row">
+        <GlassButtonGroup label={zh ? "播放操作" : "Playback controls"}>
           <GlassButton variant="solid" onClick={toggle}>
             {playing ? <Pause size={15} /> : <Play size={15} />}
             {playing ? (zh ? "暂停" : "Pause") : zh ? "播放" : "Play"}
@@ -194,7 +195,7 @@ export function Sequencer({ locale }: PageProps) {
           >
             <Trash2 size={15} />
           </GlassButton>
-        </div>
+        </GlassButtonGroup>
         <GlassSelect
           label={zh ? "音色" : "Voice"}
           value={wave}

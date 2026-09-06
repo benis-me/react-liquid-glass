@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { animate, useMotionValue, useReducedMotion, type MotionValue } from "motion/react";
-import { CLOSE_FUSION_DURATION, CLOSE_FUSION_TIMES, OPEN_MORPH_DURATION, OPEN_MORPH_TIMES, openWidthFrames, openHeightFrames, openRadiusFrames, closeMenuWidthFrames, closeMenuHeightFrames } from "./menu";
+import { CLOSE_FUSION_DURATION, OPEN_MORPH_DURATION, OPEN_MORPH_TIMES, openWidthFrames, openHeightFrames, openRadiusFrames } from "./menu";
 import { liquidEasings, retargetLiquidFrames } from "./trajectory";
 
 export interface PopoverLayout {
@@ -27,21 +27,21 @@ export function popoverFrames(layout: PopoverLayout, open: boolean) {
     merge: [0, neck, neck, neck * .5, 0],
     reveal: [0, 0, .48, .96, 1],
   };
-  const w = closeMenuWidthFrames(pw / 2), h = closeMenuHeightFrames(ph / 2);
-  // The final lobe fits a rectangular trigger, including short tooltips and wide selects.
-  w[3] = Math.min(pw * .14, tw * .4); h[3] = Math.min(ph * .18, th * .6);
-  w[4] = h[4] = 1;
+  // Gather immediately, then absorb through one neck and one small recoil.
+  // Both extents shrink monotonically, even for a tooltip shorter than its trigger.
+  const w = [pw / 2, pw * .45, pw * .22, Math.max(1, Math.min(pw * .11, tw * .38)), 1, 1];
+  const h = [ph / 2, ph * .445, ph * .2, Math.max(1, Math.min(ph * .14, th * .48)), 1, 1];
   const contact = (index: number, gap: number) => triggerReach + reach(w[index], h[index]) + gap;
-  const middle = contact(2, 10), lobe = contact(3, -5);
+  const middle = Math.min(length * .62, contact(2, 6)), lobe = Math.min(middle * .52, contact(3, -4));
   return {
-    times: CLOSE_FUSION_TIMES,
-    x: [px, px + dx * .015, tx - ux * middle, tx - ux * lobe, tx, tx],
-    y: [py, py + dy * .015, ty - uy * middle, ty - uy * lobe, ty, ty],
+    times: [0, .12, .42, .68, .84, 1],
+    x: [px, px + dx * .12, tx - ux * middle, tx - ux * lobe, tx, tx],
+    y: [py, py + dy * .12, ty - uy * middle, ty - uy * lobe, ty, ty],
     w, h,
-    radius: [pr, Math.min(pw, ph) * .185, Math.min(w[2], h[2]), Math.min(w[3], h[3]), 1, 1],
-    trigger: [1, .97, .96, 1.025, 1.04, 1],
-    merge: [0, 0, neck, neck * .8, 2, 0],
-    reveal: [1, .55, .02, 0, 0, 0],
+    radius: [pr, Math.min(w[1], h[1], pr * 1.25), Math.min(w[2], h[2]), Math.min(w[3], h[3]), 1, 1],
+    trigger: [1, .985, .975, 1.035, 1.018, 1],
+    merge: [0, 0, neck, neck * .85, 0, 0],
+    reveal: [1, .5, .025, 0, 0, 0],
   };
 }
 

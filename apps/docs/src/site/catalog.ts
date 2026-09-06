@@ -33,6 +33,22 @@ export const catalog = [
     code: "<GlassButton onClick={() => setCount(count + 1)}>Continue</GlassButton>",
   },
   {
+    id: "button-group",
+    name: "Button Group",
+    zh: "按钮组",
+    group: "Actions",
+    description: "Independent actions in one continuous glass surface.",
+    summary: "一块连续玻璃，组合多个独立操作。",
+    api: "GlassButtonGroup",
+    props: [
+      ["label", "string", "required"],
+      ["orientation", '"horizontal" | "vertical"', '"horizontal"'],
+      ["children", "ReactNode", "buttons or links"],
+      ["…props", "HTMLAttributes<HTMLDivElement>", "—"],
+    ],
+    code: '<GlassButtonGroup label="Zoom">\n        <GlassButton onClick={() => setZoom(value => Math.max(25, value - 25))} disabled={zoom <= 25}>−</GlassButton>\n        <GlassButton onClick={() => setZoom(100)} aria-label="Reset zoom">{zoom}%</GlassButton>\n        <GlassButton onClick={() => setZoom(value => Math.min(200, value + 25))} disabled={zoom >= 200}>+</GlassButton>\n      </GlassButtonGroup>',
+  },
+  {
     id: "switch",
     name: "Switch",
     zh: "开关",
@@ -369,6 +385,7 @@ export const catalog = [
     props: [
       ["items", "{ title, content }[]", "required"],
       ["multiple", "boolean", "false"],
+      ["lazy", "boolean", "false"],
     ],
     code: '<GlassAccordion items={[{ title: "How does it work?", content: "One shared WebGL2 material." }]} />',
   },
@@ -442,6 +459,7 @@ export const groupZh: Record<string, string> = {
 const setup: Partial<Record<ComponentId, string>> = {
   "liquid-button": "const [count, setCount] = useState(0);",
   button: "const [count, setCount] = useState(0);",
+  "button-group": "const [zoom, setZoom] = useState(100);",
   switch: "const [enabled, setEnabled] = useState(false);",
   slider: "const [volume, setVolume] = useState(50);",
   segmented: 'const [period, setPeriod] = useState("day");',
