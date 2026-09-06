@@ -3,6 +3,7 @@ import { cancelFrame, frame } from "motion";
 import { isMotionValue, readMotion, type MotionInput } from "../shared/values";
 import { createLiquidGlassRenderer, type LiquidGlassFrame, type LiquidGlassSource } from "./renderer";
 import { useGlassMaterial } from "./provider";
+import { createContactHDR } from "./contact-hdr";
 
 export type { LiquidGlassBlob } from "./renderer";
 export interface LiquidGlassCanvasProps extends Omit<LiquidGlassFrame, "source" | "content" | "sourceRevision" | "contentRevision"> {
@@ -37,30 +38,39 @@ export function LiquidGlassCanvas(props: LiquidGlassCanvasProps) {
     catch (error) { canvas.dataset.dgRenderer = "unavailable"; console.error(error); return; }
     canvas.dataset.dgRenderer = "liquid-webgl2";
     let visible = false;
+    let hdr: Awaited<ReturnType<typeof createContactHDR>> = null, requestedHDR = false, disposed = false;
     const draw = () => {
       const p = config.current;
       const source = p.sourceRef.current;
       if (!visible || document.hidden || !source) return;
+      const lit = p.blobs.some(blob => readMotion(blob.contactStrength ?? 0) > .001);
+      const highRange = p.shared && !p.debug && matchMedia("(dynamic-range: high)").matches;
+      if (lit && highRange && !requestedHDR) {
+        requestedHDR = true;
+        void createContactHDR(canvas).then(next => { if (disposed) next?.dispose(); else { hdr = next; if (next) scheduleDraw(); } });
+      }
+      if (!lit || !highRange) hdr?.hide();
       renderer.draw({
         ...p, source, content: p.contentRef?.current,
         sourceRevision: readMotion(p.sourceRevision ?? 0),
         contentRevision: readMotion(p.contentRevision ?? 0),
         pixelRatio: Math.min(2, p.pixelRatio ?? window.devicePixelRatio ?? 1),
-      });
+      }, lit && highRange && hdr ? hdr.draw : undefined);
     };
     drawRef.current = draw;
     // Keep the first draw lazy. Dozens of offscreen experiment controls do no GPU work.
     const observer = new IntersectionObserver(([entry]) => {
       visible = entry.isIntersecting;
-      if (visible) scheduleDraw(); else cancelFrame(drawFrame);
+      if (visible) scheduleDraw(); else { cancelFrame(drawFrame); hdr?.hide(); }
     }, { rootMargin: "80px 0px" });
     observer.observe(canvas);
-    const visibility = () => { if (document.hidden) cancelFrame(drawFrame); else scheduleDraw(); };
+    const visibility = () => { if (document.hidden) { cancelFrame(drawFrame); hdr?.hide(); } else scheduleDraw(); };
     document.addEventListener("visibilitychange", visibility);
     const glCanvas = renderer.context.canvas;
-    const lost = (event: Event) => { event.preventDefault(); cancelFrame(drawFrame); };
+    const lost = (event: Event) => { event.preventDefault(); cancelFrame(drawFrame); hdr?.hide(); };
     glCanvas.addEventListener("webglcontextlost", lost);
     return () => {
+      disposed = true; hdr?.dispose();
       cancelFrame(drawFrame);
       observer.disconnect();
       document.removeEventListener("visibilitychange", visibility);

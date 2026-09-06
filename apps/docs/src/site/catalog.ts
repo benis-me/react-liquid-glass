@@ -6,23 +6,23 @@ export const catalog = [
     zh: "液态按钮",
     group: "Actions",
     description:
-      "The original expanding button, with a continuous optical press.",
-    summary: "保留原始膨胀轨迹的液态按钮，按下时材质连续展开。",
+      "Contact light, elastic pull, and a soft return.",
+    summary: "按压点亮，拖拽拉伸，松手回弹。",
     api: "GlassActionButton",
     props: [
       ["children", "ReactNode", "button label"],
       ["onClick", "MouseEventHandler", "—"],
       ["disabled", "boolean", "false"],
     ],
-    code: "<GlassActionButton onClick={() => setCount(count + 1)}>Press and hold</GlassActionButton>",
+    code: "<GlassActionButton onClick={() => setCount(count + 1)}>Hold and pull</GlassActionButton>",
   },
   {
     id: "button",
     name: "Button",
     zh: "按钮",
     group: "Actions",
-    description: "A responsive glass surface for the next action.",
-    summary: "有触感、有回弹的玻璃按钮。",
+    description: "Press anywhere. Pull the glass. Release to settle.",
+    summary: "按住任意位置，拉伸玻璃，松手回弹。",
     api: "GlassButton",
     props: [
       ["variant", '"default" | "solid" | "ghost"', '"default"'],

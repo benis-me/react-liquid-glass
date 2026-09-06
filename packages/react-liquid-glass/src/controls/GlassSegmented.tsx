@@ -3,7 +3,7 @@ import { animate, motion, useMotionValue, useReducedMotion } from "motion/react"
 import { LiquidGlass as Glass, LIQUID_LENS } from "../liquid-glass/LiquidGlass";
 import { GlassSurface, StageContext } from "./GlassSurface";
 import type { LensParams } from "../types";
-import { springTo, usePointerReleaseFallback, waitForRest, useDerivedMotion, useDerivedMotion2, useVelocityDeformation, type SpringRun } from "../apple-motion/react";
+import { springTo, useGlassContact, usePointerReleaseFallback, waitForRest, useDerivedMotion, useDerivedMotion2, useVelocityDeformation, type SpringRun } from "../apple-motion/react";
 import { SEGMENTED_TRAVEL_SPRING, SEGMENTED_PRESS_SPRING, SEGMENTED_DRAG_CATCHUP_SPRING, SEGMENTED_RELEASE_SPRING, SEGMENTED_HEIGHT_RELEASE_SPRING, SEGMENTED_IMPACT_RETENTION, SEGMENTED_TRAIL_BIAS, SEGMENTED_HOLD_IMPACT_SCRIPT } from "../apple-motion/presets";
 
 function darkTheme() {
@@ -59,6 +59,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, cl
   const current = value ?? local;
   const selected = segments.some((item) => item.value === current) ? current : segments[0].value;
   const rootRef = useRef<HTMLDivElement>(null);
+  const contact = useGlassContact(rootRef, { deform: false });
   const solidThumbRef = useRef<HTMLSpanElement>(null);
   const itemRefs = useRef(new Map<string, HTMLButtonElement>());
   const dragPointer = useRef<number | null>(null);
@@ -120,6 +121,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, cl
   const stretchedLensW = useDerivedMotion2(lensW, deformation, (width, amount) => width * (1 + amount * 0.75));
   const stretchedLensH = useDerivedMotion2(lensH, deformation, (height, amount) => height * (1 - amount * 0.52));
   const renderedLensW = useDerivedMotion2(stretchedLensW, interaction, (width, amount) => width * (1 + amount * 0.10));
+  const contactX = useDerivedMotion2(contact.contactX, impactX, (fraction, position) => ((fraction + 1) * (impactWidth.current - SEGMENTED_PAD_X * 2) / 2 + SEGMENTED_PAD_X - position * impactWidth.current) / renderedLensW.get());
   const expandedLensH = useDerivedMotion2(stretchedLensH, interaction, (height, amount) => height * (1 + amount * 0.22));
   const heightBoost = useDerivedMotion2(glassHeight, deformation, (active, amount) =>
     active * (0.18 - Math.min(0.10, Math.max(0, amount) * 0.55)));
@@ -480,6 +482,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, cl
       </div>
       <motion.div className="dg-tabs__glass-layer" aria-hidden style={{ opacity: glassOpacity }}>
         <Glass
+          contact={{ ...contact, contactX }}
           className="dg-tabs__glass"
           refractionPixels={5.5}
           sourceBackground={sourceBackground}

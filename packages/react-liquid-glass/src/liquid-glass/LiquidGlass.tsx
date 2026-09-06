@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import { cancelFrame, frame } from "motion";
 import { LiquidGlassCanvas } from "./LiquidGlassCanvas";
-import { LIQUID_GLASS_MATERIAL, type LiquidGlassFrame } from "./renderer";
+import { LIQUID_GLASS_MATERIAL, type LiquidGlassFrame, type LiquidGlassBlob } from "./renderer";
 import { captureLiquidSource, liquidRgb, liquidTheme, subscribeLiquidTheme, type LiquidSourceFactory, type LiquidSourcePainter } from "./source";
 import { isMotionValue, motionValue, readMotion, type MotionInput } from "../shared/values";
 import { useGlassMaterial } from "./provider";
@@ -42,6 +42,7 @@ export interface LiquidGlassProps {
   zoom?: MotionInput; depth?: MotionInput;
   debug?: boolean;
   material?: Partial<LiquidGlassFrame>;
+  contact?: Pick<LiquidGlassBlob, "contactX" | "contactY" | "contactStrength" | "pullX" | "pullY">;
   className?: string; style?: CSSProperties;
 }
 
@@ -177,7 +178,7 @@ export function LiquidGlass(props: LiquidGlassProps) {
       style={{ position: "absolute", inset: 0, opacity: 0, pointerEvents: "none" }}>{props.refractionTarget}</div> : null}
     {size.width > 0 && size.height > 0 ? <LiquidGlassCanvas shared inheritMaterial={false}
       sourceRef={sourceRef} sourceRevision={sourceRevision} width={size.width} height={size.height}
-      blobs={[{ x: props.x ?? .5, y: props.y ?? .5, radius, halfWidth: width, halfHeight: height }]}
+      blobs={[{ x: props.x ?? .5, y: props.y ?? .5, radius, halfWidth: width, halfHeight: height, ...props.contact }]}
       mergeDistance={0}
       refractionRatio={props.refractionPixels !== undefined ? [1 / size.width, 1 / size.height]
         : scale ? [(lens.scaleX ?? scale) / scale, (lens.scaleY ?? scale) / scale] : [1, 1]}

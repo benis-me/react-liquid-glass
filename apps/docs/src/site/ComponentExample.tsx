@@ -65,7 +65,7 @@ export function ComponentExample({
         <GlassActionButton onClick={() => setCount(count + 1)}>
           {count
             ? t(`Pressed ${count}`, `点击 ${count} 次`)
-            : t("Press and hold", "长按试试")}
+            : t("Hold and pull", "按住并拖动")}
         </GlassActionButton>
       );
     case "button":
@@ -75,7 +75,7 @@ export function ComponentExample({
             {count ? <Check size={16} /> : <Copy size={16} />}
             {count
               ? t(`Clicked ${count}`, `点击 ${count} 次`)
-              : t("Try a little pressure", "感受一点压力")}
+              : t("Hold and pull", "按住并拖动")}
           </GlassButton>
           {!compact && (
             <div className="example-row">

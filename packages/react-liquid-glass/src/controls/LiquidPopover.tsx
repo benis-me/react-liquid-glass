@@ -2,6 +2,7 @@ import { cloneElement, createContext, useContext, useEffect, useId, useLayoutEff
 import { createPortal } from "react-dom";
 import { motion, useMotionValue, useTransform } from "motion/react";
 import { usePopoverMotion, type PopoverLayout } from "../apple-motion/use-popover-motion";
+import { useGlassContact } from "../apple-motion/use-glass-contact";
 import { paintLiquidMenuContent } from "../liquid-glass/menu-content";
 import { liquidContentOptics } from "../liquid-glass/geometry";
 import { LiquidGlassCanvas } from "../liquid-glass/LiquidGlassCanvas";
@@ -34,6 +35,7 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
   const [active, setActive] = useState(false);
   const [host] = useState(() => typeof document === "undefined" ? null : document.createElement("span"));
   const anchor = useRef<HTMLSpanElement>(null), topLayer = useRef<HTMLDivElement>(null), panel = useRef<HTMLDivElement>(null);
+  const contact = useGlassContact(anchor, { deform: false });
   const source = useRef<HTMLCanvasElement | null>(null);
   const revision = useMotionValue(0);
   const ink = useRef<HTMLCanvasElement | null>(null);
@@ -233,7 +235,7 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
       width={frame.width} height={frame.height} pixelRatio={2} transparentOutside
       blobs={[
         ...(active ? [{ x: bodyX, y: bodyY, radius: model.radius, cornerRadius: model.radius, halfWidth: model.w, halfHeight: model.h }] : []),
-        { x: frame.tx / frame.width, y: frame.ty / frame.height, radius: frame.tr, cornerRadius: frame.tr, halfWidth: triggerW, halfHeight: triggerH },
+        { x: frame.tx / frame.width, y: frame.ty / frame.height, radius: frame.tr, cornerRadius: frame.tr, halfWidth: triggerW, halfHeight: triggerH, ...contact },
       ]}
       mergeDistance={model.merge} edgeDepth={10} domeDepth={18} refractionStrength={.11}
       chromaAmount={.24} blurStrength={.8} tintStrength={.055} shadowStrength={.11} shadowBlur={18} shadowOffset={6}

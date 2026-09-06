@@ -437,6 +437,7 @@ html[data-theme="dark"] .dg-liquid-glass {
 .dg-surface { position: relative; display: block; isolation: isolate; min-width: 0; }
 .dg-surface__optics { position: absolute; inset: -14px; pointer-events: none; z-index: -1; }
 .dg-surface__content { position: relative; display: block; min-width: 0; }
+.dg-button, .dg-action__button { touch-action: none; }
 .dg-button { appearance: none; display: inline-block; color: inherit; font: inherit; line-height: 1; background: transparent; border: 0; padding: 0; cursor: pointer; border-radius: 16px; vertical-align: middle; -webkit-tap-highlight-color: transparent; }
 .dg-button > .dg-surface > .dg-surface__content { min-height: 42px; padding: 0 18px; display: flex; align-items: center; justify-content: center; gap: 8px; }
 .dg-button[data-size="small"] > .dg-surface > .dg-surface__content { min-height: 34px; padding: 0 12px; font-size: 12px; }

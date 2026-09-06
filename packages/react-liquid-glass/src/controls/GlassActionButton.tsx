@@ -1,7 +1,8 @@
 import { useEffect, useRef, type ComponentProps } from "react";
-import { usePointerReleaseFallback, springTo } from "../apple-motion/react";
+import { usePointerReleaseFallback, springTo, useGlassContact } from "../apple-motion/react";
+import { contactTransform } from "../apple-motion/contact";
 import { ACTION_PRESS_SPRING, ACTION_RELEASE_SPRING } from "../apple-motion/presets";
-import { animate, useMotionValue, useReducedMotion } from "motion/react";
+import { animate, motion, useMotionValue, useReducedMotion, useTransform } from "motion/react";
 import { LiquidGlass as Glass, LIQUID_LENS } from "../liquid-glass/LiquidGlass";
 import type { LensParams } from "../types";
 
@@ -13,6 +14,8 @@ const ACTION_LENS: Partial<LensParams> = {
 };
 
 export function GlassActionButton({ children, disabled, onClick, ...props }: ComponentProps<"button">) {
+  const root = useRef<HTMLButtonElement>(null);
+  const contact = useGlassContact(root, { enabled: !disabled });
   const reduce = useReducedMotion();
   const runs = useRef<Array<{ stop: () => void }>>([]);
   const stop = () => { runs.current.forEach(run => run.stop()); runs.current = []; };
@@ -23,6 +26,7 @@ export function GlassActionButton({ children, disabled, onClick, ...props }: Com
   const tintStrength = useMotionValue(0.1846);
   const tintBlur = useMotionValue(3);
   const shadowOpacity = useMotionValue(0.28);
+  const transform = useTransform(() => `matrix(${contactTransform(lensW.get() * 2, lensH.get() * 2, contact.contactX.get(), contact.contactY.get(), contact.pullX.get(), contact.pullY.get()).join(",")})`);
 
   const press = () => {
     if (disabled) return;
@@ -57,6 +61,7 @@ export function GlassActionButton({ children, disabled, onClick, ...props }: Com
         y={0.5}
         lensW={lensW}
         lensH={lensH}
+        contact={contact}
         borderRadius={radius}
         tintColor="var(--action-glass-tint, var(--dg-action-tint))"
         material={{ tintStrength }}
@@ -68,6 +73,7 @@ export function GlassActionButton({ children, disabled, onClick, ...props }: Com
       </Glass>
       <button
         {...props}
+        ref={root}
         disabled={disabled}
         onClick={onClick}
         className="dg-action__button"
@@ -80,7 +86,7 @@ export function GlassActionButton({ children, disabled, onClick, ...props }: Com
         onKeyDown={event => { if (!event.repeat && [" ", "Enter"].includes(event.key)) press(); props.onKeyDown?.(event); }}
         onKeyUp={event => { release(); props.onKeyUp?.(event); }}
       >
-        <span>{children}</span>
+        <motion.span style={{ display: "inline-block", transform }}>{children}</motion.span>
       </button>
     </div>
   );

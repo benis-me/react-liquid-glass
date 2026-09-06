@@ -4,7 +4,7 @@ import { animate, motion, useMotionValue, useTransform } from "motion/react";
 import { LiquidGlass as Glass, LIQUID_LENS } from "../liquid-glass/LiquidGlass";
 import { liquidTrackSource } from "../liquid-glass/source";
 import type { LensParams } from "../types";
-import { usePointerReleaseFallback, rubberBand, springTo, type SpringRun } from "../apple-motion/react";
+import { usePointerReleaseFallback, useGlassContact, rubberBand, springTo, type SpringRun } from "../apple-motion/react";
 import { useThumbMotion } from "./use-thumb-motion";
 
 function darkTheme() {
@@ -74,6 +74,9 @@ export function GlassSlider({
   const { lensW, lensH, radius, tintOpacity, targetScaleX, targetScaleY, tintBlur, shadowOpacity, setDeformationBoost, expand, collapse } = useThumbMotion(offset, halfThumbWidth, halfThumbHeight, restTintBlur);
 
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const contact = useGlassContact(wrapperRef, { deform: false, enabled: !disabled });
+  const contactX = useTransform(() => ((contact.contactX.get() + 1) * width / 2 - halfThumbWidth - offset.get()) / lensW.get());
+  const contactY = useTransform(() => contact.contactY.get() * thumbHeight / 2 / lensH.get());
   const trackRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const pointerId = useRef<number | null>(null);
@@ -132,6 +135,7 @@ export function GlassSlider({
   return (
     <div ref={wrapperRef} data-size={size} className={["dg-slider", className].filter(Boolean).join(" ")} style={{ width, height: thumbHeight, "--dg-slider-fill": `${thumbWidth / 2 + toOffset(current)}px`, "--dg-slider-progress": toOffset(current) / travel } as React.CSSProperties}>
       <Glass
+        contact={{ ...contact, contactX, contactY }}
         sourceFactory={sourceFactory}
         sourceValues={[offset, targetScaleX, targetScaleY]}
         refractionPixels={thumbHeight * .22}

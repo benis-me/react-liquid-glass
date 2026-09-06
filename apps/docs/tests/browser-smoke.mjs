@@ -255,3 +255,59 @@ export async function checkSwitchThemes() {
   }
   return result;
 }
+
+export async function checkContactFeedback() {
+  await go('/components/button');
+  const button = document.querySelector('.component-preview .dg-button'), surface = button.querySelector('[data-dg-contact]');
+  const canvas = surface.querySelector('canvas'), ink = surface.querySelector('.dg-surface__content');
+  await until(() => canvas.width > 0, 'Contact canvas is missing');
+  const rect = surface.getBoundingClientRect(), sx = rect.left + rect.width * .84, sy = rect.top + rect.height / 2;
+  const color = () => {
+    const data = canvas.getContext('2d').getImageData(Math.round((40 + rect.width * .84) * 2), Math.round((40 + rect.height / 2) * 2), 1, 1).data;
+    return (data[0] + data[1] + data[2]) / 3;
+  };
+  const before = color(), label = button.textContent;
+  const pointer = (target, type, x = sx, y = sy) => target.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 27, isPrimary: true, pointerType: 'mouse', button: 0, buttons: type === 'pointerup' ? 0 : 1, clientX: x, clientY: y }));
+  pointer(ink, 'pointerdown');
+  await until(() => color() > before + 8, 'The actual grip position did not illuminate');
+  pointer(window, 'pointermove', sx + 90, sy - 30); await paint();
+  const pulled = new DOMMatrix(getComputedStyle(ink).transform);
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) assert(pulled.m41 > 1 && pulled.m42 < 0, 'The material did not follow a resisted diagonal pull');
+  pointer(window, 'pointerup', sx + 90, sy - 30);
+  button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }));
+  assert(button.textContent === label, 'Dragging accidentally fired the action');
+  await until(() => { const m = new DOMMatrix(getComputedStyle(ink).transform); return Math.abs(m.a - 1) < .001 && Math.abs(m.m41) < .02 && Math.abs(m.m42) < .02; }, 'The contact did not spring back');
+  await until(() => Math.abs(color() - before) < 2, 'Contact light changed the resting material');
+  pointer(ink, 'pointerdown'); pointer(window, 'lostpointercapture');
+  assert(!surface.hasAttribute('data-dg-contact-active'), 'Lost capture left the material pinned');
+  pointer(ink, 'pointerdown'); window.dispatchEvent(new Event('blur'));
+  assert(!surface.hasAttribute('data-dg-contact-active'), 'Window blur left the material pinned');
+  return { light: 'localized', pull: 'anchored, resisted, elastic', cancellation: 'capture loss and blur', rest: 'unchanged' };
+}
+
+export async function checkContactHDR() {
+  const { createContactHDR } = await import('../../../packages/react-liquid-glass/src/liquid-glass/contact-hdr.ts');
+  const { createLiquidGlassRenderer } = await import('refractive-glass-react/liquid-glass/renderer');
+  const host = document.createElement('div'), canvas = document.createElement('canvas'), source = document.createElement('canvas');
+  host.style.cssText = 'position:fixed;left:-1000px;top:0;width:240px;height:140px'; host.append(canvas); document.body.append(host);
+  source.width = 240; source.height = 140; const ctx = source.getContext('2d'); ctx.fillStyle = '#333'; ctx.fillRect(0,0,240,140);
+  const renderer = createLiquidGlassRenderer(canvas, {shared:true}); let hdr;
+  try {
+    hdr = await createContactHDR(canvas);
+    if (!hdr) return { hdr: 'unavailable; ordinary WebGL contact light remains active' };
+    const overlay = host.querySelector('[data-dg-contact-hdr]'), context = overlay.getContext('webgpu'), configuration = context.getConfiguration(), device = configuration.device;
+    context.configure({...configuration, usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC});
+    renderer.draw({source, width:240, height:140, pixelRatio:1, transparentOutside:true, blobs:[{x:.5,y:.5,radius:24,halfWidth:80,halfHeight:30,contactX:.8,contactY:0,contactStrength:1,pullX:12,pullY:-3}]}, hdr.draw);
+    const bytesPerRow = 2048, buffer = device.createBuffer({size:bytesPerRow*140,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
+    try {
+      const commands = device.createCommandEncoder(); commands.copyTextureToBuffer({texture:context.getCurrentTexture()},{buffer,bytesPerRow},[240,140]); device.queue.submit([commands.finish()]);
+      await buffer.mapAsync(GPUMapMode.READ);
+      const values = new Float16Array(buffer.getMappedRange()); let peak = 0;
+      for(let y=0;y<140;y++) for(let x=0;x<240;x++) peak=Math.max(peak,values[y*bytesPerRow/2+x*4]);
+      assert(peak > 1, 'HDR contact never exceeded SDR white');
+      assert(configuration.toneMapping.mode === 'extended', 'HDR output was tone mapped to SDR');
+      assert(renderer.stats.emissionDraws === 1 && renderer.stats.sourceUploads === 1, 'HDR duplicated source capture or material work');
+      return {format:configuration.format, mode:configuration.toneMapping.mode, peak, displayHDR:matchMedia('(dynamic-range: high)').matches};
+    } finally { buffer.destroy(); }
+  } finally { hdr?.dispose(); renderer.dispose(); host.remove(); }
+}

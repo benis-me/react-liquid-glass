@@ -43,7 +43,7 @@ test("Liquid shares a device, retains textures, recovers loss and disposes per o
     second.draw(frame);
     x.set(.7);
     first.draw(frame);
-    assert.deepEqual(first.stats, { draws: 2, sourceUploads: 1, contentUploads: 1 }, "geometry changes reuse both pixel textures");
+    assert.deepEqual(first.stats, { draws: 2, emissionDraws: 0, sourceUploads: 1, contentUploads: 1 }, "geometry changes reuse both pixel textures");
     first.draw({ ...frame, sourceRevision: 1 });
     assert.equal(first.stats.sourceUploads, 2);
     assert.equal(first.stats.contentUploads, 1);

@@ -1,4 +1,5 @@
 export { stepSpring, type PhysicalSpring } from "./spring";
+export { contactPull, contactTransform } from "./contact";
 export { tween } from "./tween";
 export * from "./trajectory";
 export * from "./menu";

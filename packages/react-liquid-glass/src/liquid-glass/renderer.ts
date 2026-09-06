@@ -1,4 +1,5 @@
 import { computeDomeConstants } from "../math";
+import { contactTransform } from "../shared/contact";
 import { readMotion, type MotionInput } from "../shared/values";
 
 const MAX_BLOBS = 8;
@@ -16,6 +17,13 @@ export interface LiquidGlassBlob {
   /** Optional CSS-pixel velocity used for squash and stretch. */
   velocityX?: MotionInput;
   velocityY?: MotionInput;
+  /** Grip position relative to the lens center, normalized to -1..1. */
+  contactX?: MotionInput;
+  contactY?: MotionInput;
+  contactStrength?: MotionInput;
+  /** Resisted grip displacement in CSS pixels. */
+  pullX?: MotionInput;
+  pullY?: MotionInput;
 }
 
 
@@ -74,6 +82,7 @@ export interface LiquidGlassFrame {
 }
 export interface LiquidRendererStats {
   draws: number;
+  emissionDraws: number;
   sourceUploads: number;
   contentUploads: number;
 }
@@ -103,6 +112,10 @@ uniform vec3 uBlobs[8];
 uniform vec2 uHalfSize[8];
 uniform float uCornerRadius[8];
 uniform vec2 uVelocity[8];
+uniform vec3 uContact[8];
+uniform vec4 uContactInverse[8];
+uniform vec2 uContactOffset[8];
+uniform bool uEmissionOnly;
 uniform int uBlobCount;
 uniform float uMergeDistance;
 uniform float uRefraction;
@@ -137,11 +150,11 @@ float smoothMin(float a, float b, float radius) {
   return mix(b, a, h) - k * h * (1. - h);
 }
 
-vec2 movingBlobLocal(vec2 point, vec3 blob, vec2 velocity) {
+vec2 movingBlobLocal(vec2 point, vec3 blob, vec2 velocity, int index) {
   float speed = clamp(length(velocity) / 1100., 0., 1.);
   vec2 direction = speed > .001 ? normalize(velocity) : vec2(1., 0.);
   vec2 tangent = vec2(-direction.y, direction.x);
-  vec2 delta = point - blob.xy;
+  vec2 delta = mat2(uContactInverse[index]) * (point - blob.xy - uContactOffset[index]);
   float stretch = 1. + speed * .52;
   float squash = inversesqrt(stretch);
   float along = dot(delta, direction) / stretch;
@@ -156,9 +169,10 @@ float movingBlobSdf(
   vec2 halfSize,
   float cornerRadius,
   vec2 velocity,
+  int index,
   float inset
 ) {
-  vec2 deformed = movingBlobLocal(point, blob, velocity);
+  vec2 deformed = movingBlobLocal(point, blob, velocity, index);
   vec2 extent = max(halfSize - vec2(inset), vec2(0.));
   float radius = clamp(cornerRadius, 0., min(extent.x, extent.y));
   vec2 inner = max(extent - vec2(radius), vec2(0.));
@@ -173,6 +187,7 @@ float sceneSdf(vec2 point, float inset) {
     uHalfSize[0],
     uCornerRadius[0],
     uVelocity[0],
+    0,
     inset
   );
   for (int index = 1; index < 8; index++) {
@@ -183,6 +198,7 @@ float sceneSdf(vec2 point, float inset) {
       uHalfSize[index],
       uCornerRadius[index],
       uVelocity[index],
+      index,
       inset
     );
     distance = smoothMin(distance, next, uMergeDistance);
@@ -230,7 +246,7 @@ vec4 sampleContent(vec2 uv) {
 void main() {
   vec4 raw = texture(uSource, vUv);
   if (uBlobCount < 1) {
-    outputColor = uTransparentOutside ? vec4(0.) : (uDebug ? vec4(.5, .5, .5, 1.) : raw);
+    outputColor = uEmissionOnly || uTransparentOutside ? vec4(0.) : (uDebug ? vec4(.5, .5, .5, 1.) : raw);
     return;
   }
 
@@ -238,7 +254,7 @@ void main() {
   float distance = sceneSdf(point, 0.);
   float shadowDistance = sceneSdf(point - vec2(0., uShadowOffset), 0.);
   if (distance > 18. && shadowDistance > uShadowBlur * 3.) {
-    outputColor = uTransparentOutside ? vec4(0.) : (uDebug ? vec4(.5, .5, .5, 1.) : raw);
+    outputColor = uEmissionOnly || uTransparentOutside ? vec4(0.) : (uDebug ? vec4(.5, .5, .5, 1.) : raw);
     return;
   }
 
@@ -250,12 +266,13 @@ void main() {
   float outsideShadow = (1. - coverage) * shadowFalloff * uShadow;
   vec3 color = raw.rgb * (1. - outsideShadow);
   if (coverage <= .001) {
+    if (uEmissionOnly) { outputColor = vec4(0.); return; }
     if (uDebug) { outputColor = vec4(.5, .5, .5, 1.); return; }
     outputColor = uTransparentOutside ? vec4(0., 0., 0., outsideShadow * uOpacity) : vec4(mix(raw.rgb, color, uOpacity), raw.a);
     return;
   }
   // Opaque resting control thumbs need their SDF coverage/shadow, not optics.
-  if (uTint >= 1. && uContentOpacity <= .001 && !uDebug) {
+  if (uTint >= 1. && uContentOpacity <= .001 && !uDebug && !uEmissionOnly) {
     float alpha = coverage + outsideShadow * (1. - coverage);
     outputColor = uTransparentOutside
       ? vec4(uTintColor * coverage / max(alpha, .0001), alpha * uOpacity)
@@ -272,6 +289,7 @@ void main() {
   vec2 materialUv = vec2(0.);
   float materialWeight = 0.;
   float blendRadius = max(uMergeDistance * .35, 1.);
+  float contactLight = 0.;
   for (int index = 0; index < 8; index++) {
     if (index >= uBlobCount) break;
     float blobDistance = movingBlobSdf(
@@ -280,11 +298,19 @@ void main() {
       uHalfSize[index],
       uCornerRadius[index],
       uVelocity[index],
+      index,
       0.
     );
     float weight = exp(-max(blobDistance - distance, 0.) / blendRadius);
-    vec2 local = movingBlobLocal(point, uBlobs[index], uVelocity[index]);
+    vec2 local = movingBlobLocal(point, uBlobs[index], uVelocity[index], index);
     vec2 extent = max(uHalfSize[index], vec2(1.));
+    if (uContact[index].z > .001) {
+      vec2 finger = local - uContact[index].xy * extent;
+      float radius = clamp(min(extent.x, extent.y) * 1.1, 12., 54.);
+      float spread = exp(-dot(finger, finger) / (radius * radius));
+      float crest = exp(-dot(finger, finger) / (radius * radius * .09));
+      contactLight += uContact[index].z * weight * (spread * (.16 + .5 * falloff) + crest * .26);
+    }
     vec2 normalizedLocal = clamp(local / extent, vec2(-1.), vec2(1.));
     vec2 gradient = normalizedLocal;
     if (uDomeDepth > .001) {
@@ -299,6 +325,8 @@ void main() {
   }
   glassGradient /= max(materialWeight, .001);
   materialUv /= max(materialWeight, .001);
+  contactLight /= max(materialWeight, .001);
+  if (uEmissionOnly) { outputColor = vec4(vec3(contactLight * coverage * uOpacity * (1. - clamp(uTint, 0., 1.))), 1.); return; }
   // Core Glass uses objectBoundingBox primitive units: channel delta is half the scale.
   vec2 displacement = glassGradient * (uRefraction * .5 * falloff);
   displacement *= coverage * uZoom * uRefractionRatio;
@@ -344,9 +372,11 @@ void main() {
   vec3 brightnessTarget = uBrightness >= 0. ? vec3(1.) : vec3(0.);
   refracted = mix(refracted, brightnessTarget, brightnessAmount);
   refracted = mix(refracted, uTintColor, clamp(uTint, 0., 1.));
+  // Contact illumination belongs to the same deformed SDF and stays local to the grip.
+  refracted += vec3(contactLight * .72) * (1. - clamp(uTint, 0., 1.));
   if (uContentOpacity > .001) {
     vec2 extent = max(uHalfSize[0] * 2., vec2(1.));
-    vec2 local = movingBlobLocal(point, uBlobs[0], uVelocity[0]);
+    vec2 local = movingBlobLocal(point, uBlobs[0], uVelocity[0], 0);
     // Reuse the live merged optical field; only the peripheral ink is stretched.
     float edgeFocus = 1. - smoothstep(0., max(uDepth * 2., 1.), inside);
     vec2 contentUv = .5 + (local - displacement * uSourceSize * .42 * uContentRefraction * edgeFocus) / extent;
@@ -413,6 +443,7 @@ function createTexture(gl: WebGL2RenderingContext) {
 const uniformNames = [
   "uSource", "uFrostSource", "uContent", "uContentOpacity", "uContentRefraction", "uContentBlur",
   "uSourceSize", "uBlobs[0]", "uHalfSize[0]", "uCornerRadius[0]", "uVelocity[0]",
+  "uContact[0]", "uContactInverse[0]", "uContactOffset[0]", "uEmissionOnly",
   "uDome[0]", "uBlobCount", "uMergeDistance", "uRefraction", "uRefractionRatio",
   "uChroma", "uSpecular", "uBlur", "uDepth", "uDomeDepth", "uBrightness",
   "uSpecularRotation", "uGlowStrength", "uGlowSpread", "uGlowExponent",
@@ -520,6 +551,9 @@ export function createLiquidGlassRenderer(
   const sizes = new Float32Array(MAX_BLOBS * 2);
   const corners = new Float32Array(MAX_BLOBS);
   const velocities = new Float32Array(MAX_BLOBS * 2);
+  const contacts = new Float32Array(MAX_BLOBS * 3);
+  const contactInverses = new Float32Array(MAX_BLOBS * 4);
+  const contactOffsets = new Float32Array(MAX_BLOBS * 2);
   const domes = new Float32Array(MAX_BLOBS * 4);
   let lastSource: LiquidGlassSource | undefined;
   let sourceRevision: number | undefined;
@@ -529,9 +563,9 @@ export function createLiquidGlassRenderer(
   let lastContent: HTMLCanvasElement | undefined;
   let contentRevision: number | undefined;
   let disposed = false;
-  const stats: LiquidRendererStats = { draws: 0, sourceUploads: 0, contentUploads: 0 };
+  const stats: LiquidRendererStats = { draws: 0, emissionDraws: 0, sourceUploads: 0, contentUploads: 0 };
 
-  function draw(p: LiquidGlassFrame) {
+  function draw(p: LiquidGlassFrame, presentContactHDR?: (mask: HTMLCanvasElement) => void) {
     if (disposed || gl.isContextLost() || !Number.isFinite(p.width) || !Number.isFinite(p.height) || p.width <= 0 || p.height <= 0) return false;
     const source = p.source;
     const sw = source instanceof HTMLVideoElement ? source.videoWidth
@@ -654,6 +688,14 @@ export function createLiquidGlassRenderer(
       velocities[i*2] = readMotion(b.velocityX ?? 0);
       velocities[i*2+1] = readMotion(b.velocityY ?? 0);
       if (![blobs[i*3], blobs[i*3+1], radius, sizes[i*2], sizes[i*2+1], corners[i], velocities[i*2], velocities[i*2+1]].every(Number.isFinite)) return false;
+      const cx = readMotion(b.contactX ?? 0), cy = readMotion(b.contactY ?? 0), strength = readMotion(b.contactStrength ?? 0);
+      const px = readMotion(b.pullX ?? 0), py = readMotion(b.pullY ?? 0);
+      if (![cx, cy, strength, px, py].every(Number.isFinite)) return false;
+      contacts.set([Math.max(-1, Math.min(1, cx)), Math.max(-1, Math.min(1, cy)), Math.max(0, Math.min(1, strength))], i * 3);
+      const [m00, m10, m01, m11, tx, ty] = contactTransform(sizes[i*2] * 2, sizes[i*2+1] * 2, cx, cy, px, py);
+      const determinant = m00 * m11 - m01 * m10;
+      contactInverses.set([m11 / determinant, -m10 / determinant, -m01 / determinant, m00 / determinant], i * 4);
+      contactOffsets.set([tx, ty], i * 2);
       const dome = computeDomeConstants(p.domeDepth ?? LIQUID_GLASS_MATERIAL.domeDepth, sizes[i*2], sizes[i*2+1]);
       domes[i*4] = dome.Rx; domes[i*4+1] = dome.Ry;
       domes[i*4+2] = dome.scaleX; domes[i*4+3] = dome.scaleY;
@@ -664,6 +706,9 @@ export function createLiquidGlassRenderer(
     gl.uniform2fv(u["uHalfSize[0]"], sizes);
     gl.uniform1fv(u["uCornerRadius[0]"], corners);
     gl.uniform2fv(u["uVelocity[0]"], velocities);
+    gl.uniform3fv(u["uContact[0]"], contacts);
+    gl.uniform4fv(u["uContactInverse[0]"], contactInverses);
+    gl.uniform2fv(u["uContactOffset[0]"], contactOffsets);
     gl.uniform4fv(u["uDome[0]"], domes);
     gl.uniform1i(u.uBlobCount, count);
     for (const key of scalarKeys) {
@@ -679,12 +724,18 @@ export function createLiquidGlassRenderer(
     gl.uniform1f(u.uContentBlur, readMotion(p.contentBlur ?? 0));
     gl.uniform1i(u.uTransparentOutside, p.transparentOutside ? 1 : 0);
     gl.uniform1i(u.uDebug, p.debug ? 1 : 0);
+    gl.uniform1i(u.uEmissionOnly, 0);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
     if (output) {
       if (canvas.width !== width) canvas.width = width;
       if (canvas.height !== height) canvas.height = height;
       output.clearRect(0, 0, width, height);
       output.drawImage(device.canvas, 0, 0);
+    }
+    // An active HDR contact adds one mask pass on the same SDF; no extra frost or DOM capture.
+    if (output && presentContactHDR && !p.debug) {
+      gl.uniform1i(u.uEmissionOnly, 1); gl.drawArrays(gl.TRIANGLES, 0, 6);
+      presentContactHDR(device.canvas); stats.emissionDraws++;
     }
     stats.draws++;
     return true;

@@ -59,6 +59,12 @@ Pass the current position and velocity again when retargeting. Elapsed time is i
 
 ## Rendering boundaries
 
+Buttons, button groups and `GlassSurface` respond to a local grip with contact light, resisted deformation and an elastic return. Dragging does not fire the button's action. `GlassSurface interactive="light"` keeps contact light while leaving dragging to the application; `interactive={false}` disables both. Sliders, switches, segmented controls and popup triggers retain their own gesture/morph behavior and add contact light.
+
+For custom controls, `useGlassContact(ref)` from `apple-motion/react` returns MotionValues that can be passed to `LiquidGlass contact={contact}` or spread onto a `LiquidGlassCanvas` blob. `contactTransform` provides the matching affine transform for native foreground content. Pointer cancellation, capture loss, window blur, reduced motion and interruption are handled by the shared hook.
+
+On HDR displays with WebGPU extended tone mapping, a lazy shared presenter emits the same SDF's contact-light mask above SDR white using an `rgba16float` canvas. The existing WebGL material is unchanged at rest; SDR and unsupported browsers keep its ordinary local highlight. This is a project-tuned interpretation, not measured iOS constants or a claim of native parity. See [HDR canvas tone mapping](https://developer.chrome.com/blog/new-in-webgpu-129).
+
 WebGL2 is required. `GlassStage` supplies an explicit canvas substrate to its descendant `GlassSurface` components; it does not capture arbitrary DOM behind them. Without a stage, basic surfaces use a neutral substrate. Spotlight and Video render their own media; provide same-origin or CORS-enabled URLs.
 
 The legacy DOM adapter is a bounded redraw of supported content, not browser-native DOM capture, a universal backdrop, or evidence of native iOS performance parity. Controls retain their own track/text substrates. The menu retains one merged SDF for its body, button and neck throughout the transition.

@@ -16,7 +16,8 @@ import {
   useReducedMotion,
   useTransform,
 } from "motion/react";
-import { springTo } from "../apple-motion/react";
+import { springTo, useGlassContact } from "../apple-motion/react";
+import { contactTransform } from "../apple-motion/contact";
 import { SURFACE_PRESS_SPRING } from "../apple-motion/presets";
 import { LiquidGlassCanvas } from "../liquid-glass/LiquidGlassCanvas";
 
@@ -116,6 +117,8 @@ export interface GlassSurfaceProps {
   style?: CSSProperties;
   radius?: number;
   pressed?: boolean;
+  /** Contact light and elastic pull; use "light" to keep application-owned dragging. */
+  interactive?: boolean | "light";
 }
 
 export const FusionTriggerContext = createContext<((pressed: boolean) => void) | null>(null);
@@ -133,8 +136,10 @@ function OpticalSurface({
   style,
   radius = 18,
   pressed = false,
+  interactive = true,
 }: GlassSurfaceProps) {
   const root = useRef<HTMLSpanElement>(null);
+  const contact = useGlassContact(root, { enabled: interactive !== false, deform: interactive !== "light" });
   const source = useRef<HTMLCanvasElement | null>(null);
   const revision = useMotionValue(0);
   const scale = useMotionValue(1);
@@ -145,6 +150,11 @@ function OpticalSurface({
     heightValue = useMotionValue(0);
   const halfWidth = useTransform(() => (widthValue.get() * scale.get()) / 2);
   const halfHeight = useTransform(() => (heightValue.get() * scale.get()) / 2);
+  const transform = useTransform(() => {
+    const s = scale.get();
+    const [a, b, c, d, x, y] = contactTransform(Math.max(1, widthValue.get() * s), Math.max(1, heightValue.get() * s), contact.contactX.get(), contact.contactY.get(), contact.pullX.get(), contact.pullY.get());
+    return `matrix(${a * s},${b * s},${c * s},${d * s},${x},${y})`;
+  });
   useEffect(() => {
     if (reduce) {
       scale.jump(pressed ? 0.96 : 1);
@@ -167,8 +177,8 @@ function OpticalSurface({
       heightValue.set(height);
       const canvas = source.current ?? document.createElement("canvas");
       source.current = canvas;
-      canvas.width = (width + 28) * 2;
-      canvas.height = (height + 28) * 2;
+      canvas.width = (width + 80) * 2;
+      canvas.height = (height + 80) * 2;
       const ctx = canvas.getContext("2d")!;
       const dark = getComputedStyle(element).colorScheme.includes("dark");
       ctx.fillStyle = dark ? "#202020" : "#eeeeec";
@@ -178,8 +188,8 @@ function OpticalSurface({
           parent = stage.root.getBoundingClientRect();
         ctx.drawImage(
           stage.canvas,
-          (rect.left - parent.left - 14) * 2,
-          (rect.top - parent.top - 14) * 2,
+          (rect.left - parent.left - 40) * 2,
+          (rect.top - parent.top - 40) * 2,
           canvas.width,
           canvas.height,
           0,
@@ -214,14 +224,14 @@ function OpticalSurface({
       style={{ ...style, borderRadius: radius }}
     >
       {size.width > 0 && (
-        <span className="dg-surface__optics" aria-hidden="true">
+        <span className="dg-surface__optics" aria-hidden="true" style={{ inset: -40 }}>
           <LiquidGlassCanvas
             shared
             pixelRatio={2}
             sourceRef={source}
             sourceRevision={revision}
-            width={size.width + 28}
-            height={size.height + 28}
+            width={size.width + 80}
+            height={size.height + 80}
             blobs={[
               {
                 x: 0.5,
@@ -230,11 +240,13 @@ function OpticalSurface({
                 cornerRadius: radius,
                 halfWidth,
                 halfHeight,
+                ...contact,
               },
             ]}
             domeDepth={Math.min(18, size.height * 0.25)}
             edgeDepth={Math.min(12, size.height * 0.12)}
             refractionStrength={0.11}
+            refractionRatio={[(size.width + 28) / (size.width + 80), (size.height + 28) / (size.height + 80)]}
             chromaAmount={0.24}
             blurStrength={0.5}
             tintStrength={0.055}
@@ -246,7 +258,7 @@ function OpticalSurface({
           />
         </span>
       )}
-      <motion.span className="dg-surface__content" style={{ scale }}>
+      <motion.span className="dg-surface__content" style={{ transform }}>
         {children}
       </motion.span>
     </span>

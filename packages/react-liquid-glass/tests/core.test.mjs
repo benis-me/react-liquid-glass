@@ -114,10 +114,38 @@ test('neither core imports the other implementation, control views, or demo code
   }
 });
 
-test('the approved optical renderer and resource pipeline remain unchanged by the refactor', () => {
+test('contact feedback preserves the approved material, frost and resting highlights', () => {
   const source = readFileSync(new URL('../src/liquid-glass/renderer.ts', import.meta.url), 'utf8');
-  const body = source.slice(source.indexOf('const MAX_BLOBS'));
-  assert.equal(createHash('sha256').update(body).digest('hex'), '194db479fcbf221b4e8548af891807bf60253ea346a97916b7e853509619adbb');
+  const preset = source.slice(source.indexOf('export const LIQUID_GLASS_MATERIAL'), source.indexOf('export interface LiquidGlassFrame'));
+  const frost = source.slice(source.indexOf('vec3 sampleChroma'), source.indexOf('vec4 sampleContent'));
+  const restingLight = source.slice(source.indexOf('  float theta'), source.indexOf('  // Contact illumination'));
+  // Captured from the approved renderer before contact lighting was added.
+  assert.equal(createHash('sha256').update(preset + frost + restingLight).digest('hex'), '6adf49cf44dc5a4933c2be87c364519ee43e847669c13fc01aa250370b3340d0');
+});
+
+test('glass grips resist unbounded pulling, keep the opposite side pinned and return to identity', () => {
+  for (const [width, height] of [[52,20], [180,42], [320,200]]) {
+    for (const [x,y] of [[-1,-1],[1,1],[0,0],[.8,-.3]]) {
+      assert.deepEqual(physics.contactTransform(width,height,x,y,0,0), [1,0,0,1,0,0]);
+      for (const [dx,dy] of [[100,50],[-100,50],[0,-100],[1e6,1e6]]) {
+        const [px,py] = physics.contactPull(dx,dy,width,height);
+        const resumed = physics.contactPull(0,0,width,height,px,py);
+        near(resumed[0],px,.001); near(resumed[1],py,.001);
+        assert.ok(Math.hypot(px,py) < Math.min(26,Math.min(width,height)*.45));
+        const matrix = physics.contactTransform(width,height,x,y,px,py);
+        assert.ok(matrix.every(Number.isFinite));
+        const [a,b,c,d,tx,ty] = matrix;
+        assert.ok(a*d-b*c > .7 && a*d-b*c < 1.3, 'the material must not flip or inflate without bound');
+        const gripX=x*width/2, gripY=y*height/2;
+        assert.ok((a*gripX+c*gripY+tx-gripX)*px+(b*gripX+d*gripY+ty-gripY)*py > 0, 'the grip must follow the pull');
+      }
+    }
+  }
+  const [a,b,c,d,tx,ty] = physics.contactTransform(180,52,1,0,12,6);
+  near(a*(-72)+tx,-72); near(b*(-72)+ty,0); // Opposite material point stays fixed.
+  near(a*90+tx,102); near(b*90+ty,6);
+  assert.throws(()=>physics.contactTransform(0,20,0,0,1,1),RangeError);
+  assert.throws(()=>physics.contactTransform(100,20,0,0,NaN,1),RangeError);
 });
 
 test('popup trajectories keep a compact capsule, a live fusion neck, and one trigger recovery at every size', () => {
