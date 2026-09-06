@@ -334,7 +334,6 @@ void main() {
   glassGradient /= max(materialWeight, .001);
   materialUv /= max(materialWeight, .001);
   contactLight /= max(materialWeight, .001);
-  if (uEmissionOnly) { outputColor = vec4(vec3(contactLight * coverage * uOpacity * (1. - clamp(uTint, 0., 1.))), 1.); return; }
   // Core Glass uses objectBoundingBox primitive units: channel delta is half the scale.
   vec2 displacement = glassGradient * (uRefraction * .5 * falloff);
   displacement *= coverage * uZoom * uRefractionRatio;
@@ -343,7 +342,6 @@ void main() {
     return;
   }
 
-  vec3 refracted = sampleGlass(vUv, displacement);
   float theta = radians(uSpecularRotation);
   vec2 light = vec2(cos(theta), sin(theta));
   float align = abs(dot(materialUv, light));
@@ -356,14 +354,6 @@ void main() {
   // Reuse the SDF's screen derivatives: straight sidewalls must not inherit
   // a bright rim from their position above/below the body's center.
   float edgeLight = pow(clamp(abs(dot(edgeGradient, light)) / max(length(edgeGradient), .001), 0., 1.), uEdgeExponent);
-  // Video's highlight response preserves contrast on both bright and dark substrates.
-  float luminance = dot(refracted, vec3(.299, .587, .114));
-  float shine = specular * uSpecular * (127. / 255.);
-  refracted = mix(
-    refracted + vec3(shine),
-    refracted * (1. - shine),
-    smoothstep(.3, .7, luminance)
-  );
   // One SDF, two edge profiles: a fine dark contour, then an inset bright crest.
   // The bright crest must not erase the faint top/bottom contour underneath it.
   float edgeWidth = max(uEdgeWidth, .001);
@@ -374,24 +364,37 @@ void main() {
   float reflectionLight = smoothstep(.75, .98, edgeLight);
   float edgeGain = max(uEdgeStrength * uSpecular, 0.);
   float contourStrength = min(.85, edgeGain * 3.2) * mix(.85, .24, edgeLight);
-  refracted *= 1. - contour * contourStrength;
-  refracted += vec3(reflection * reflectionLight * edgeGain * .22);
+  float rimLight = reflection * reflectionLight * edgeGain;
   float brightnessAmount = clamp(abs(uBrightness), 0., 1.);
-  vec3 brightnessTarget = uBrightness >= 0. ? vec3(1.) : vec3(0.);
-  refracted = mix(refracted, brightnessTarget, brightnessAmount);
-  refracted = mix(refracted, uTintColor, clamp(uTint, 0., 1.));
-  // Contact illumination belongs to the same deformed SDF and stays local to the grip.
-  refracted += vec3(contactLight * .72) * (1. - clamp(uTint, 0., 1.));
+  vec4 ink = vec4(0.);
   if (uContentOpacity > .001) {
     vec2 extent = max(uHalfSize[0] * 2., vec2(1.));
     vec2 local = movingBlobLocal(point, uBlobs[0], uVelocity[0], 0);
     // Reuse the live merged optical field; only the peripheral ink is stretched.
     float edgeFocus = 1. - smoothstep(0., max(uDepth * 2., 1.), inside);
     vec2 contentUv = .5 + (local - displacement * uSourceSize * .42 * uContentRefraction * edgeFocus) / extent;
-    vec4 ink = sampleContent(contentUv);
-    // Premultiplied ink avoids dark fringes as transparent glyph edges are blurred.
-    refracted = refracted * (1. - ink.a * uContentOpacity) + ink.rgb * uContentOpacity;
+    ink = sampleContent(contentUv) * uContentOpacity;
   }
+  // The same fine crest and contact field feed HDR. No frost pass is repeated,
+  // and foreground ink, opaque thumbs and SDF coverage still occlude the light.
+  if (uEmissionOnly) {
+    float visibility = coverage * uOpacity * (1. - clamp(uTint, 0., 1.)) * (1. - ink.a);
+    outputColor = vec4(vec3(contactLight, rimLight * (1. - brightnessAmount), 0.) * visibility, 1.);
+    return;
+  }
+  vec3 refracted = sampleGlass(vUv, displacement);
+  // Video's highlight response preserves contrast on both bright and dark substrates.
+  float luminance = dot(refracted, vec3(.299, .587, .114));
+  float shine = specular * uSpecular * (127. / 255.);
+  refracted = mix(refracted + vec3(shine), refracted * (1. - shine), smoothstep(.3, .7, luminance));
+  refracted *= 1. - contour * contourStrength;
+  refracted += vec3(rimLight * .22);
+  vec3 brightnessTarget = uBrightness >= 0. ? vec3(1.) : vec3(0.);
+  refracted = mix(refracted, brightnessTarget, brightnessAmount);
+  refracted = mix(refracted, uTintColor, clamp(uTint, 0., 1.));
+  refracted += vec3(contactLight * .72) * (1. - clamp(uTint, 0., 1.));
+  // Premultiplied ink avoids dark fringes as transparent glyph edges are blurred.
+  refracted = refracted * (1. - ink.a) + ink.rgb;
   float alpha = coverage + outsideShadow * (1. - coverage);
   if (uTransparentOutside) {
     outputColor = vec4(refracted * coverage / max(alpha, .0001), alpha * uOpacity);
@@ -573,7 +576,7 @@ export function createLiquidGlassRenderer(
   let disposed = false;
   const stats: LiquidRendererStats = { draws: 0, emissionDraws: 0, sourceUploads: 0, contentUploads: 0 };
 
-  function draw(p: LiquidGlassFrame, presentContactHDR?: (mask: HTMLCanvasElement) => void) {
+  function draw(p: LiquidGlassFrame, presentHighlightHDR?: (mask: HTMLCanvasElement) => void) {
     if (disposed || gl.isContextLost() || !Number.isFinite(p.width) || !Number.isFinite(p.height) || p.width <= 0 || p.height <= 0) return false;
     const source = p.source;
     const sw = source instanceof HTMLVideoElement ? source.videoWidth
@@ -733,6 +736,12 @@ export function createLiquidGlassRenderer(
     gl.uniform1f(u.uContentBlur, readMotion(p.contentBlur ?? 0));
     gl.uniform1i(u.uTransparentOutside, p.transparentOutside ? 1 : 0);
     gl.uniform1i(u.uDebug, p.debug ? 1 : 0);
+    // Copy the mask before the normal draw so direct canvases also end on their
+    // visible material. Both paths share textures, frost and the merged SDF.
+    if (presentHighlightHDR && !p.debug) {
+      gl.uniform1i(u.uEmissionOnly, 1); gl.drawArrays(gl.TRIANGLES, 0, 6);
+      presentHighlightHDR(device.canvas); stats.emissionDraws++;
+    }
     gl.uniform1i(u.uEmissionOnly, 0);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
     if (output) {
@@ -740,11 +749,6 @@ export function createLiquidGlassRenderer(
       if (canvas.height !== height) canvas.height = height;
       output.clearRect(0, 0, width, height);
       output.drawImage(device.canvas, 0, 0);
-    }
-    // An active HDR contact adds one mask pass on the same SDF; no extra frost or DOM capture.
-    if (output && presentContactHDR && !p.debug) {
-      gl.uniform1i(u.uEmissionOnly, 1); gl.drawArrays(gl.TRIANGLES, 0, 6);
-      presentContactHDR(device.canvas); stats.emissionDraws++;
     }
     stats.draws++;
     for (const listener of frameListeners) listener(canvas);

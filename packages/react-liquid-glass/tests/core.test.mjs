@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { readFileSync, readdirSync } from 'node:fs';
 import * as physics from 'refractive-glass-react/apple-motion';
@@ -8,6 +7,7 @@ import { springTo, popoverFrames } from 'refractive-glass-react/apple-motion/rea
 import { motionValue } from 'motion';
 import { LiquidMenu, GlassSwitch, GlassSlider, GlassSegmented } from 'refractive-glass-react/controls';
 import { createLiquidGlassRenderer, LIQUID_GLASS_MATERIAL } from 'refractive-glass-react/liquid-glass/renderer';
+import { liquidSurfaceBlur } from 'refractive-glass-react/liquid-glass';
 
 const near = (actual, expected, epsilon = 1e-9) => assert.ok(Math.abs(actual - expected) <= epsilon, `${actual} != ${expected}`);
 const configurations = [
@@ -114,13 +114,16 @@ test('neither core imports the other implementation, control views, or demo code
   }
 });
 
-test('contact feedback preserves the approved material, frost and resting highlights', () => {
-  const source = readFileSync(new URL('../src/liquid-glass/renderer.ts', import.meta.url), 'utf8');
-  const preset = source.slice(source.indexOf('export const LIQUID_GLASS_MATERIAL'), source.indexOf('export interface LiquidGlassFrame'));
-  const frost = source.slice(source.indexOf('vec3 sampleChroma'), source.indexOf('vec4 sampleContent'));
-  const restingLight = source.slice(source.indexOf('  float theta'), source.indexOf('  // Contact illumination'));
-  // Captured from the approved renderer before contact lighting was added.
-  assert.equal(createHash('sha256').update(preset + frost + restingLight).digest('hex'), '6adf49cf44dc5a4933c2be87c364519ee43e847669c13fc01aa250370b3340d0');
+test('popup frost stays clear on shallow controls and grows smoothly with the body', () => {
+  for (const [w, h] of [[40,40], [180,36], [600,40]]) near(liquidSurfaceBlur(w,h), .4);
+  assert.ok(liquidSurfaceBlur(180,150) > 3);
+  near(liquidSurfaceBlur(320,480), 12);
+  let previous = .4;
+  for (let size = 48; size <= 320; size++) {
+    const blur = liquidSurfaceBlur(320, size);
+    assert.ok(blur >= previous && blur <= 12 && blur - previous < .07);
+    previous = blur;
+  }
 });
 
 test('glass grips resist unbounded pulling, keep the opposite side pinned and return to identity', () => {

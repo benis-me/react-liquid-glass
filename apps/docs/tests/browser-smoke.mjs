@@ -17,12 +17,15 @@ const click = (selector, parent = document) => { const element = parent.querySel
 const input = (element, value) => { assert(element, 'Input missing'); Object.getOwnPropertyDescriptor(element instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype, 'value').set.call(element, value); element.dispatchEvent(new Event('input', { bubbles: true })); };
 export async function checkCatalog() {
   const passed = [];
+  await go('/components');
+  await until(() => document.querySelector('.search-field canvas')?.width > 0, 'Catalog optics did not mount');
+  assert(document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1, 'Optical padding enlarged the catalog viewport');
   for (const entry of catalog) {
     await go(`/components/${entry.id}`);
     await until(() => document.querySelector('main h1')?.textContent === entry.name, `Missing page for ${entry.id}`);
     assert(document.querySelector('.component-preview'), `Missing preview: ${entry.id}`);
     assert(document.querySelector('pre code')?.textContent.includes(entry.api), `Missing usage: ${entry.id}`);
-    assert(document.documentElement.scrollWidth <= innerWidth + 1, `Horizontal overflow: ${entry.id}`);
+    assert(document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1, `Horizontal overflow: ${entry.id}`);
     assert(document.querySelectorAll('table tbody tr').length === entry.props.length, `Incomplete API: ${entry.id}`);
     passed.push(entry.id);
   }
@@ -349,16 +352,16 @@ export async function checkPageTexture() {
 }
 
 export async function checkContactHDR() {
-  const { createContactHDR } = await import('../../../packages/react-liquid-glass/src/liquid-glass/contact-hdr.ts');
+  const { createHighlightHDR } = await import('../../../packages/react-liquid-glass/src/liquid-glass/highlight-hdr.ts');
   const { createLiquidGlassRenderer } = await import('refractive-glass-react/liquid-glass/renderer');
   const host = document.createElement('div'), canvas = document.createElement('canvas'), source = document.createElement('canvas');
   host.style.cssText = 'position:fixed;left:-1000px;top:0;width:240px;height:140px'; host.append(canvas); document.body.append(host);
   source.width = 240; source.height = 140; const ctx = source.getContext('2d'); ctx.fillStyle = '#333'; ctx.fillRect(0,0,240,140);
   const renderer = createLiquidGlassRenderer(canvas, {shared:true}); let hdr;
   try {
-    hdr = await createContactHDR(canvas);
+    hdr = await createHighlightHDR(canvas);
     if (!hdr) return { hdr: 'unavailable; ordinary WebGL contact light remains active' };
-    const overlay = host.querySelector('[data-dg-contact-hdr]'), context = overlay.getContext('webgpu'), configuration = context.getConfiguration(), device = configuration.device;
+    const overlay = host.querySelector('[data-dg-highlight-hdr]'), context = overlay.getContext('webgpu'), configuration = context.getConfiguration(), device = configuration.device;
     context.configure({...configuration, usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC});
     renderer.draw({source, width:240, height:140, pixelRatio:1, transparentOutside:true, blobs:[{x:.5,y:.5,radius:24,halfWidth:80,halfHeight:30,contactX:.8,contactY:0,contactStrength:1,pullX:3,pullY:-1}]}, hdr.draw);
     const bytesPerRow = 2048, buffer = device.createBuffer({size:bytesPerRow*140,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
@@ -370,7 +373,65 @@ export async function checkContactHDR() {
       assert(peak > 1, `HDR contact never exceeded SDR white (peak ${peak})`);
       assert(configuration.toneMapping.mode === 'extended', 'HDR output was tone mapped to SDR');
       assert(renderer.stats.emissionDraws === 1 && renderer.stats.sourceUploads === 1, 'HDR duplicated source capture or material work');
-      return {format:configuration.format, mode:configuration.toneMapping.mode, peak, displayHDR:matchMedia('(dynamic-range: high)').matches};
+      buffer.unmap();
+      // A static reflection emits extra light too, without illuminating the whole body.
+      ctx.fillStyle = '#eee'; ctx.fillRect(0,0,240,140);
+      const frame = {source, sourceRevision:1, width:240, height:140, pixelRatio:1, transparentOutside:true, blobs:[{x:.5,y:.5,radius:24,halfWidth:80,halfHeight:30}]};
+      renderer.draw(frame);
+      const baseline = canvas.getContext('2d').getImageData(0,0,240,140).data;
+      renderer.draw(frame, hdr.draw);
+      const ordinary = canvas.getContext('2d').getImageData(0,0,240,140).data;
+      assert(ordinary.every((value,index) => value === baseline[index]), 'The HDR mask replaced or changed the base material');
+      const staticCopy = device.createCommandEncoder(); staticCopy.copyTextureToBuffer({texture:context.getCurrentTexture()},{buffer,bytesPerRow},[240,140]); device.queue.submit([staticCopy.finish()]);
+      await buffer.mapAsync(GPUMapMode.READ);
+      const rim = new Float16Array(buffer.getMappedRange()); let compositePeak = 0;
+      for (let y=0;y<140;y++) for (let x=0;x<240;x++) {
+        const offset=y*bytesPerRow/2+x*4, base=baseline[(y*240+x)*4]/255;
+        const linear=base<=.04045 ? base/12.92 : ((base+.055)/1.055)**2.4;
+        compositePeak=Math.max(compositePeak,linear*(1-rim[offset+3])+rim[offset]);
+      }
+      assert(compositePeak > 1.1, `Static rim did not exceed SDR white (${compositePeak})`);
+      assert(rim[70*bytesPerRow/2+120*4] === 0, 'HDR washed over the clear center');
+      assert(rim[70*bytesPerRow/2+41*4] === 0, 'HDR reflection leaked down a straight sidewall');
+      buffer.unmap();
+      return {format:configuration.format, mode:configuration.toneMapping.mode, contactPeak:peak, rimCompositePeak:compositePeak, displayHDR:matchMedia('(dynamic-range: high)').matches};
     } finally { buffer.destroy(); }
   } finally { hdr?.dispose(); renderer.dispose(); host.remove(); }
+}
+
+export async function checkMaterialOptics() {
+  const { createLiquidGlassRenderer } = await import('refractive-glass-react/liquid-glass/renderer');
+  const { liquidSurfaceBlur } = await import('refractive-glass-react/liquid-glass');
+  const { SURFACE_MATERIAL } = await import('../../../packages/react-liquid-glass/src/controls/GlassSurface.tsx');
+  const source=document.createElement('canvas'), canvas=document.createElement('canvas'), mask=document.createElement('canvas');
+  source.width=mask.width=320; source.height=mask.height=220;
+  const ctx=source.getContext('2d'), capture=surface => { mask.width=surface.width; mask.height=surface.height; mask.getContext('2d').drawImage(surface,0,0); };
+  const renderer=createLiquidGlassRenderer(canvas);
+  const frame={...SURFACE_MATERIAL,source,width:320,height:220,pixelRatio:2,edgeDepth:10,domeDepth:18,blobs:[{x:.5,y:.5,radius:24,halfWidth:120,halfHeight:70}]};
+  const pixels=() => { const copy=document.createElement('canvas'); copy.width=canvas.width; copy.height=canvas.height; const context=copy.getContext('2d'); context.drawImage(canvas,0,0); return context.getImageData(0,0,copy.width,copy.height).data; };
+  const red=(data,x,y) => data[(Math.floor(y*2)*640+Math.floor(x*2))*4];
+  try {
+    ctx.fillStyle='#eee';ctx.fillRect(0,0,320,220);renderer.draw(frame); const ordinary=pixels();
+    const side=Math.min(...[.25,.75,1.25].map(d=>red(ordinary,40+d,110)));
+    const top=Math.min(...[.25,.75,1.25].map(d=>red(ordinary,160,40+d)));
+    const inner=Math.min(...[3,4,5,6,8,10].map(d=>red(ordinary,160,40+d)));
+    assert(top-side>20 && top>=210, `Directional rim flattened: side ${side}, top ${top}`);
+    assert(inner>232, `Broad black glow returned: ${inner}`);
+    assert(red(ordinary,42,110)>232, 'Side contour extends too far into the glass');
+    renderer.draw(frame,capture);const after=pixels();
+    assert(after.every((value,index)=>value===ordinary[index]), 'Direct renderer ended on the HDR mask');
+    const light=mask.getContext('2d').getImageData(0,0,640,440).data;
+    assert(light.some((value,index)=>index%4===1&&value>10),'Static rim emission missing');
+    const ink=document.createElement('canvas');ink.width=240;ink.height=140;ink.getContext('2d').fillRect(0,0,240,140);
+    for (const override of [{tintStrength:1},{opacity:0},{content:ink,contentOpacity:1}]) {
+      renderer.draw({...frame,...override},capture);
+      const hidden=mask.getContext('2d').getImageData(0,0,640,440).data;
+      assert(hidden.every((value,index)=>index%4>1||value===0),'HDR escaped opaque ink, tint or opacity');
+    }
+    for(let x=0;x<320;x++){ctx.fillStyle=x%8<4?'#555':'#ddd';ctx.fillRect(x,0,1,220);}
+    const contrast=blurStrength=>{renderer.draw({...frame,sourceRevision:1,blurStrength});const data=pixels(),values=Array.from({length:120},(_,i)=>red(data,100+i,110));return Math.max(...values)-Math.min(...values);};
+    const clear=contrast(liquidSurfaceBlur(180,36)),frosted=contrast(liquidSurfaceBlur(180,152));
+    assert(clear>80 && frosted<clear*.2, `Large popup frost did not soften the substrate: ${clear}/${frosted}`);
+    return {side,top,inner,clearContrast:clear,frostedContrast:frosted,directHDR:'base preserved, light occluded'};
+  } finally {renderer.dispose();}
 }

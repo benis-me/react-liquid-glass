@@ -217,7 +217,8 @@ test("liquid uses the shared smooth-union compositor for its full lifecycle", ()
   assert.match(liquidCanvasSource, /float reflectionLight = smoothstep\(\.75, \.98, edgeLight\)/);
   assert.match(liquidCanvasSource, /min\(\.85, edgeGain \* 3\.2\) \* mix\(\.85, \.24, edgeLight\)/);
   assert.match(liquidCanvasSource, /refracted \*= 1\. - contour \* contourStrength/);
-  assert.match(liquidCanvasSource, /refracted \+= vec3\(reflection \* reflectionLight \* edgeGain \* \.22\)/);
+  assert.match(liquidCanvasSource, /float rimLight = reflection \* reflectionLight \* edgeGain/);
+  assert.match(liquidCanvasSource, /refracted \+= vec3\(rimLight \* \.22\)/);
   assert.match(liquidCanvasSource, /refracted \* \(1\. - shine\)/);
   assert.doesNotMatch(liquidCanvasSource, /edgeShare/);
   assert.doesNotMatch(liquidCanvasSource, /sceneNormal|insetRim/);
@@ -229,10 +230,10 @@ test("liquid uses the shared smooth-union compositor for its full lifecycle", ()
   assert.equal((liquidCanvasSource.match(/frosted \+= sampleChroma/g) ?? []).length, 8);
   assert.match(liquidCanvasSource, /smoothstep\(\.5, \.75, uBlur\)\) : frosted/);
   const specularCompositeIndex = liquidCanvasSource.indexOf("float shine = specular * uSpecular");
-  const brightnessCompositeIndex = liquidCanvasSource.indexOf("float brightnessAmount = clamp(abs(uBrightness)");
+  const brightnessCompositeIndex = liquidCanvasSource.indexOf("refracted = mix(refracted, brightnessTarget");
   const tintCompositeIndex = liquidCanvasSource.indexOf("refracted = mix(refracted, uTintColor");
   const contourCompositeIndex = liquidCanvasSource.indexOf("refracted *= 1. - contour * contourStrength");
-  const reflectionCompositeIndex = liquidCanvasSource.indexOf("refracted += vec3(reflection * reflectionLight");
+  const reflectionCompositeIndex = liquidCanvasSource.indexOf("refracted += vec3(rimLight");
   assert.ok(specularCompositeIndex < contourCompositeIndex && contourCompositeIndex < reflectionCompositeIndex);
   assert.ok(reflectionCompositeIndex < brightnessCompositeIndex, "both edge profiles remain inside the shared material and coverage");
   assert.ok(specularCompositeIndex >= 0 && specularCompositeIndex < brightnessCompositeIndex);

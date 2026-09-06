@@ -14,6 +14,7 @@ Build the library in `packages/react-liquid-glass/src/` and the documentation/de
 - The docs site has a home, searchable component catalog, individual preview/usage/API pages, a material Playground that affects every component, and several working creative mini-apps. This supersedes the former single-page/no-header composition constraints, but preserves the restrained monochrome style, Fontsource typography and approved material/gesture implementations.
 - Common components must compose the project-owned liquid-glass and apple-motion cores. Preserve accessible native semantics and real controlled state. Playground changes must reach the renderer; never substitute CSS blur or decorative replicas.
 - Keep Git-push deployment working for the existing Vercel project after the workspace migration. Do not reintroduce the deleted architecture document or QR specimen.
+- New library UI glass stays clean: fine directional contours, darker at the sides and lighter at the top/bottom, with a narrow inset reflection and no broad black glow. Calibrate compact surfaces separately from the approved original menu within the same optical renderer. Large dropdowns/popovers gain continuous background frost as their live body grows; small controls and tooltips stay clear. Extend the existing HDR presenter to fine reflections as well as pointer light, with an SDR fallback and no idle render loop. These are reference-informed project settings, not measured iOS 27 values.
 
 ## Core refactor
 

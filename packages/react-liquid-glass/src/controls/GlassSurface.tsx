@@ -24,6 +24,12 @@ import { LiquidGlassCanvas } from "../liquid-glass/LiquidGlassCanvas";
 import { liquidBackground, paintLiquidBackground } from "../liquid-glass/source";
 
 export type GlassBackground = "grid" | "lines" | "plain";
+// Compact controls need less broad shading than the original, deep menu lens.
+export const SURFACE_MATERIAL = {
+  glowStrength: .1, glowSpread: .6, edgeStrength: .26, edgeWidth: 1.2,
+  chromaAmount: .24, blurStrength: .4, tintStrength: .025,
+  shadowStrength: .055, shadowBlur: 14, shadowOffset: 4,
+} as const;
 export const StageContext = createContext<{
   canvas: HTMLCanvasElement | null;
   root: HTMLDivElement | null;
@@ -242,6 +248,7 @@ function OpticalSurface({
       {size.width > 0 && (
         <span className="dg-surface__optics" aria-hidden="true" style={{ inset: -40 }}>
           <LiquidGlassCanvas
+            {...SURFACE_MATERIAL}
             shared
             pixelRatio={2}
             sourceRef={source}
@@ -263,12 +270,6 @@ function OpticalSurface({
             edgeDepth={Math.min(12, size.height * 0.12)}
             refractionStrength={0.11}
             refractionRatio={[(size.width + 28) / (size.width + 80), (size.height + 28) / (size.height + 80)]}
-            chromaAmount={0.24}
-            blurStrength={0.5}
-            tintStrength={0.055}
-            shadowStrength={0.07}
-            shadowBlur={14}
-            shadowOffset={4}
             transparentOutside
             style={{ width: "100%", height: "100%" }}
           />

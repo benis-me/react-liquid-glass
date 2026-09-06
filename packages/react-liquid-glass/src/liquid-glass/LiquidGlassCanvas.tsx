@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, type CSSProperties, type RefObject } from "react";
 import { cancelFrame, frame } from "motion";
 import { isMotionValue, readMotion, type MotionInput } from "../shared/values";
-import { createLiquidGlassRenderer, type LiquidGlassFrame, type LiquidGlassSource } from "./renderer";
+import { createLiquidGlassRenderer, LIQUID_GLASS_MATERIAL, type LiquidGlassFrame, type LiquidGlassSource } from "./renderer";
 import { useGlassMaterial } from "./provider";
-import { createContactHDR } from "./contact-hdr";
+import { createHighlightHDR } from "./highlight-hdr";
 
 export type { LiquidGlassBlob } from "./renderer";
 export interface LiquidGlassCanvasProps extends Omit<LiquidGlassFrame, "source" | "content" | "sourceRevision" | "contentRevision"> {
@@ -38,16 +38,19 @@ export function LiquidGlassCanvas(props: LiquidGlassCanvasProps) {
     catch (error) { canvas.dataset.dgRenderer = "unavailable"; console.error(error); return; }
     canvas.dataset.dgRenderer = "liquid-webgl2";
     let visible = false;
-    let hdr: Awaited<ReturnType<typeof createContactHDR>> = null, requestedHDR = false, disposed = false;
+    const dynamicRange = matchMedia("(dynamic-range: high)");
+    let hdr: Awaited<ReturnType<typeof createHighlightHDR>> = null, requestedHDR = false, disposed = false;
     const draw = () => {
       const p = config.current;
       const source = p.sourceRef.current;
       if (!visible || document.hidden || !source) return;
-      const lit = p.blobs.some(blob => readMotion(blob.contactStrength ?? 0) > .001);
-      const highRange = p.shared && !p.debug && matchMedia("(dynamic-range: high)").matches;
+      const contact = p.blobs.some(blob => readMotion(blob.contactStrength ?? 0) > .001);
+      const reflection = readMotion(p.specularStrength ?? LIQUID_GLASS_MATERIAL.specularStrength) * (p.edgeStrength ?? LIQUID_GLASS_MATERIAL.edgeStrength) > .001;
+      const lit = (contact || reflection) && readMotion(p.tintStrength ?? 0) < .999 && readMotion(p.opacity ?? 1) > .001;
+      const highRange = !p.debug && dynamicRange.matches;
       if (lit && highRange && !requestedHDR) {
         requestedHDR = true;
-        void createContactHDR(canvas).then(next => { if (disposed) next?.dispose(); else { hdr = next; if (next) scheduleDraw(); } });
+        void createHighlightHDR(canvas).then(next => { if (disposed) next?.dispose(); else { hdr = next; if (next) scheduleDraw(); } });
       }
       if (!lit || !highRange) hdr?.hide();
       renderer.draw({
@@ -66,6 +69,7 @@ export function LiquidGlassCanvas(props: LiquidGlassCanvasProps) {
     observer.observe(canvas);
     const visibility = () => { if (document.hidden) { cancelFrame(drawFrame); hdr?.hide(); } else scheduleDraw(); };
     document.addEventListener("visibilitychange", visibility);
+    dynamicRange.addEventListener("change", scheduleDraw);
     const glCanvas = renderer.context.canvas;
     const lost = (event: Event) => { event.preventDefault(); cancelFrame(drawFrame); hdr?.hide(); };
     glCanvas.addEventListener("webglcontextlost", lost);
@@ -74,6 +78,7 @@ export function LiquidGlassCanvas(props: LiquidGlassCanvasProps) {
       cancelFrame(drawFrame);
       observer.disconnect();
       document.removeEventListener("visibilitychange", visibility);
+      dynamicRange.removeEventListener("change", scheduleDraw);
       glCanvas.removeEventListener("webglcontextlost", lost);
       drawRef.current = () => undefined;
       renderer.dispose();

@@ -14,9 +14,9 @@ export const materialFields = [
     en: "Frost",
     zh: "磨砂模糊",
     min: 0,
-    max: 4,
+    max: 16,
     step: 0.1,
-    initial: 0.5,
+    initial: 0.4,
   },
   {
     key: "chromaAmount",
@@ -52,7 +52,7 @@ export const materialFields = [
     min: 0,
     max: 360,
     step: 1,
-    initial: 0,
+    initial: 90,
   },
   {
     key: "glowStrength",
@@ -61,7 +61,7 @@ export const materialFields = [
     min: 0,
     max: 1,
     step: 0.01,
-    initial: 0.3,
+    initial: 0.1,
   },
   {
     key: "edgeStrength",
@@ -70,7 +70,7 @@ export const materialFields = [
     min: 0,
     max: 2,
     step: 0.01,
-    initial: 1,
+    initial: 0.26,
   },
   {
     key: "tintStrength",
@@ -79,7 +79,7 @@ export const materialFields = [
     min: 0,
     max: 0.6,
     step: 0.005,
-    initial: 0.055,
+    initial: 0.025,
   },
   {
     key: "edgeDepth",
@@ -103,10 +103,10 @@ export const materialFields = [
     key: "brightness",
     en: "Brightness",
     zh: "亮度",
-    min: 0.5,
-    max: 2,
-    step: 0.01,
-    initial: 1,
+    min: -0.25,
+    max: 0.25,
+    step: 0.005,
+    initial: 0.015,
   },
   {
     key: "glowSpread",
@@ -115,7 +115,7 @@ export const materialFields = [
     min: 0.1,
     max: 1,
     step: 0.01,
-    initial: 0.72,
+    initial: 0.6,
   },
   {
     key: "glowExponent",
@@ -124,7 +124,7 @@ export const materialFields = [
     min: 0.5,
     max: 8,
     step: 0.1,
-    initial: 2,
+    initial: 1.4,
   },
   {
     key: "edgeWidth",
@@ -133,7 +133,7 @@ export const materialFields = [
     min: 0.1,
     max: 3,
     step: 0.05,
-    initial: 0.9,
+    initial: 1.2,
   },
   {
     key: "edgeExponent",
@@ -142,7 +142,7 @@ export const materialFields = [
     min: 0.5,
     max: 8,
     step: 0.1,
-    initial: 2,
+    initial: 1.2,
   },
   {
     key: "shadowStrength",
@@ -151,7 +151,7 @@ export const materialFields = [
     min: 0,
     max: 0.3,
     step: 0.005,
-    initial: 0.11,
+    initial: 0.055,
   },
   {
     key: "shadowOffset",
@@ -160,7 +160,7 @@ export const materialFields = [
     min: 0,
     max: 30,
     step: 1,
-    initial: 18,
+    initial: 4,
   },
   {
     key: "shadowBlur",
@@ -169,7 +169,7 @@ export const materialFields = [
     min: 1,
     max: 40,
     step: 1,
-    initial: 26,
+    initial: 14,
   },
   {
     key: "pixelRatio",

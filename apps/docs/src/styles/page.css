@@ -1,6 +1,8 @@
 :root { color-scheme: light; --font-body: "Manrope Variable", "Noto Sans SC Variable", sans-serif; --font-mono: "JetBrains Mono Variable", monospace; --bg: #fafaf9; --border: #18181816; --page-stripe: rgba(24,24,24,.035); }
 :root[data-theme="dark"] { color-scheme: dark; --bg: #111; --border: #ffffff19; --page-stripe: rgba(255,255,255,.022); }
 body { font-size: 14px; line-height: 1.65; transition: none; background-image: repeating-linear-gradient(135deg, var(--page-stripe) 0px, var(--page-stripe) 1px, transparent 1px, transparent 12px); }
+/* Optical canvas padding can paint past a control, but must not widen the mobile viewport. */
+#root { overflow-x: clip; }
 button, input, select, textarea { font: inherit; color: inherit; }
 button, select, summary { cursor: pointer; }
 button { -webkit-appearance: none; }

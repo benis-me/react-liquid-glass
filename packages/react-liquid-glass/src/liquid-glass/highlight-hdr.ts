@@ -1,5 +1,5 @@
-// This optional presenter only lifts the existing SDF's contact-light mask above
-// SDR white. Geometry, frost, refraction and ordinary highlights stay in WebGL.
+// Lift the existing SDF's fine reflection and contact light above SDR white.
+// Geometry, frost, refraction and the base material stay in WebGL.
 let shared: Promise<{ device: GPUDevice; pipeline: GPURenderPipeline; presenters: Set<() => void> } | null> | undefined;
 
 async function resources() {
@@ -13,8 +13,8 @@ async function resources() {
       return vec4f(x * 2. - 1., y * 2. - 1., 0., 1.);
     }
     @fragment fn fragment(@builtin(position) point: vec4f) -> @location(0) vec4f {
-      let light = textureLoad(mask, vec2i(point.xy), 0).r;
-      return vec4f(vec3f(light * 2.4), light * .35);
+      let light = textureLoad(mask, vec2i(point.xy), 0).rg;
+      return vec4f(vec3f(light.r * 2.4 + light.g * 3.2), light.r * .35 + light.g * .12);
     }
   ` });
   const pipeline = device.createRenderPipeline({ layout: "auto", vertex: { module, entryPoint: "vertex" }, fragment: { module, entryPoint: "fragment", targets: [{ format: "rgba16float" }] } });
@@ -24,7 +24,7 @@ async function resources() {
 }
 
 /** HDR is capability-tested; failure leaves the ordinary material fully functional. */
-export async function createContactHDR(canvas: HTMLCanvasElement) {
+export async function createHighlightHDR(canvas: HTMLCanvasElement) {
   try {
     const state = await (shared ??= resources().catch(() => null));
     if (!state || !canvas.isConnected) return null;
@@ -34,7 +34,7 @@ export async function createContactHDR(canvas: HTMLCanvasElement) {
     if (!context) return null;
     context.configure({ device, format: "rgba16float", alphaMode: "premultiplied", toneMapping: { mode: "extended" } });
     if (context.getConfiguration?.()?.toneMapping?.mode !== "extended") { context.unconfigure(); return null; }
-    overlay.setAttribute("aria-hidden", "true"); overlay.dataset.dgContactHdr = "";
+    overlay.setAttribute("aria-hidden", "true"); overlay.dataset.dgHighlightHdr = "";
     Object.assign(overlay.style, { position: "absolute", pointerEvents: "none", opacity: "0" });
     canvas.after(overlay);
     let texture: GPUTexture | undefined, group: GPUBindGroup | undefined, width = 0, height = 0, disposed = false;

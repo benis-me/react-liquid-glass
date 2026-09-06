@@ -4,10 +4,10 @@ import { motion, useMotionValue, useTransform } from "motion/react";
 import { usePopoverMotion, type PopoverLayout } from "../apple-motion/use-popover-motion";
 import { useGlassContact } from "../apple-motion/use-glass-contact";
 import { paintLiquidMenuContent } from "../liquid-glass/menu-content";
-import { liquidContentOptics } from "../liquid-glass/geometry";
+import { liquidContentOptics, liquidSurfaceBlur } from "../liquid-glass/geometry";
 import { LiquidGlassCanvas } from "../liquid-glass/LiquidGlassCanvas";
 import { paintLiquidBackdrop, observeLiquidBackdrop } from "../liquid-glass/backdrop";
-import { StageContext, FusionTriggerContext } from "./GlassSurface";
+import { StageContext, FusionTriggerContext, SURFACE_MATERIAL } from "./GlassSurface";
 
 const ClosePopoverContext = createContext<() => void>(() => undefined);
 export const useClosePopover = () => useContext(ClosePopoverContext);
@@ -62,6 +62,7 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
   const opticalShape = useTransform(() => liquidContentOptics([model.w.get(), model.h.get(), model.radius.get()], { panelWidth: frame.pw, panelHeight: frame.ph, panelRadius: tooltip ? 14 : 22 }));
   const contentRefraction = useTransform(opticalShape, shape => shape.refraction);
   const contentBlur = useTransform(() => Math.max(opticalShape.get().blur, (1 - model.reveal.get()) * 2));
+  const backgroundBlur = useTransform(() => liquidSurfaceBlur(model.w.get() * 2, model.h.get() * 2));
   const capture = () => {
     if (!panel.current) return;
     const canvas = ink.current ?? document.createElement("canvas"); ink.current = canvas;
@@ -243,7 +244,7 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
         <ClosePopoverContext.Provider value={close}>{children}</ClosePopoverContext.Provider>
       </motion.div>
     </div>
-    {host && createPortal(<LiquidGlassCanvas shared sourceRef={source} sourceRevision={revision}
+    {host && createPortal(<LiquidGlassCanvas {...SURFACE_MATERIAL} shared sourceRef={source} sourceRevision={revision}
       contentRef={ink} contentRevision={inkRevision} contentOpacity={contentOpacity} contentRefraction={contentRefraction} contentBlur={contentBlur}
       width={frame.width} height={frame.height} pixelRatio={2} transparentOutside
       blobs={[
@@ -251,7 +252,7 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
         { x: frame.tx / frame.width, y: frame.ty / frame.height, radius: frame.tr, cornerRadius: frame.tr, halfWidth: triggerW, halfHeight: triggerH, ...contact },
       ]}
       mergeDistance={model.merge} edgeDepth={10} domeDepth={18} refractionStrength={.11}
-      chromaAmount={.24} blurStrength={stage ? .8 : 2} tintStrength={stage ? .055 : .025} shadowStrength={.11} shadowBlur={18} shadowOffset={6}
+      blurStrength={backgroundBlur} shadowStrength={.08} shadowBlur={18} shadowOffset={6}
       style={{ display: "block", width: "100%", height: "100%" }} />, host)}
   </>;
 }

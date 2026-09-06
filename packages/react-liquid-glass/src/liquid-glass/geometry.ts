@@ -1,3 +1,9 @@
+/** Clear controls become more frosted as the live popup body grows. CSS pixels. */
+export function liquidSurfaceBlur(width: number, height: number) {
+  const thickness = Math.max(0, Math.min(1, (Math.min(width, height) - 48) / 272));
+  return .4 + 11.6 * thickness * thickness * (3 - 2 * thickness);
+}
+
 /** Content optics follow actual shape recovery, independently of the opacity reveal. */
 export function liquidContentOptics(
   [halfWidth, halfHeight, radius]: number[],
