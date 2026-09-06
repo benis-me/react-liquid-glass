@@ -189,6 +189,8 @@ td code { font-size: 10px; }
 .display-settings { display: flex; align-items: center; gap: 2px; }
 .header-tools button, .plain-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 0; border-radius: 6px; background: transparent; padding: 7px; }
 .header-tools button:hover, .plain-button:hover { background: var(--surface); }
+.header-tools .hdr-toggle[aria-pressed="true"] { background: var(--surface); }
+.header-tools .hdr-toggle[aria-pressed="false"] { color: var(--muted); }
 .header-tools .mobile-menu-button { display: none; }
 .showcase-card__visual { background: var(--surface); border-radius: 8px; }
 .breadcrumb { align-items: center; }

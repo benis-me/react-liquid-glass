@@ -36,8 +36,8 @@ test('every catalog entry has a real exported component and a type-correct stand
 
 test('shared material links accept only finite renderer settings and clamp extreme values', () => {
   assert.deepEqual(sanitizeMaterial(null), {}); assert.deepEqual(sanitizeMaterial([]), {});
-  assert.deepEqual(sanitizeMaterial({ hdr: false }), { hdr: false });
-  assert.deepEqual(sanitizeMaterial({ hdr: true }), { hdr: true });
+  assert.deepEqual(sanitizeMaterial({ hdr: false }), {}, 'Old material links cannot override the global display preference');
+  assert.deepEqual(sanitizeMaterial({ hdr: true }), {});
   assert.deepEqual(sanitizeMaterial({ hdr: 'false' }), {});
   assert.deepEqual(sanitizeMaterial({ blurStrength: '4', chromaAmount: NaN, debug: 'true', unknown: 1 }), {});
   assert.deepEqual(sanitizeMaterial({ blurStrength: 99, refractionStrength: -20, debug: true }), { refractionStrength: 0, blurStrength: 16, debug: true });

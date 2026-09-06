@@ -1,7 +1,7 @@
 import { memo, useState, type Dispatch, type SetStateAction, type ReactNode } from "react";
 import { RotateCcw } from "lucide-react";
 import { GlassButton, GlassButtonGroup, GlassSlider, GlassSwitch } from "refractive-glass-react/controls";
-import { PRISM_MATERIAL, type GlassMaterial } from "refractive-glass-react/liquid-glass";
+import { PRISM_MATERIAL, useGlassMaterial, type GlassMaterial } from "refractive-glass-react/liquid-glass";
 import type { Locale } from "../i18n";
 import { materialFields } from "./material";
 const presets: {
@@ -41,8 +41,9 @@ const presets: {
   },
 ];
 
-const MaterialField = memo(function MaterialField({ field, value, zh, setMaterial }: {
+const MaterialField = memo(function MaterialField({ field, value, initial, zh, setMaterial }: {
   field: (typeof materialFields)[number]; value: number | undefined; zh: boolean;
+  initial: number;
   setMaterial: Dispatch<SetStateAction<GlassMaterial>>;
 }) {
   return (
@@ -66,7 +67,7 @@ const MaterialField = memo(function MaterialField({ field, value, zh, setMateria
         min={field.min}
         max={field.max}
         step={field.step}
-        value={value ?? field.initial}
+        value={value ?? initial}
         onValueChange={(value) =>
           setMaterial((current) => ({
             ...current,
@@ -83,14 +84,14 @@ export function MaterialControls({ locale, material, setMaterial, children }: {
 }) {
   const zh = locale === "zh";
   const [advanced, setAdvanced] = useState(false);
-  const { hdr: _hdr, ...optics } = material;
+  const defaults = useGlassMaterial();
   const activePreset =
     presets.find(
-      (preset) => Object.keys(preset.material).length === Object.keys(optics).length &&
-        Object.entries(preset.material).every(([key, value]) => optics[key as keyof typeof optics] === value),
+      (preset) => Object.keys(preset.material).length === Object.keys(material).length &&
+        Object.entries(preset.material).every(([key, value]) => material[key as keyof typeof material] === value),
     )?.id ?? "custom";
   const fieldControl = (field: (typeof materialFields)[number]) => (
-    <MaterialField key={field.key} field={field} value={material[field.key]} zh={zh} setMaterial={setMaterial} />
+    <MaterialField key={field.key} field={field} value={material[field.key]} initial={defaults[field.key] ?? field.initial} zh={zh} setMaterial={setMaterial} />
   );
   return (
         <aside
@@ -111,7 +112,7 @@ export function MaterialControls({ locale, material, setMaterial, children }: {
               <GlassButton size="small"
                 key={preset.id}
                 aria-pressed={activePreset === preset.id}
-                onClick={() => setMaterial(current => ({ ...preset.material, ...(current.hdr === undefined ? {} : { hdr: current.hdr }) }))}
+                onClick={() => setMaterial({ ...preset.material })}
               >
                 {zh ? preset.zh : preset.en}
               </GlassButton>
@@ -123,11 +124,6 @@ export function MaterialControls({ locale, material, setMaterial, children }: {
               : "Defaults stay local. Adjustments apply to all."}
           </p>
           <div className="material-fields">
-            <div className="debug-field">
-              <span>HDR</span>
-              <GlassSwitch size="small" ariaLabel="HDR" checked={material.hdr !== false}
-                onCheckedChange={hdr => setMaterial(current => ({ ...current, hdr }))} />
-            </div>
             {materialFields.slice(0, 11).map(fieldControl)}
           </div>
           <details className="material-advanced" onToggle={event => setAdvanced(event.currentTarget.open)}>

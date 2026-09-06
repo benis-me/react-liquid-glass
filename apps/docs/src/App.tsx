@@ -1,13 +1,15 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowUpRight,
   Menu,
   Moon,
   Sun,
+  Sparkles,
   X,
 } from "lucide-react";
 import { GlassTabs, GlassSheet } from "refractive-glass-react/controls";
+import { LiquidGlassProvider } from "refractive-glass-react/liquid-glass";
 import { catalog, groups, groupZh, componentAliases, type ComponentId } from "./site/catalog";
 import {
   Catalog,
@@ -58,6 +60,11 @@ export function App() {
     saved("glass-locale") === "zh" ? "zh" : "en",
   );
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [hdr, setHDR] = useState(() => saved("glass-hdr") !== "false");
+  const displayMaterial = useMemo(() => ({ hdr }), [hdr]);
+  useEffect(() => {
+    try { localStorage.setItem("glass-hdr", String(hdr)); } catch { /* Display preference still applies without storage. */ }
+  }, [hdr]);
   const zh = locale === "zh",
     pageProps = { locale, theme },
     isHome = path === "/",
@@ -226,7 +233,7 @@ export function App() {
       </div>
     );
   return (
-    <>
+    <LiquidGlassProvider material={displayMaterial}>
       <Link className="skip-link" href="#main-content">
         {zh ? "跳到内容" : "Skip to content"}
       </Link>
@@ -259,6 +266,11 @@ export function App() {
           </nav>
           <div className="header-tools">
             <div className="display-settings" role="group" aria-label={zh ? "显示设置" : "Display settings"}>
+            <button type="button" className="icon-button hdr-toggle" aria-label="HDR" aria-pressed={hdr}
+              title={hdr ? (zh ? "关闭 HDR" : "Disable HDR") : (zh ? "开启 HDR" : "Enable HDR")}
+              onClick={() => setHDR(current => !current)}>
+              <Sparkles size={16} aria-hidden="true" />
+            </button>
             <button type="button"
               className="icon-button"
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
@@ -344,6 +356,6 @@ export function App() {
           <ArrowUpRight size={12} />
         </Link>
       </footer>
-    </>
+    </LiquidGlassProvider>
   );
 }

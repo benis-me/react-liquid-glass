@@ -10,6 +10,8 @@ Build the library in `packages/react-liquid-glass/src/` and the documentation/de
 
 ## Component library and documentation site
 
+- HDR is one persisted, icon-only toggle in the header's top-right display controls. Material panels have no HDR switch; presets, reset and old material links cannot change the global display preference. Default dispersion is 0.33 and dome depth is 28. With HDR enabled, the default highlight is 0.48; an explicit material highlight remains adjustable. Keep the named Prism preset intact.
+
 - Showcase performance must preserve the glass optics and motion: Glass keys' playback cursor updates independently of its stable keys; Orbit reuses its static substrate and stops drawing when settled or offscreen. Orbit shares the component demos' centered 54px, one-CSS-pixel grid, with a faint one-pixel guide ring.
 
 - The user requested an npm-workspace monorepo with independently owned library and documentation builds. The docs app consumes only public package APIs; no relative imports into library implementation and no demo imports in the library.

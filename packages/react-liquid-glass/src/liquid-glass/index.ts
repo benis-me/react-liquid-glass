@@ -6,5 +6,5 @@ export type { LiquidGlassBlob, LiquidGlassFrame, LiquidGlassSource, LiquidRender
 export type { LiquidSourceFactory, LiquidSourcePainter } from "./source";
 export { paintLiquidGrid } from "./source";
 export { liquidContentPose, liquidContentOptics, liquidSurfaceBlur } from "./geometry";
-export { LiquidGlassProvider, useGlassMaterial, PRISM_MATERIAL, type GlassMaterial } from "./provider";
+export { LiquidGlassProvider, useGlassMaterial, DEFAULT_MATERIAL, PRISM_MATERIAL, type GlassMaterial } from "./provider";
 export { paintLiquidBackdrop } from "./backdrop";

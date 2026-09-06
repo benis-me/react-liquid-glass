@@ -33,9 +33,12 @@ export const PRISM_MATERIAL = {
   specularStrength: .9, tintStrength: .02,
 } as const satisfies GlassMaterial;
 
+/** Shared defaults; individual controls retain their own frost and edge calibration. */
+export const DEFAULT_MATERIAL = { chromaAmount: .33, domeDepth: 28 } as const satisfies GlassMaterial;
+
 const MaterialContext = createContext<GlassMaterial>({});
 
-/** Optional optical overrides. An empty provider preserves each control's calibration. */
+/** Optional optical overrides, inherited through nested providers. */
 export function LiquidGlassProvider({
   material,
   children,
@@ -52,6 +55,11 @@ export function LiquidGlassProvider({
   );
 }
 
-export function useGlassMaterial() {
-  return useContext(MaterialContext);
+export function useGlassMaterial(): GlassMaterial {
+  const material = useContext(MaterialContext);
+  return useMemo(() => ({
+    ...DEFAULT_MATERIAL,
+    ...(material.hdr !== false ? { specularStrength: .48 } : {}),
+    ...material,
+  }), [material]);
 }

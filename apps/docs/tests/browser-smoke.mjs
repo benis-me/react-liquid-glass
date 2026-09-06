@@ -374,7 +374,7 @@ export async function checkPopupPolish() {
 
 // Self-contained so the same check can also run against a production build.
 export async function checkSwitchThemes() {
-  const toggle = document.querySelector('.header-tools .icon-button:not(.mobile-menu-button)');
+  const toggle = document.querySelector('.header-tools .icon-button:not(.mobile-menu-button):not(.hdr-toggle)');
   const input = document.querySelector('.component-preview .dg-switch input');
   if (!toggle || !input) throw new Error('Open the Switch component page first');
   const originalTheme = document.documentElement.dataset.theme, originalChecked = input.checked;
@@ -880,25 +880,51 @@ export async function checkModalMotion() {
 }
 export async function checkHDRPreference() {
   const original=window.matchMedia;
+  const button=()=>document.querySelector('.header-tools button[aria-label="HDR"]');
+  const wasEnabled=button()?.getAttribute('aria-pressed')==='true';
   // Exercise the real GPU presenter even when the test display itself is SDR.
   window.matchMedia=query=>{const result=original.call(window,query);if(query==='(dynamic-range: high)')Object.defineProperty(result,'matches',{value:true});return result;};
+  const {subscribeLiquidFrames}=await import('../../../packages/react-liquid-glass/src/liquid-glass/renderer.ts');
+  const parameters=new Map();
+  const stop=subscribeLiquidFrames(canvas=>{
+    const gl=canvas.getContext('webgl2');if(!gl)return;
+    const program=gl.getParameter(gl.CURRENT_PROGRAM);
+    parameters.set(canvas, Object.fromEntries(['uSpecular','uChroma','uDomeDepth'].map(name=>[name,gl.getUniform(program,gl.getUniformLocation(program,name))])));
+  });
   try {
-    await go('/playground?component=button&material='+encodeURIComponent(JSON.stringify({hdr:false})));
+    if(wasEnabled){button().click();await paint();}
+    await go('/components/button');
+    await go('/playground?component=button&material='+encodeURIComponent(JSON.stringify({hdr:true})));
+    assert(button() && !button().textContent.trim() && button().querySelector('svg'),'HDR needs one icon-only header toggle');
+    assert(!document.querySelector('.material-inspector input[aria-label=HDR]'),'Material panel still owns HDR');
+    assert(button().getAttribute('aria-pressed')==='false','Old material link overrode global HDR');
+    const field=name=>Number(document.querySelector(`input[aria-label="${name}"]`).value);
+    assert(field('Dispersion')===.33&&field('Dome depth')===28&&field('Highlight')===.9,'Default sliders do not match their material');
     const stage=document.querySelector('.component-preview');
     await until(()=>stage.querySelector('canvas[data-dg-renderer]')?.width>1,'Button optics missing');
     assert(!stage.querySelector('[data-dg-highlight-hdr]'),'Disabled HDR allocated a presenter');
-    const toggle=document.querySelector('input[aria-label=HDR]');toggle.click();
+    button().click();await paint();assert(field('Highlight')===.48,'HDR did not select its default highlight');
     if(navigator.gpu && await navigator.gpu.requestAdapter()) {
-      await until(()=>stage.querySelector('[data-dg-highlight-hdr]')?.style.opacity==='1','HDR did not enable');
-      toggle.click();await paint();
-      assert(stage.querySelector('[data-dg-highlight-hdr]').style.opacity==='0','HDR did not turn off');
-    } else {toggle.click();}
+      await until(()=>stage.querySelector('[data-dg-highlight-hdr]')?.style.opacity==='1','Global HDR did not enable');
+    }
+    input(document.querySelector('input[aria-label="Highlight"]'),'.62');await paint();
+    button().click();await paint();assert(field('Highlight')===.62,'HDR toggle overwrote custom highlight');
+    assert(![...document.querySelectorAll('[data-dg-highlight-hdr]')].some(canvas=>canvas.style.opacity==='1'),'Global HDR left a presenter lit');
     const prism=[...document.querySelectorAll('.preset-list button')].find(button=>button.textContent==='Prism');prism.click();await paint();
-    assert(!toggle.checked && prism.getAttribute('aria-pressed')==='true','Preset selection reset HDR or lost its selected state');
-    assert(JSON.parse(localStorage.getItem('glass-playground')).hdr===false,'HDR preference did not persist');
-    click('button[aria-label="Reset material"]');await paint();assert(toggle.checked,'Reset did not restore default HDR');
-    return {toggle:'live',presets:'preserve HDR',persistence:true};
-  } finally {window.matchMedia=original;await go('/components/button');}
+    assert(button().getAttribute('aria-pressed')==='false'&&field('Dispersion')===1.2,'Preset reset HDR or changed Prism');
+    click('button[aria-label="Reset material"]');await paint();
+    assert(button().getAttribute('aria-pressed')==='false'&&field('Dispersion')===.33,'Material reset changed global HDR or missed Default');
+    assert(localStorage.getItem('glass-hdr')==='false'&&!('hdr' in JSON.parse(localStorage.getItem('glass-playground'))),'HDR persistence is still tied to material');
+    button().click();await paint();
+    await go('/showcase/orbit');await until(()=>parameters.has(document.querySelector('.orbit-board canvas[data-dg-renderer]')),'Orbit did not receive global material');
+    const actual=parameters.get(document.querySelector('.orbit-board canvas[data-dg-renderer]'));
+    assert(Math.abs(actual.uSpecular-.48)<1e-5&&Math.abs(actual.uChroma-.33)<1e-5&&actual.uDomeDepth===28,'Global defaults did not reach the renderer');
+    return {toggle:'global, icon-only',defaults:actual,presets:'preserve HDR and custom highlight',persistence:true};
+  } finally {
+    stop();window.matchMedia=original;
+    if((button()?.getAttribute('aria-pressed')==='true')!==wasEnabled){button()?.click();await paint();}
+    await go('/components/button');
+  }
 }
 
 // Also exercise consumers whose trigger lives outside the dialog component.

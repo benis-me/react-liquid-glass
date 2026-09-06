@@ -25,7 +25,7 @@ export const materialFields = [
     min: 0,
     max: 1.5,
     step: 0.01,
-    initial: 1.2,
+    initial: 0.33,
   },
   {
     key: "magnification",
@@ -97,7 +97,7 @@ export const materialFields = [
     min: 0,
     max: 50,
     step: 0.5,
-    initial: 18,
+    initial: 28,
   },
   {
     key: "brightness",
@@ -200,7 +200,6 @@ export function sanitizeMaterial(value: unknown): GlassMaterial {
   }
   if (typeof (value as Record<string, unknown>).debug === "boolean")
     result.debug = (value as { debug: boolean }).debug;
-  if (typeof (value as Record<string, unknown>).hdr === "boolean")
-    result.hdr = (value as { hdr: boolean }).hdr;
+  // HDR is a site-wide display preference; old presets and links cannot override it.
   return result;
 }
