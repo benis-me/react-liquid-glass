@@ -10,6 +10,8 @@ Build the library in `packages/react-liquid-glass/src/` and the documentation/de
 
 ## Component library and documentation site
 
+- Playground's Lines substrate uses subdued stripes (black/white at `0x18` alpha), shared by the visible canvas and glass backdrop sampling. Preserve the stripe width and spacing.
+
 - Material is one persisted site-wide configuration shared by Playground and the catalog inspector, including header navigation, site tools, inspector controls and demos. Empty material restores each component's defaults; keep HDR independent. Material panels have 32px optical corners, fit the available viewport height and scroll internally without clipping their outer glass shadow. Presets use the standard GlassTabs; custom parameters leave preset selection empty. The Playground configuration code block has no vertical margin. Keyboard Tab focus has no white frame or halo anywhere; use quiet underlines or neutral state fills, while retaining forced-colors accessibility.
 
 - HDR is one persisted, icon-only toggle in the header's top-right display controls. Use the supplied `hdr_icon_135524.svg` lettermark with `currentColor`, in the same 34px button as the theme and locale controls. Disable HDR with a localized hover tip when `(dynamic-range: high)` does not match; track display changes without overwriting the saved preference. Material panels have no HDR switch or defaults explanation; More parameters uses a Lucide chevron instead of a text marker. Presets, reset and old material links cannot change the global display preference. Default dispersion is 0.33 and dome depth is 28. With HDR enabled, the default highlight is 0.48; an explicit material highlight remains adjustable. Keep the named Prism preset intact.

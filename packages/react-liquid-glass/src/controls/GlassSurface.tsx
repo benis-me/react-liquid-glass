@@ -61,7 +61,7 @@ export function GlassStage({
         paintLiquidGrid(ctx, width, height, dark);
       } else if (background === "lines") {
         ctx.lineWidth = 8;
-        ctx.strokeStyle = dark ? "#ffffff30" : "#00000030";
+        ctx.strokeStyle = dark ? "#ffffff18" : "#00000018";
         ctx.beginPath();
         for (let x = -height; x < width + height; x += 32) {
           ctx.moveTo(x, 0);
