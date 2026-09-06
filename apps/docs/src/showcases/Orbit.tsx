@@ -5,7 +5,7 @@ import {
   motionValue,
   useReducedMotion,
 } from "motion/react";
-import { LiquidGlassCanvas } from "refractive-glass-react/liquid-glass";
+import { LiquidGlassCanvas, paintLiquidGrid } from "refractive-glass-react/liquid-glass";
 import { stepSpring } from "refractive-glass-react/apple-motion";
 import {
   GlassButton,
@@ -53,8 +53,8 @@ export function Orbit({ locale, theme }: PageProps) {
   const positionHandles = () =>
     bodies.forEach((body, index) => {
       const element = handles.current[index];
-      if (element)
-        element.style.transform = `translate3d(${body.x.get() * dimensions.current.width}px, ${body.y.get() * dimensions.current.height}px, 0) translate(-50%, -50%)`;
+      const transform = `translate3d(${body.x.get() * dimensions.current.width}px, ${body.y.get() * dimensions.current.height}px, 0) translate(-50%, -50%)`;
+      if (element && element.style.transform !== transform) element.style.transform = transform;
     });
   useEffect(() => {
     const element = root.current;
@@ -70,28 +70,15 @@ export function Orbit({ locale, theme }: PageProps) {
     return () => resize.disconnect();
   }, []);
   useEffect(() => {
-    const canvas = source.current ?? document.createElement("canvas");
-    source.current = canvas;
+    const canvas = source.current;
+    if (!canvas) return;
     canvas.width = size.width * 2;
     canvas.height = size.height * 2;
     const ctx = canvas.getContext("2d")!;
     ctx.scale(2, 2);
-    ctx.fillStyle = theme === "dark" ? "#1b1b1b" : "#eaeae7";
-    ctx.fillRect(0, 0, size.width, size.height);
-    ctx.strokeStyle = theme === "dark" ? "#ffffff26" : "#00000030";
+    paintLiquidGrid(ctx, size.width, size.height, theme === "dark");
+    ctx.strokeStyle = theme === "dark" ? "#ffffff1a" : "#00000016";
     ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (let x = (size.width / 2) % 36; x < size.width; x += 36) {
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, size.height);
-    }
-    for (let y = (size.height / 2) % 36; y < size.height; y += 36) {
-      ctx.moveTo(0, y);
-      ctx.lineTo(size.width, y);
-    }
-    ctx.stroke();
-    ctx.strokeStyle = theme === "dark" ? "#ffffff4a" : "#00000065";
-    ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(
       size.width / 2,
@@ -123,6 +110,7 @@ export function Orbit({ locale, theme }: PageProps) {
       } = settings.current;
       if (moving && !reduced) phase.current += dt * 0.55;
       let active = moving && !reduced;
+      const config = { mass: 1, stiffness: 90, damping: 10 + damping * 0.28 };
       bodies.forEach((body, index) => {
         if (dragging.current?.index === index) {
           if (timestamp - dragging.current.last > 32) {
@@ -141,7 +129,6 @@ export function Orbit({ locale, theme }: PageProps) {
           body.ty =
             0.5 + Math.sin(phase.current + (index * Math.PI * 2) / 3) * 0.24;
         }
-        const config = { mass: 1, stiffness: 90, damping: 10 + damping * 0.28 };
         let x: number, y: number;
         if (reduced) {
           x = body.tx;
@@ -258,6 +245,7 @@ export function Orbit({ locale, theme }: PageProps) {
   return (
     <div className="orbit-scene">
       <div className="orbit-board" ref={root}>
+        <canvas ref={source} className="orbit-substrate" aria-hidden="true" />
         <LiquidGlassCanvas
           sourceRef={source}
           sourceRevision={revision}
@@ -278,6 +266,7 @@ export function Orbit({ locale, theme }: PageProps) {
           shadowStrength={0.11}
           shadowBlur={26}
           shadowOffset={18}
+          transparentOutside
           style={{ width: "100%", height: "100%" }}
           ariaLabel={
             zh ? "三个可融合的液态玻璃体" : "Three merging liquid glass bodies"

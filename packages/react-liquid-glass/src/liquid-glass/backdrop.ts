@@ -111,16 +111,21 @@ export function paintLiquidBackdrop(root: HTMLElement, canvas: HTMLCanvasElement
 
 /** Coalesce visible source changes; no polling or work while the page is hidden. */
 export function observeLiquidBackdrop(root: HTMLElement, bounds: () => Bounds, exclude: readonly Element[], refresh: () => void, before?: () => Element | undefined) {
-  const relevant = (node: Node) => {
+  const relevant = (node: Node, regions?: readonly Bounds[]) => {
     const element = node instanceof Element ? node : node.parentElement;
     if (!element || !behind(element, before?.()) || element.closest("[popover], [data-dg-highlight-hdr]") || exclude.some(item => item.contains(element))) return false;
     const rect = element.getBoundingClientRect();
+    if (regions) {
+      const target = bounds();
+      return regions.some(region => intersects({ left: rect.left + region.left * rect.width, top: rect.top + region.top * rect.height,
+        width: region.width * rect.width, height: region.height * rect.height }, target));
+    }
     return intersects(rect.width && rect.height ? rect : element.parentElement?.getBoundingClientRect() ?? rect, bounds());
   };
   const update = () => { if (!document.hidden && intersects(bounds(), { left: 0, top: 0, width: innerWidth, height: innerHeight })) scheduleLiquidBackdrop(refresh); };
   const observer = new MutationObserver(records => { if (records.some(record => relevant(record.target))) update(); });
   observer.observe(root, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ["style", "class", "src", "width", "height", "hidden", "value", "checked", "data-theme"] });
-  const sourceFrame = subscribeLiquidFrames(canvas => { if (relevant(canvas)) update(); });
+  const sourceFrame = subscribeLiquidFrames((canvas, regions) => { if (relevant(canvas, regions)) update(); });
   const event = (event: Event) => { if (event.target instanceof Node && relevant(event.target)) update(); };
   for (const type of ["input", "change", "load", "seeked"]) root.addEventListener(type, event, true);
   document.fonts.addEventListener("loadingdone", update);

@@ -10,6 +10,8 @@ Build the library in `packages/react-liquid-glass/src/` and the documentation/de
 
 ## Component library and documentation site
 
+- Showcase performance must preserve the glass optics and motion: Glass keys' playback cursor updates independently of its stable keys; Orbit reuses its static substrate and stops drawing when settled or offscreen. Orbit shares the component demos' centered 54px, one-CSS-pixel grid, with a faint one-pixel guide ring.
+
 - The user requested an npm-workspace monorepo with independently owned library and documentation builds. The docs app consumes only public package APIs; no relative imports into library implementation and no demo imports in the library.
 - The docs site has a home, component catalog, individual preview/usage/API pages, a material Playground that affects every component, and several working creative mini-apps. This supersedes the former single-page/no-header composition constraints, but preserves the restrained monochrome style, Fontsource typography and approved material/gesture implementations.
 - Common components must compose the project-owned liquid-glass and apple-motion cores. Preserve accessible native semantics and real controlled state. Playground changes must reach the renderer; never substitute CSS blur or decorative replicas.

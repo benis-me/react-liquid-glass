@@ -21,6 +21,7 @@ import { SURFACE_PRESS_SPRING } from "../apple-motion/presets";
 import { LiquidGlassCanvas } from "../liquid-glass/LiquidGlassCanvas";
 import { createLiquidBackdrop } from "../liquid-glass/backdrop";
 import { PRISM_MATERIAL } from "../liquid-glass/provider";
+import { paintLiquidGrid } from "../liquid-glass/source";
 
 export type GlassBackground = "grid" | "lines" | "plain";
 // Compact controls need less broad shading than the original, deep menu lens.
@@ -56,19 +57,8 @@ export function GlassStage({
       const dark = getComputedStyle(element).colorScheme.includes("dark");
       ctx.fillStyle = dark ? "#202020" : "#f3f3f1";
       ctx.fillRect(0, 0, width, height);
-      ctx.strokeStyle = dark ? "#ffffff10" : "#e5e5e2";
-      ctx.lineWidth = 1;
       if (background === "grid") {
-        ctx.beginPath();
-        for (let x = Math.round((width / 2) % 54) + .5; x < width; x += 54) {
-          ctx.moveTo(x, 0);
-          ctx.lineTo(x, height);
-        }
-        for (let y = Math.round((height / 2) % 54) + .5; y < height; y += 54) {
-          ctx.moveTo(0, y);
-          ctx.lineTo(width, y);
-        }
-        ctx.stroke();
+        paintLiquidGrid(ctx, width, height, dark);
       } else if (background === "lines") {
         ctx.lineWidth = 8;
         ctx.strokeStyle = dark ? "#ffffff30" : "#00000030";

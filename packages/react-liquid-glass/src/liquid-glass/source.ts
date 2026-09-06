@@ -3,6 +3,22 @@ import { readMotion, type MotionInput } from "../shared/values";
 export type LiquidSourcePainter = (context: CanvasRenderingContext2D) => void;
 export type LiquidSourceFactory = (root: HTMLElement, width: number, height: number) => LiquidSourcePainter;
 
+/** The centered, one-CSS-pixel grid shared by stages and explicit canvas scenes. */
+export function paintLiquidGrid(ctx: CanvasRenderingContext2D, width: number, height: number, dark: boolean) {
+  ctx.fillStyle = dark ? "#202020" : "#f3f3f1";
+  ctx.fillRect(0, 0, width, height);
+  ctx.strokeStyle = dark ? "#ffffff10" : "#e5e5e2";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let x = Math.round((width / 2) % 54) + .5; x < width; x += 54) {
+    ctx.moveTo(x, 0); ctx.lineTo(x, height);
+  }
+  for (let y = Math.round((height / 2) % 54) + .5; y < height; y += 54) {
+    ctx.moveTo(0, y); ctx.lineTo(width, y);
+  }
+  ctx.stroke();
+}
+
 const themeListeners = new Set<() => void>();
 let themeObserver: MutationObserver | undefined;
 let themeRevision = 0;

@@ -3,8 +3,10 @@ import { contactTransform } from "../shared/contact";
 import { readMotion, type MotionInput } from "../shared/values";
 
 const MAX_BLOBS = 8;
-const frameListeners = new Set<(canvas: HTMLCanvasElement) => void>();
-export function subscribeLiquidFrames(listener: (canvas: HTMLCanvasElement) => void) {
+/** Changed output region, normalized to the canvas, with a top-left origin. */
+type LiquidFrameRegion = { left: number; top: number; width: number; height: number };
+const frameListeners = new Set<(canvas: HTMLCanvasElement, regions: readonly LiquidFrameRegion[]) => void>();
+export function subscribeLiquidFrames(listener: (canvas: HTMLCanvasElement, regions: readonly LiquidFrameRegion[]) => void) {
   frameListeners.add(listener);
   return () => { frameListeners.delete(listener); };
 }
@@ -601,6 +603,8 @@ export function createLiquidGlassRenderer(
   const highlightState: number[] = [];
   let lastHighlight: unknown, highlightContent: HTMLCanvasElement | null | undefined, highlightRevision: number | undefined;
   let disposed = false;
+  let previousRegions: LiquidFrameRegion[] = [{ left: 0, top: 0, width: 1, height: 1 }];
+  let previousWidth = 0, previousHeight = 0;
   const stats: LiquidRendererStats = { draws: 0, emissionDraws: 0, sourceUploads: 0, contentUploads: 0 };
 
   function draw(p: LiquidGlassFrame, presentHighlightHDR?: (mask: HTMLCanvasElement, region?: { x: number; y: number; width: number; height: number }) => void) {
@@ -638,6 +642,7 @@ export function createLiquidGlassRenderer(
     if (output ? device.canvas.height < height : device.canvas.height !== height) device.canvas.height = height;
     const sourceTop = device.canvas.height - height;
     gl.useProgram(device.program);
+    gl.disable(gl.SCISSOR_TEST);
     gl.bindVertexArray(device.vao);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -731,6 +736,16 @@ export function createLiquidGlassRenderer(
       lastContent = p.content; contentRevision = p.contentRevision ?? 0; stats.contentUploads++;
     }
     const count = Math.min(MAX_BLOBS, p.blobs.length);
+    const clipped = p.transparentOutside && !p.debug;
+    const regions: LiquidFrameRegion[] = [];
+    let left = p.width, top = p.height, right = 0, bottom = 0;
+    // Bound the same transformed rounded SDF, including its fusion expansion,
+    // antialiasing and the full three-sigma shadow used by the fragment shader.
+    const shadowBlur = Number.isFinite(p.shadowBlur) ? p.shadowBlur! : LIQUID_GLASS_MATERIAL.shadowBlur;
+    const mergeDistance = readMotion(p.mergeDistance ?? LIQUID_GLASS_MATERIAL.mergeDistance);
+    const padding = Math.max(18, shadowBlur * 3)
+      + Math.max(.001, Number.isFinite(mergeDistance) ? mergeDistance : LIQUID_GLASS_MATERIAL.mergeDistance) * Math.max(0, count - 1) / 4 + 2 / ratio;
+    const shadowOffset = Number.isFinite(p.shadowOffset) ? p.shadowOffset! : LIQUID_GLASS_MATERIAL.shadowOffset;
     for (let i = 0; i < count; i++) {
       const b = p.blobs[i];
       const ratio = b.refractionRatio ?? [1, 1];
@@ -755,6 +770,23 @@ export function createLiquidGlassRenderer(
       const determinant = m00 * m11 - m01 * m10;
       contactInverses.set([m11 / determinant, -m10 / determinant, -m01 / determinant, m00 / determinant], i * 4);
       contactOffsets.set([tx, ty], i * 2);
+      if (clipped && (i === 0 || Math.min(sizes[i*2], sizes[i*2+1]) > .001)) {
+        const speed = Math.hypot(velocities[i*2], velocities[i*2+1]);
+        const dx = speed > 1.1 ? velocities[i*2] / speed : 1, dy = speed > 1.1 ? velocities[i*2+1] / speed : 0;
+        const stretch = 1 + Math.min(1, speed / 1100) * .52, squash = 1 / Math.sqrt(stretch);
+        const v00 = dx * dx * stretch + dy * dy * squash, v01 = dx * dy * (stretch - squash), v11 = dy * dy * stretch + dx * dx * squash;
+        const a = m00 * v00 + m01 * v01, c = m00 * v01 + m01 * v11;
+        const b = m10 * v00 + m11 * v01, d = m10 * v01 + m11 * v11;
+        const corner = Math.min(corners[i], sizes[i*2], sizes[i*2+1]), ix = sizes[i*2] - corner, iy = sizes[i*2+1] - corner;
+        const ex = Math.abs(a) * ix + Math.abs(c) * iy + Math.hypot(a, c) * (corner + padding);
+        const ey = Math.abs(b) * ix + Math.abs(d) * iy + Math.hypot(b, d) * (corner + padding);
+        left = Math.min(left, blobs[i*3] + tx - ex); right = Math.max(right, blobs[i*3] + tx + ex);
+        top = Math.min(top, blobs[i*3+1] + ty - ey + Math.min(0, shadowOffset));
+        bottom = Math.max(bottom, blobs[i*3+1] + ty + ey + Math.max(0, shadowOffset));
+        const x0 = Math.max(0, blobs[i*3] + tx - ex), y0 = Math.max(0, blobs[i*3+1] + ty - ey + Math.min(0, shadowOffset));
+        const x1 = Math.min(p.width, blobs[i*3] + tx + ex), y1 = Math.min(p.height, blobs[i*3+1] + ty + ey + Math.max(0, shadowOffset));
+        if (x1 > x0 && y1 > y0) regions.push({ left: x0 / p.width, top: y0 / p.height, width: (x1 - x0) / p.width, height: (y1 - y0) / p.height });
+      }
       const dome = computeDomeConstants(p.domeDepth ?? LIQUID_GLASS_MATERIAL.domeDepth, sizes[i*2], sizes[i*2+1]);
       domes[i*4] = dome.Rx; domes[i*4+1] = dome.Ry;
       domes[i*4+2] = dome.scaleX; domes[i*4+3] = dome.scaleY;
@@ -785,24 +817,33 @@ export function createLiquidGlassRenderer(
     gl.uniform1f(u.uContentBlur, readMotion(p.contentBlur ?? 0));
     gl.uniform1i(u.uTransparentOutside, p.transparentOutside ? 1 : 0);
     gl.uniform1i(u.uDebug, p.debug ? 1 : 0);
-    // Copy the mask before the normal draw so direct canvases also end on their
-    // visible material. Both paths share textures, frost and the merged SDF.
-    if (presentHighlightHDR && !p.debug) {
-      // Scrolling changes the substrate, not the SDF's emitted light. Retain the
-      // HDR mask until geometry, material or foreground occlusion actually changes.
-      let index = 0, changed = lastHighlight !== presentHighlightHDR || highlightContent !== p.content || highlightRevision !== p.contentRevision;
-      const record = (value: number) => { if (!Object.is(highlightState[index], value)) changed = true; highlightState[index++] = value; };
-      for (const values of [blobs, sizes, corners, velocities, contacts, contactInverses, contactOffsets, domes, refractionRatios]) for (const value of values) record(value);
-      for (const key of scalarKeys) record(readMotion(p[key] ?? LIQUID_GLASS_MATERIAL[key]));
-      for (const value of [width, height, p.width, p.height, count, ...refraction, readMotion(p.contentOpacity ?? 0), readMotion(p.contentRefraction ?? 0), readMotion(p.contentBlur ?? 0)]) record(value);
-      if (changed) {
-        gl.uniform1i(u.uEmissionOnly, 1); gl.drawArrays(gl.TRIANGLES, 0, 6);
-        presentHighlightHDR(device.canvas, { x: 0, y: sourceTop, width, height }); stats.emissionDraws++;
-        lastHighlight = presentHighlightHDR; highlightContent = p.content; highlightRevision = p.contentRevision;
-      }
-    } else lastHighlight = undefined;
-    gl.uniform1i(u.uEmissionOnly, 0);
-    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    if (clipped) {
+      const x0 = Math.max(0, Math.min(width, Math.floor(left * width / p.width))), y0 = Math.max(0, Math.min(height, Math.floor(top * height / p.height)));
+      const x1 = Math.max(x0, Math.min(width, Math.ceil(right * width / p.width))), y1 = Math.max(y0, Math.min(height, Math.ceil(bottom * height / p.height)));
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.enable(gl.SCISSOR_TEST);
+      gl.scissor(x0, height - y1, x1 - x0, y1 - y0);
+    } else regions.push({ left: 0, top: 0, width: 1, height: 1 });
+    try {
+      // Copy the mask before the normal draw so direct canvases also end on their
+      // visible material. Both paths share textures, frost and the merged SDF.
+      if (presentHighlightHDR && !p.debug) {
+        // Scrolling changes the substrate, not the SDF's emitted light. Retain the
+        // HDR mask until geometry, material or foreground occlusion actually changes.
+        let index = 0, changed = lastHighlight !== presentHighlightHDR || highlightContent !== p.content || highlightRevision !== p.contentRevision;
+        const record = (value: number) => { if (!Object.is(highlightState[index], value)) changed = true; highlightState[index++] = value; };
+        for (const values of [blobs, sizes, corners, velocities, contacts, contactInverses, contactOffsets, domes, refractionRatios]) for (const value of values) record(value);
+        for (const key of scalarKeys) record(readMotion(p[key] ?? LIQUID_GLASS_MATERIAL[key]));
+        for (const value of [width, height, p.width, p.height, count, ...refraction, readMotion(p.contentOpacity ?? 0), readMotion(p.contentRefraction ?? 0), readMotion(p.contentBlur ?? 0)]) record(value);
+        if (changed) {
+          gl.uniform1i(u.uEmissionOnly, 1); gl.drawArrays(gl.TRIANGLES, 0, 6);
+          presentHighlightHDR(device.canvas, { x: 0, y: sourceTop, width, height }); stats.emissionDraws++;
+          lastHighlight = presentHighlightHDR; highlightContent = p.content; highlightRevision = p.contentRevision;
+        }
+      } else lastHighlight = undefined;
+      gl.uniform1i(u.uEmissionOnly, 0);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+    } finally { gl.disable(gl.SCISSOR_TEST); }
     if (output) {
       if (canvas.width !== width) canvas.width = width;
       if (canvas.height !== height) canvas.height = height;
@@ -810,7 +851,12 @@ export function createLiquidGlassRenderer(
       output.drawImage(device.canvas, 0, sourceTop, width, height, 0, 0, width, height);
     }
     stats.draws++;
-    for (const listener of frameListeners) listener(canvas);
+    if (previousWidth !== width || previousHeight !== height) previousRegions = [{ left: 0, top: 0, width: 1, height: 1 }];
+    // Separate bodies must not invalidate the empty corners between them. Include
+    // their previous positions too, so glass behind a departing body stays live.
+    const changed = [...previousRegions, ...regions];
+    previousRegions = regions; previousWidth = width; previousHeight = height;
+    for (const listener of frameListeners) listener(canvas, changed);
     return true;
   }
   function dispose() {

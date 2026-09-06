@@ -106,6 +106,91 @@ export async function checkVideoPixels() {
   } finally { stop(); video?.pause(); spacer.remove(); window.scrollTo(0,0); }
 }
 
+export async function checkClippedGlass() {
+  const { createLiquidGlassRenderer, subscribeLiquidFrames } = await import('../../../packages/react-liquid-glass/src/liquid-glass/renderer.ts');
+  const source = document.createElement('canvas'); source.width = 720; source.height = 520;
+  const ctx = source.getContext('2d'); ctx.fillStyle = '#e4e4df'; ctx.fillRect(0,0,720,520);
+  ctx.fillStyle = '#888'; for (let x=0;x<720;x+=31) ctx.fillRect(x,0,2,520);
+  const a = { x:.3,y:.3,radius:24 }, b = { x:.7,y:.7,radius:36,halfWidth:46,halfHeight:60,cornerRadius:16 };
+  const cases = [
+    {blobs:[a,b]}, {blobs:[a,{...b,x:.42,y:.38}],mergeDistance:75},
+    {blobs:[{...b,velocityX:1600,velocityY:-900,anchorX:-.8,anchorY:.5,pullX:9,pullY:-7,contactStrength:1}]},
+    {blobs:[{...a,x:0,y:1},{...b,x:1,y:0}],shadowOffset:-28},
+    {blobs:[{...a,radius:0}]}, {blobs:[]}, {blobs:[b]},
+    {blobs:[a],shadowBlur:NaN,shadowOffset:Infinity,mergeDistance:NaN},
+  ];
+  let comparisons=0,changed;
+  for (const shared of [false,true]) {
+    const canvas=document.createElement('canvas'), renderer=createLiquidGlassRenderer(canvas,{shared}),gl=renderer.context;
+    const stop=subscribeLiquidFrames((target,regions)=>{if(target===canvas)changed=regions});
+    const scissor=gl.scissor;
+    const pixels=()=>{const viewport=gl.getParameter(gl.VIEWPORT),data=new Uint8Array(viewport[2]*viewport[3]*4);gl.readPixels(0,0,viewport[2],viewport[3],gl.RGBA,gl.UNSIGNED_BYTE,data);return data};
+    try {
+      // Retain a larger shared drawing buffer, as a popup followed by a small control does.
+      if(shared)renderer.draw({source,width:800,height:600,blobs:[b],pixelRatio:1});
+      for(const pixelRatio of [1,2])for(const scenario of cases){
+        const frame={source,width:360,height:260,pixelRatio,transparentOutside:true,blurStrength:4,...scenario};
+        let clippedHDR,fullHDR;
+        renderer.draw(frame,()=>{clippedHDR=pixels()}); const clipped=pixels();
+        gl.scissor=function(){const v=gl.getParameter(gl.VIEWPORT);scissor.call(gl,0,0,v[2],v[3])};
+        renderer.draw(frame,()=>{fullHDR=pixels()}); const full=pixels();
+        gl.scissor=scissor;
+        assert(clipped.every((value,index)=>value===full[index]),`Clipped material differs: shared=${shared}, DPR=${pixelRatio}, case=${cases.indexOf(scenario)}`);
+        assert(clippedHDR.every((value,index)=>value===fullHDR[index]),'Clipped HDR mask differs');
+        assert(!gl.isEnabled(gl.SCISSOR_TEST)&&gl.getError()===gl.NO_ERROR,'Scissor state leaked or WebGL failed');
+        comparisons++;
+      }
+      const frame={source,width:1000,height:600,pixelRatio:1,transparentOutside:true,shadowBlur:1,shadowOffset:0,mergeDistance:0,blobs:[a]};
+      renderer.draw(frame); renderer.draw(frame); renderer.draw({...frame,blobs:[{...a,x:.8}]});
+      assert(changed.some(r=>r.left<=.3&&r.left+r.width>=.3)&&changed.some(r=>r.left<=.8&&r.left+r.width>=.8),'Moved glass lost previous or current backdrop damage');
+      assert(!changed.some(r=>r.left<=.5&&r.left+r.width>=.5),'Empty space between bodies still invalidates backdrops');
+      try{renderer.draw(frame,()=>{throw new Error('HDR presenter failed')})}catch{}
+      assert(!gl.isEnabled(gl.SCISSOR_TEST),'Failed HDR presenter leaked the clip into other renderers');
+    }finally{gl.scissor=scissor;stop();renderer.dispose()}
+  }
+  return {comparisons,material:'pixel-identical',hdr:'pixel-identical',damage:'old and new bodies only'};
+}
+
+export async function checkShowcasePerformance() {
+  const { subscribeLiquidFrames } = await import('../../../packages/react-liquid-glass/src/liquid-glass/renderer.ts');
+  let keyFrames=0,orbitFrames=0,notes=0;
+  const stop=subscribeLiquidFrames(canvas=>{if(canvas.closest('.sequencer-key'))keyFrames++;if(canvas.closest('.orbit-board'))orbitFrames++});
+  const create=AudioContext.prototype.createOscillator;
+  AudioContext.prototype.createOscillator=function(){notes++;return create.call(this)};
+  const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+  try{
+    await go('/showcase/sequencer');await until(()=>document.querySelectorAll('.sequencer-key').length===32,'Sequencer did not mount');
+    const key=document.querySelector('.sequencer-key'),pressed=key.getAttribute('aria-pressed');key.click();await paint();
+    assert(key.getAttribute('aria-pressed')!==pressed,'Editing a note stopped working');
+    click('.sequencer-transport .dg-button');
+    await until(()=>notes>0&&document.querySelector('.sequence-cursor')?.style.visibility==='visible','Audio or playhead did not start');
+    await wait(650);keyFrames=0;const columns=new Set();
+    for(let i=0;i<8;i++){await wait(100);columns.add(document.querySelector('.sequence-cursor').style.gridColumn)}
+    assert(columns.size>=3,'Playhead stopped following the audio clock');
+    assert(keyFrames===0,`Playhead repainted ${keyFrames} glass key frames`);
+    const cursor=document.querySelector('.sequence-cursor--key'),column=parseInt(cursor.style.gridColumn)-2;
+    const cell=document.querySelectorAll('.sequencer-row')[0].querySelectorAll('.sequencer-key')[column];
+    const r=cursor.getBoundingClientRect(),s=cell.getBoundingClientRect();
+    assert(Math.abs(r.left-s.left)<1&&Math.abs(r.width-s.width)<1,'Playhead no longer aligns with its key');
+    click('.sequencer-transport .dg-button');await until(()=>document.querySelector('.sequence-cursor')?.style.visibility==='hidden','Pause left a stale playhead');
+    click('[aria-label="Clear pattern"]');await paint();assert(!document.querySelector('.sequencer-key[aria-pressed="true"]'),'Clear failed');
+    click('[aria-label="Shuffle pattern"]');await paint();assert(document.querySelectorAll('.sequencer-key').length===32,'Shuffle lost keys');
+    await go('/showcase/orbit');await until(()=>document.querySelectorAll('.orbit-handle').length===3,'Orbit did not mount');
+    document.querySelector('.orbit-board').scrollIntoView({block:'center'});
+    const handles=[...document.querySelectorAll('.orbit-handle')],spread=()=>Math.abs(handles[2].getBoundingClientRect().x-handles[0].getBoundingClientRect().x);
+    click('.orbit-toolbar .dg-button');await until(()=>spread()<110,'Bodies did not gather');
+    click('.orbit-toolbar .dg-button:nth-child(2)');await until(()=>spread()>150,'Bodies did not scatter');
+    await wait(1000);
+    const x=handles[0].getBoundingClientRect().x;handles[0].dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}));
+    await until(()=>handles[0].getBoundingClientRect().x>x+3,'Keyboard body movement failed');
+    await wait(1400);const idle=orbitFrames;await wait(150);assert(orbitFrames===idle,'Settled Orbit still renders');
+    click('input[aria-label="Orbit motion"]');await until(()=>orbitFrames>idle+8,'Orbit animation did not start');
+    click('input[aria-label="Orbit motion"]');
+    assert(document.documentElement.scrollWidth<=document.documentElement.clientWidth+1,'Showcase overflows the viewport');
+    return {notes,playheadColumns:columns.size,steadyKeyFrames:0,orbit:'gather, scatter, keyboard, idle and orbit passed'};
+  }finally{stop();AudioContext.prototype.createOscillator=create;await go('/showcase')}
+}
+
 export async function checkRefinements() {
   const passed = [];
   await go('/components/select');
