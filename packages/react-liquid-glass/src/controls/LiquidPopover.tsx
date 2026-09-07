@@ -10,6 +10,7 @@ import { LiquidGlassCanvas } from "../liquid-glass/LiquidGlassCanvas";
 import { paintLiquidBackdrop, observeLiquidBackdrop, scheduleLiquidBackdrop, cancelLiquidBackdrop } from "../liquid-glass/backdrop";
 import { useGlassMaterial } from "../liquid-glass/provider";
 import { StageContext, FusionTriggerContext, SURFACE_MATERIAL } from "./GlassSurface";
+import { ScrollArea } from "./ScrollArea";
 
 const ClosePopoverContext = createContext<() => void>(() => undefined);
 export const useClosePopover = () => useContext(ClosePopoverContext);
@@ -47,6 +48,7 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
   const [active, setActive] = useState(false);
   const [host] = useState(() => typeof document === "undefined" ? null : document.createElement("span"));
   const anchor = useRef<HTMLSpanElement>(null), topLayer = useRef<HTMLDivElement | HTMLDialogElement>(null), panel = useRef<HTMLDivElement>(null);
+  const scrollViewport = useRef<HTMLDivElement>(null);
   const showing = () => topLayer.current instanceof HTMLDialogElement ? topLayer.current.open : topLayer.current?.matches(":popover-open") ?? false;
   const contact = useGlassContact(anchor, { deform: false });
   const source = useRef<HTMLCanvasElement | null>(null);
@@ -214,6 +216,7 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
     settled.current = false;
     if (open) {
       hasOpened.current = true;
+      if (role === "dialog") scrollViewport.current?.scrollTo({ top: 0, left: 0, behavior: "instant" });
       if (modal && !showing()) {
         if (!trigger && document.activeElement instanceof HTMLElement && document.activeElement !== document.body) { opener.current = document.activeElement; point.current = { x: .5, y: .5 }; }
         (element as HTMLDialogElement).showModal();
@@ -314,9 +317,10 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
         inert={!open} aria-hidden={!open || undefined}
         style={{ opacity: nativeOpacity, transform: contentTransform, filter: contentFilter, borderRadius: panelRadius }}
         onFocus={refreshInk} onPointerOver={refreshInk} onPointerOut={refreshInk}
-        onScroll={refreshInk}
         onPointerEnter={() => { if (tooltip) clearTimeout(timer.current); }} onPointerLeave={() => hover(false)}>
+        <ScrollArea className="dg-popover__scroll" contentClassName="dg-popover__content" viewportProps={{ ref: scrollViewport, onScroll: refreshInk, tabIndex: -1, "aria-label": label }}>
         <ClosePopoverContext.Provider value={close}>{children}</ClosePopoverContext.Provider>
+        </ScrollArea>
       </motion.div>
     </Layer>
     {/* Viewport overlays present directly: copying their large WebGL frame into

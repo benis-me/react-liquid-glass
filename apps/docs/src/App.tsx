@@ -7,7 +7,7 @@ import {
   Sun,
   X,
 } from "lucide-react";
-import { GlassTabs, GlassSheet } from "refractive-glass-react/controls";
+import { GlassTabs, GlassSheet, ScrollArea } from "refractive-glass-react/controls";
 import { LiquidGlassProvider, type GlassMaterial } from "refractive-glass-react/liquid-glass";
 import { sanitizeMaterial } from "./site/material";
 import { catalog, groups, groupZh, componentAliases, type ComponentId } from "./site/catalog";
@@ -268,6 +268,7 @@ export function App() {
     );
   return (
     <LiquidGlassProvider material={displayMaterial}>
+      <ScrollArea className="site-scroll" viewportProps={{ id: "page-scroll", tabIndex: -1 }}>
       <Link className="skip-link" href="#main-content">
         {zh ? "跳到内容" : "Skip to content"}
       </Link>
@@ -368,9 +369,11 @@ export function App() {
       <div className={isHome ? "site-container" : "site-container docs-layout"}>
         {!isHome && (
           <aside className="docs-sidebar">
+            <ScrollArea className="sidebar-scroll" contentClassName="sidebar-scroll__content" viewportProps={{ "aria-label": zh ? "组件导航" : "Component navigation" }}>
             <nav aria-label={zh ? "组件导航" : "Component navigation"}>
               {sidebar}
             </nav>
+            </ScrollArea>
           </aside>
         )}
         <main
@@ -394,6 +397,7 @@ export function App() {
           <ArrowUpRight size={12} />
         </Link>
       </footer>
+      </ScrollArea>
     </LiquidGlassProvider>
   );
 }

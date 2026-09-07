@@ -98,7 +98,7 @@ function MenuContents({
   onFilter,
 }: MenuContentsProps) {
   return (
-    <div className="dg-liquid-menu__scroll">
+    <>
       <p className="dg-liquid-menu__heading">{text.sortHeading}</p>
       <div className="dg-liquid-menu__section" role="group" aria-label={text.sortHeading}>
         {SORT_OPTIONS.map((id) => {
@@ -151,7 +151,7 @@ function MenuContents({
           );
         })}
       </div>
-    </div>
+    </>
   );
 }
 

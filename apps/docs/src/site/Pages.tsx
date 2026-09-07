@@ -15,6 +15,7 @@ import {
   GlassTabs,
   GlassInput,
   GlassPopover,
+  ScrollArea,
 } from "refractive-glass-react/controls";
 import {
   catalog,
@@ -61,9 +62,11 @@ export function CodeBlock({
           </span>
         </button>
       </div>
-      <pre tabIndex={0}>
+      <ScrollArea orientation="horizontal" viewportProps={{ "aria-label": label }}>
+      <pre>
         <code>{code}</code>
       </pre>
+      </ScrollArea>
     </div>
   );
 }
@@ -266,11 +269,11 @@ export function Catalog({ locale, theme, material, setMaterial }: PageProps & Ma
         }
       />
       <div className="catalog-tools">
-        <div className="filter-scroll">
+        <ScrollArea className="filter-scroll" orientation="horizontal" viewportProps={{ "aria-label": zh ? "分类" : "Categories" }}>
           <GlassTabs label={zh ? "分类" : "Categories"} value={group} onValueChange={setGroup}
             items={["All", ...groups].map(value => ({ value, label: zh ? (value === "All" ? "全部" : groupZh[value]) : value }))}
           />
-        </div>
+        </ScrollArea>
       </div>
       <div className="component-grid">
         {entries.map((entry) => (
@@ -385,7 +388,7 @@ export function ComponentPage({
       </section>
       <section className="doc-section" id="api">
         <h2>API</h2>
-        <div className="table-scroll">
+        <ScrollArea className="table-scroll" orientation="horizontal" viewportProps={{ "aria-label": "API" }}>
           <table>
             <thead>
               <tr>
@@ -408,7 +411,7 @@ export function ComponentPage({
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
       </section>
       {note && <section className="doc-section"><h2>{zh ? "键盘操作" : "Keyboard"}</h2><p>{note[zh ? 1 : 0]}</p></section>}
       <nav

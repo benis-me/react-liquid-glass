@@ -10,6 +10,8 @@ Build the library in `packages/react-liquid-glass/src/` and the documentation/de
 
 ## Component library and documentation site
 
+- All authored scroll regions use the shared `ScrollArea` with overlay scrollbars visible only on hover. Declare each region's scrolling axis; optical canvas bleed must not create phantom scrollbars. Material panels have one vertical scroll viewport, inset thumbs, and unclipped outer glass shadows; presets scroll horizontally only when their content actually overflows.
+
 - The home introduction has no technology-stack eyebrow or status dot; keep the removed “React · WebGL · Motion” line out.
 
 - Playground's Lines substrate uses subdued stripes (black/white at `0x18` alpha), shared by the visible canvas and glass backdrop sampling. Preserve the stripe width and spacing.

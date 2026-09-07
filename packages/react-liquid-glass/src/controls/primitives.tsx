@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useCallback,
   useLayoutEffect,
   useId,
   useRef,
@@ -16,6 +17,7 @@ import { Check, ChevronDown } from "lucide-react";
 import { LiquidPopover, useClosePopover } from "./LiquidPopover";
 import { usePointerReleaseFallback } from "../apple-motion/react";
 import { GlassSurface } from "./GlassSurface";
+import { ScrollArea } from "./ScrollArea";
 
 export interface GlassButtonProps extends ComponentProps<"button"> {
   variant?: "default" | "solid" | "ghost";
@@ -142,14 +144,56 @@ export function GlassTextarea({
   label,
   id: suppliedId,
   className = "",
+  ref: forwardedRef,
+  rows = 2,
+  onInput,
+  onScroll,
+  style,
   ...props
 }: ComponentProps<"textarea"> & { label?: string }) {
   const id = useId();
+  const input = useRef<HTMLTextAreaElement>(null);
+  const viewport = useRef<HTMLDivElement>(null);
+  const spacer = useRef<HTMLDivElement>(null);
+  const height = style?.height ?? `max(104px, calc(${rows} * 1lh + 26px))`;
+  const fit = useCallback(() => {
+    if (!input.current || !viewport.current || !spacer.current) return;
+    // Keep the native textarea in place for caret, selection and IME scrolling.
+    // The spacer gives ScrollArea the same range as the native editor.
+    spacer.current.style.height = `${input.current.scrollHeight - input.current.clientHeight}px`;
+    viewport.current.scrollTop = input.current.scrollTop;
+  }, []);
+  useLayoutEffect(fit, [fit, props.value, props.defaultValue, rows]);
+  useLayoutEffect(() => {
+    if (!input.current) return;
+    const resize = new ResizeObserver(fit);
+    resize.observe(input.current);
+    const form = input.current?.form;
+    const reset = () => requestAnimationFrame(fit);
+    form?.addEventListener("reset", reset);
+    return () => { resize.disconnect(); form?.removeEventListener("reset", reset); };
+  }, [fit]);
   return (
     <label className={`dg-field ${className}`} htmlFor={suppliedId ?? id}>
       {label && <span className="dg-field__label">{label}</span>}
       <GlassSurface radius={24}>
-        <textarea {...props} id={suppliedId ?? id} />
+        <ScrollArea className="dg-textarea-scroll" style={{ height }}
+          viewportProps={{ ref: viewport, tabIndex: -1, onScroll: event => {
+            if (input.current && input.current.scrollTop !== event.currentTarget.scrollTop) input.current.scrollTop = event.currentTarget.scrollTop;
+          } }}>
+          <textarea {...props} rows={rows} style={{ ...style, height }} id={suppliedId ?? id}
+            ref={element => {
+              input.current = element;
+              if (typeof forwardedRef === "function") return forwardedRef(element);
+              if (forwardedRef) forwardedRef.current = element;
+            }}
+            onInput={event => { fit(); onInput?.(event); }}
+            onScroll={event => {
+              if (viewport.current && viewport.current.scrollTop !== event.currentTarget.scrollTop) viewport.current.scrollTop = event.currentTarget.scrollTop;
+              onScroll?.(event);
+            }} />
+          <div ref={spacer} aria-hidden="true" />
+        </ScrollArea>
       </GlassSurface>
     </label>
   );

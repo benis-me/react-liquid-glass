@@ -202,7 +202,7 @@ html[data-theme="dark"] .dg-tabs__item:not([data-selected]):hover { background: 
 .dg-liquid-menu__fusion-source { display: none; }
 .dg-liquid-glass,
 .dg-liquid-menu__panel,
-.dg-liquid-menu__scroll::-webkit-scrollbar-thumb {
+.dg-liquid-menu__scroll .dg-scroll-area__thumb {
   corner-shape: squircle;
 }
 .dg-liquid-menu__dismiss {
@@ -248,18 +248,10 @@ html[data-theme="dark"] .dg-tabs__item:not([data-selected]):hover { background: 
 .dg-liquid-menu__scroll {
   box-sizing: border-box;
   height: 100%;
-  padding: 14px;
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-color: var(--fg-3, light-dark(#707070, #9b9b99)) transparent;
-  scrollbar-width: thin;
+  --dg-scroll-inset: 14px;
 }
-.dg-liquid-menu__scroll::-webkit-scrollbar { width: 5px; }
-.dg-liquid-menu__scroll::-webkit-scrollbar-track { background: transparent; }
-.dg-liquid-menu__scroll::-webkit-scrollbar-thumb {
-  background: var(--fg-3, light-dark(#707070, #9b9b99));
-  border-radius: 999px;
+.dg-liquid-menu__scroll-content {
+  padding: 14px;
 }
 .dg-liquid-menu__heading {
   margin: 0 0 13px 47px;
@@ -349,7 +341,7 @@ html[data-theme="dark"] .dg-tabs__item:not([data-selected]):hover { background: 
     --dg-liquid-menu-radius: 40px;
     --dg-liquid-item-radius: 30px;
   }
-  .dg-liquid-menu__scroll { padding: 10px; }
+  .dg-liquid-menu__scroll-content { padding: 10px; }
   .dg-liquid-menu__heading { margin-left: 45px; }
   .dg-liquid-menu__filter-row { padding-left: 45px; padding-right: 6px; }
 }
@@ -448,7 +440,9 @@ html[data-theme="dark"] .dg-tabs__item:not([data-selected]):hover { background: 
 .dg-field__label, .dg-radio-group legend { font-size: 12px; font-weight: 550; }
 .dg-field input, .dg-field textarea, .dg-field select { display: block; width: 100%; padding: 13px 16px; min-height: 44px; color: inherit; background: transparent; border: 0; border-radius: inherit; font: inherit; outline: none; box-sizing: border-box; }
 .dg-field :is(input, textarea, select):focus-visible { box-shadow: none; }
-.dg-field textarea { resize: none; min-height: 104px; }
+.dg-field textarea { position: sticky; top: 0; resize: none; min-height: 104px; overflow-x: hidden; overflow-y: auto; scrollbar-width: none; overscroll-behavior: contain; }
+.dg-field textarea::-webkit-scrollbar { display: none; }
+.dg-textarea-scroll { min-height: 104px; border-radius: inherit; --dg-scroll-inset: 18px; }
 .dg-field select { cursor: pointer; padding-right: 32px; }
 .dg-field select option { color: CanvasText; background: Canvas; }
 .dg-field small { font-size: 11px; opacity: .6; }
@@ -480,7 +474,8 @@ html[data-theme="dark"] .dg-tabs__item:not([data-selected]):hover { background: 
 .dg-accordion__body { padding: 0 20px 20px; font-size: 13px; line-height: 1.7; }
 .dg-dialog { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; border: 0; padding: 0; background: transparent; color: inherit; overflow: hidden; }
 .dg-dialog::backdrop { background: transparent; }
-.dg-dialog__body { z-index: 4; position: absolute; width: min(440px, calc(100vw - 40px)); max-height: calc(100dvh - 48px); padding: 28px; overflow: auto; box-sizing: border-box; overscroll-behavior: contain; }
+.dg-dialog__body { z-index: 4; position: absolute; display: flex; flex-direction: column; width: min(440px, calc(100vw - 40px)); max-height: calc(100dvh - 48px); padding: 0; box-sizing: border-box; }
+.dg-dialog__body > .dg-popover__scroll > .dg-scroll-area__viewport > div > .dg-popover__content { padding: 28px; }
 .dg-dialog header { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 14px; }
 .dg-dialog h2 { margin: 0; font: inherit; font-size: 20px; font-weight: 600; }
 .dg-dialog__description { margin: 0 0 24px; font-size: 13px; line-height: 1.6; color: inherit; }
@@ -544,15 +539,37 @@ html[data-theme="dark"] .dg-tabs__item:not([data-selected]):hover { background: 
 .dg-action__button:disabled { opacity: .4; cursor: not-allowed; }
 html[data-theme="dark"] .dg-action { --action-glass-tint: #4a4a46; }
 
+/* Scrollbars overlay the viewport; they never reserve a native scrollbar gutter. */
+.dg-scroll-area { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+.dg-scroll-area__viewport { width: 100%; height: 100%; min-height: 0; max-height: inherit; border-radius: inherit; overscroll-behavior: contain; scrollbar-width: none; }
+.dg-scroll-area__viewport::-webkit-scrollbar { display: none; }
+.dg-scroll-area[data-axis="vertical"] > .dg-scroll-area__viewport > div { display: block !important; }
+.dg-scroll-area__content { display: flow-root; min-width: 0; }
+.dg-scroll-area__bar { display: flex; padding: 3px; box-sizing: border-box; touch-action: none; user-select: none; z-index: 10; }
+.dg-scroll-area__bar[data-orientation="vertical"] { width: 10px; margin-block: var(--dg-scroll-inset, 4px); }
+.dg-scroll-area__bar[data-orientation="horizontal"] { height: 10px; flex-direction: column; margin-inline: var(--dg-scroll-inset, 4px); }
+.dg-scroll-area__thumb { position: relative; flex: 1; border-radius: 999px; background: color-mix(in srgb, currentColor 30%, transparent); }
+.dg-scroll-area__thumb:hover { background: color-mix(in srgb, currentColor 50%, transparent); }
+.dg-scroll-area__corner { background: transparent; }
+.dg-scroll-area__viewport:focus-visible { outline: none; }
+.dg-scroll-area__viewport:focus-visible::after { content: ""; position: absolute; inset: auto 12px 1px; height: 1px; background: color-mix(in srgb, currentColor 35%, transparent); pointer-events: none; }
+@media (forced-colors: active) {
+  .dg-scroll-area__thumb { background: ButtonText; }
+  .dg-scroll-area__viewport:focus-visible { outline: 1px solid Highlight; outline-offset: -2px; }
+}
+
 /* The trigger and popup share one SDF in the native top layer. */
 .dg-popover-anchor { position: relative; display: inline-block; isolation: isolate; vertical-align: middle; }
 .dg-popover-anchor > button { position: relative; z-index: 1; }
 .dg-popover-anchor[data-open] > button > .dg-surface > .dg-surface__content { opacity: 0; }
 .dg-popover-layer { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; border: 0; padding: 0; overflow: visible; background: transparent; color: inherit; pointer-events: none; }
 .dg-popover-layer::backdrop { background: transparent; pointer-events: none; }
-.dg-popover__panel { position: absolute; z-index: 2; width: max-content; max-width: min(420px, calc(100vw - 24px)); max-height: calc(100dvh - 90px); box-sizing: border-box; overflow: auto; padding: 20px; pointer-events: auto; transform-origin: center; overscroll-behavior: contain; scrollbar-width: thin; }
+.dg-popover__panel { position: absolute; z-index: 2; display: flex; flex-direction: column; width: max-content; max-width: min(420px, calc(100vw - 24px)); max-height: calc(100dvh - 90px); box-sizing: border-box; padding: 0; pointer-events: auto; transform-origin: center; }
+.dg-popover__scroll { flex: 1 1 auto; max-height: inherit; border-radius: inherit; --dg-scroll-inset: 20px; }
+.dg-popover__content { padding: 20px; overflow: clip; }
 .dg-popover__panel[inert] { pointer-events: none; }
-.dg-popover__panel--tooltip { padding: 10px 14px; font-size: 12px; line-height: 1.4; max-width: min(260px, calc(100vw - 24px)); }
+.dg-popover__panel--tooltip { font-size: 12px; line-height: 1.4; max-width: min(260px, calc(100vw - 24px)); }
+.dg-popover__panel--tooltip .dg-popover__content { padding: 10px 14px; }
 .dg-popover__trigger-ink { position: absolute; z-index: 3; display: flex; align-items: center; justify-content: center; gap: 8px; pointer-events: none; }
 .dg-popover__trigger-ink svg { width: 16px; height: 16px; }
 .dg-select .dg-popover-anchor, .dg-select .dg-button { width: 100%; }
@@ -589,7 +606,7 @@ html[data-theme="dark"] .dg-action { --action-glass-tint: #4a4a46; }
 /* Same menu, geometry and content density scaled together. */
 .dg-liquid-glass--small { height: 520px; --dg-liquid-item-radius: 20px; }
 .dg-liquid-glass--small .dg-liquid-menu__trigger svg { width: 16px; height: 16px; }
-.dg-liquid-glass--small .dg-liquid-menu__scroll { padding: 10px; }
+.dg-liquid-glass--small .dg-liquid-menu__scroll-content { padding: 10px; }
 .dg-liquid-glass--small .dg-liquid-menu__heading { font-size: 10px; margin: 0 0 8px 30px; }
 .dg-liquid-glass--small .dg-liquid-menu__sort-row { grid-template-columns: 27px minmax(0, 1fr); height: 42px; min-height: 42px; font-size: 14px; }
 .dg-liquid-glass--small .dg-liquid-menu__check { width: 27px; height: 27px; }

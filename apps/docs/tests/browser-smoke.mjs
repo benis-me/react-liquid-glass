@@ -8,9 +8,10 @@ const until = async (predicate, message, timeout = 5000) => {
   const start = performance.now();
   while (!predicate()) { if (performance.now() - start > timeout) throw new Error(message); await new Promise(resolve => setTimeout(resolve, 16)); }
 };
+const pageViewport = () => document.getElementById("page-scroll");
 const paint = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 const go = async path => {
-  history.pushState(null, '', path); window.dispatchEvent(new PopStateEvent('popstate')); window.scrollTo(0, 0);
+  history.pushState(null, '', path); window.dispatchEvent(new PopStateEvent('popstate')); pageViewport().scrollTo(0, 0);
   await until(() => location.pathname === path.split('?')[0], `Navigation failed: ${path}`); await paint();
 };
 const click = (selector, parent = document) => { const element = parent.querySelector(selector); assert(element, `Missing ${selector}`); element.focus({ preventScroll: true }); element.click(); return element; };
@@ -95,11 +96,11 @@ export async function checkDisclosureMotion() {
   const panel=document.querySelector('.playground-code [role=region]');
   assert(trigger&&panel,'Material configuration missing');
   trigger.focus({preventScroll:true});
-  window.scrollTo({top:Math.min(document.documentElement.scrollHeight-innerHeight,trigger.getBoundingClientRect().top+scrollY-180),behavior:'instant'});
+  pageViewport().scrollTo({top:Math.min(pageViewport().scrollHeight-innerHeight,trigger.getBoundingClientRect().top+pageViewport().scrollTop-180),behavior:'instant'});
   await paint();
-  const initialScroll=scrollY,scrollTo=window.scrollTo,samples=[],calls=[];
-  const record=async duration=>samples.push(...await sampleMotion(duration,()=>({height:panel.offsetHeight,scroll:scrollY})));
-  window.scrollTo=function(...args){calls.push(args);return scrollTo.apply(this,args)};
+  const initialScroll=pageViewport().scrollTop,scrollTo=pageViewport().scrollTo,samples=[],calls=[];
+  const record=async duration=>samples.push(...await sampleMotion(duration,()=>({height:panel.offsetHeight,scroll:pageViewport().scrollTop})));
+  pageViewport().scrollTo=function(...args){calls.push(args);return scrollTo.apply(this,args)};
   let idleFrames=0,drift=0,stop=()=>{};
   try {
     trigger.click();await record(650);
@@ -114,10 +115,10 @@ export async function checkDisclosureMotion() {
     stop=subscribeLiquidFrames(()=>idleFrames++);await record(200);
     assert(idleFrames===0,`Disclosure still renders at rest: ${idleFrames}`);
   } finally {
-    stop();window.scrollTo=scrollTo;
+    stop();pageViewport().scrollTo=scrollTo;
   }
   await go('/components/toast');
-  calls.length=0;window.scrollTo=function(...args){calls.push(args);return scrollTo.apply(this,args)};
+  calls.length=0;pageViewport().scrollTo=function(...args){calls.push(args);return scrollTo.apply(this,args)};
   try {
     click('.component-preview .dg-button');
     const toast=document.querySelector('.dg-toast'),read=()=>toast.offsetHeight;
@@ -130,7 +131,7 @@ export async function checkDisclosureMotion() {
     }
     assert(calls.length===0,'Toast animation scrolled the window');
     return {cycles:3,rapidReversal:true,scrollDrift:drift,idleFrames,toast:'continuous height without scroll restoration'};
-  } finally { window.scrollTo=scrollTo; }
+  } finally { pageViewport().scrollTo=scrollTo; }
 }
 
 export async function checkBackdropBatching() {
@@ -172,12 +173,12 @@ export async function checkGlobalMaterial() {
     const presets=document.querySelector('[role=tablist][aria-label="Material presets"]');
     assert(presets.querySelectorAll('[role=tab]').length===4,'Presets do not use standard Tabs');
     assert(!presets.querySelector('[aria-selected=true]')&&presets.querySelector('[tabindex="0"]'),'Custom material has a false preset or no keyboard entry');
-    const inspector=document.querySelector('.playground-inspector'),scroll=inspector.querySelector('.material-inspector');
+    const inspector=document.querySelector('.playground-inspector'),scroll=inspector.querySelector('.material-scroll > .dg-scroll-area__viewport');
     const rect=inspector.getBoundingClientRect();
     assert(getComputedStyle(inspector).borderRadius==='32px'&&rect.bottom<=innerHeight,'Inspector exceeds the viewport or has wrong corners');
-    assert(scroll.scrollHeight>scroll.clientHeight&&getComputedStyle(scroll).overflowY==='auto','Inspector does not scroll internally');
-    const pageScroll=scrollY;scroll.scrollTop=scroll.scrollHeight;await paint();
-    assert(scroll.scrollTop>0&&scrollY===pageScroll,'Inspector scroll moved the page');
+    assert(scroll.scrollHeight>scroll.clientHeight&&['auto','scroll'].includes(getComputedStyle(scroll).overflowY),'Inspector does not scroll internally');
+    const pageScroll=pageViewport().scrollTop;scroll.scrollTop=scroll.scrollHeight;await paint();
+    assert(scroll.scrollTop>0&&pageViewport().scrollTop===pageScroll,'Inspector scroll moved the page');
     click('.playground-code .dg-accordion__heading button');await paint();
     const code=document.querySelector('.playground-code .code-block');
     assert(getComputedStyle(code).marginTop==='0px'&&getComputedStyle(code).marginBottom==='0px','Configuration code still has vertical margins');
@@ -237,13 +238,13 @@ export async function checkVideoPixels() {
     video.pause(); await paint();
     const beforeSeek = frames; video.currentTime = Math.min(4,video.duration/2);
     await until(()=>!video.seeking && frames>beforeSeek,'Paused seeking did not repaint'); assert(!failure,failure);
-    document.body.append(spacer); await video.play(); window.scrollTo(0,document.body.scrollHeight);
+    pageViewport().firstElementChild.append(spacer); await video.play(); pageViewport().scrollTo(0,pageViewport().scrollHeight);
     await until(()=>video.paused,'Offscreen video did not pause'); await paint();
     const idle = frames; await new Promise(resolve=>setTimeout(resolve,120)); assert(frames===idle,'Offscreen video kept rendering');
     document.querySelector('.dg-video-player').scrollIntoView({block:'center'});
     await until(()=>!video.paused && frames>idle+2,'Video did not resume on visibility restoration');
     assert(!failure,failure); return {frames,worstPixelError:worstError,firstFrame:true,playback:true,pausedSeek:true,visibility:true};
-  } finally { stop(); video?.pause(); spacer.remove(); window.scrollTo(0,0); }
+  } finally { stop(); video?.pause(); spacer.remove(); pageViewport().scrollTo(0,0); }
 }
 
 export async function checkClippedGlass() {
@@ -615,9 +616,9 @@ export async function checkSharedBackdrops() {
     try {
       substrate.style.display='none'; stage.style.backgroundColor='rgb(25, 190, 65)';
       await until(()=>hasColor(1),`${id} retained the hidden substrate`);
-      if(id==='button') { spacer.style.height='200vh';document.body.append(spacer);window.scrollTo({top:document.body.scrollHeight,behavior:'instant'});await paint(); }
+      if(id==='button') { spacer.style.height='200vh';pageViewport().firstElementChild.append(spacer);pageViewport().scrollTo({top:pageViewport().scrollHeight,behavior:'instant'});await paint(); }
       substrate.remove(); stage.style.backgroundColor='rgb(205, 35, 55)';
-      if(id==='button') { await paint();window.scrollTo({top:0,behavior:'instant'}); }
+      if(id==='button') { await paint();pageViewport().scrollTo({top:0,behavior:'instant'}); }
       await until(()=>hasColor(0),`${id} retained the removed substrate`);
       passed.push(id);
     } finally { captured.stop();spacer.remove();substrate.style.display='';stage.prepend(substrate);stage.style.backgroundColor=''; }
@@ -777,12 +778,12 @@ export async function checkFloatingPolish() {
   try {
     let previous = performance.now();
     for(let i=0;i<36;i++) {
-      await new Promise(resolve => requestAnimationFrame(time => { times.push(time-previous); previous=time; window.scrollTo({top:(i+1)*8,behavior:'instant'}); resolve(); }));
+      await new Promise(resolve => requestAnimationFrame(time => { times.push(time-previous); previous=time; pageViewport().scrollTo({top:(i+1)*8,behavior:'instant'}); resolve(); }));
     }
     await paint();
   } finally { window.getComputedStyle = cssRead; observer.disconnect(); }
   assert(clones === 0, 'Scrolling clones the trigger and forces typography/layout work');
-  window.scrollTo({top:0,behavior:'instant'}); await paint();
+  pageViewport().scrollTo({top:0,behavior:'instant'}); await paint();
   const start = performance.now(); trigger.click();
   await until(() => !layer.matches(':popover-open'), 'Material panel did not finish closing');
   const closeMs = performance.now()-start;
@@ -811,12 +812,12 @@ export async function checkHDRScroll() {
   const rect=anchor.getBoundingClientRect();
   const pointer=(target,type,buttons)=>target.dispatchEvent(new PointerEvent(type,{bubbles:true,pointerId:77,pointerType:'mouse',isPrimary:true,buttons,clientX:rect.left+rect.width/2,clientY:rect.top+rect.height/2}));
   try {
-    for(let i=1;i<=12;i++){window.scrollTo({top:i*7,behavior:'instant'});await paint()}
+    for(let i=1;i<=12;i++){pageViewport().scrollTo({top:i*7,behavior:'instant'});await paint()}
     assert(copies===0,'Scrolling re-renders an unchanged HDR light mask');
     pointer(anchor,'pointerdown',1);
     await until(()=>copies>0,'HDR caching froze the live contact light');
     return {backgroundHDRCopies:0,contactHDRUpdates:true};
-  } finally { pointer(window,'pointercancel',0);GPUQueue.prototype.copyExternalImageToTexture=original;window.scrollTo({top:0,behavior:'instant'}); }
+  } finally { pointer(window,'pointercancel',0);GPUQueue.prototype.copyExternalImageToTexture=original;pageViewport().scrollTo({top:0,behavior:'instant'}); }
 }
 
 export async function checkContactHDR() {
@@ -962,7 +963,7 @@ export async function checkConsolidatedControls() {
   assert(menu.querySelector('[role=menuitemradio]:nth-child(2)').getAttribute('aria-checked')==='true','Sorting state did not update');
   click('[role=menuitemcheckbox]:nth-child(2)',menu);await paint();
   assert(menu.querySelector('[role=menuitemcheckbox]:nth-child(2)').getAttribute('aria-checked')==='true','Filter state did not update');
-  const scroll=menu.querySelector('.dg-liquid-menu__scroll');scroll.scrollTop=scroll.scrollHeight;await paint();assert(scroll.scrollTop>0,'Menu lost its native scroll region');
+  const scroll=menu.querySelector('.dg-liquid-menu__scroll > .dg-scroll-area__viewport');scroll.scrollTop=scroll.scrollHeight;await paint();assert(scroll.scrollTop>0,'Menu lost its native scroll region');
   window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
   await until(()=>document.activeElement===original && +original.style.opacity===1,'Original menu did not absorb and restore focus');
   return {aliases:Object.keys(componentAliases),tabs:'stable',toggle:'interpolated',toast:'continuous layout',menus:'distinct trigger lifecycles'};

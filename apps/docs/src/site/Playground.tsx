@@ -6,6 +6,7 @@ import {
   GlassButton,
   GlassSelect,
   GlassSurface,
+  ScrollArea,
   type GlassBackground,
 } from "refractive-glass-react/controls";
 import { catalog, componentAliases, type ComponentId } from "./catalog";
@@ -128,6 +129,7 @@ export function Playground({ locale, theme, material, setMaterial }: PageProps &
           </div>
         </div>
         <GlassSurface className="playground-inspector" radius={32} blurStrength={18} interactive="light">
+        <ScrollArea className="material-scroll" viewportProps={{ "aria-label": zh ? "玻璃材质参数" : "Glass material parameters" }}>
         <MaterialControls locale={locale} material={material} setMaterial={setMaterial}>
           <GlassButton size="small" className="share-material" onClick={share}>
             {shareMessage ? <Check size={14} /> : <Link2 size={14} />}
@@ -136,6 +138,7 @@ export function Playground({ locale, theme, material, setMaterial }: PageProps &
             </span>
           </GlassButton>
         </MaterialControls>
+        </ScrollArea>
         </GlassSurface>
       </div>
   );

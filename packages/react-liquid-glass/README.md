@@ -83,6 +83,8 @@ Controls keep their own motion and default material calibration. Switch/Slider t
 
 Small surfaces share a GPU device, cache textures, pause offscreen and stop drawing at rest. Video follows decoded-frame callbacks, pauses offscreen and redraws paused seeks/resizes. The default small-control canvas is 2×. `prefers-reduced-motion` suppresses automatic decorative drift and uses immediate control states where applicable.
 
+`ScrollArea` is available from `/controls` with `orientation="vertical" | "horizontal" | "both"`, `viewportProps`, and `contentClassName`. It uses Radix's native scrolling with overlay thumbs shown on hover. Popovers, dialogs, menus and textareas use it internally; import `controls.css` for its styles.
+
 ## Build from this repository
 
 ```sh

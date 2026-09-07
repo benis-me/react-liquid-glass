@@ -1,6 +1,6 @@
 import { memo, useMemo, useState, type Dispatch, type SetStateAction, type ReactNode } from "react";
 import { ChevronDown, RotateCcw } from "lucide-react";
-import { GlassButton, GlassTabs, GlassSlider, GlassSwitch } from "refractive-glass-react/controls";
+import { GlassButton, GlassTabs, GlassSlider, GlassSwitch, ScrollArea } from "refractive-glass-react/controls";
 import { PRISM_MATERIAL, useGlassMaterial, type GlassMaterial } from "refractive-glass-react/liquid-glass";
 import type { Locale } from "../i18n";
 import { materialFields, type MaterialState } from "./material";
@@ -108,10 +108,10 @@ export function MaterialControls({ locale, material, setMaterial, children }: {
               <RotateCcw size={14} />
             </GlassButton>
           </div>
-          <div className="preset-list filter-scroll">
+          <ScrollArea className="preset-list filter-scroll" orientation="horizontal" viewportProps={{ "aria-label": zh ? "材质预设" : "Material presets" }}>
             <GlassTabs label={zh ? "材质预设" : "Material presets"} value={activePreset} items={tabs}
               onValueChange={id => { const preset = presets.find(preset => preset.id === id); if (preset) setMaterial({ ...preset.material }); }} />
-          </div>
+          </ScrollArea>
           <div className="material-fields">
             {materialFields.slice(0, 11).map(fieldControl)}
           </div>

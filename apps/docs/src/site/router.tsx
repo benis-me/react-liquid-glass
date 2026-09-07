@@ -2,7 +2,7 @@ import { useEffect, useState, type AnchorHTMLAttributes } from "react";
 export function navigate(path: string) {
   history.pushState(null, "", path);
   window.dispatchEvent(new PopStateEvent("popstate"));
-  window.scrollTo({ top: 0, behavior: "instant" });
+  document.getElementById("page-scroll")?.scrollTo({ top: 0, behavior: "instant" });
 }
 export function usePath() {
   const [path, setPath] = useState(location.pathname);

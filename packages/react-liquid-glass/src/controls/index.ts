@@ -11,3 +11,4 @@ export { GlassVideo, type GlassVideoProps } from "./GlassVideo";
 
 export { GlassActionButton } from "./GlassActionButton";
 export { GlassButtonGroup, type GlassButtonGroupProps } from "./GlassButtonGroup";
+export { ScrollArea, type ScrollAreaProps } from "./ScrollArea";

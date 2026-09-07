@@ -9,6 +9,7 @@ import { createLiquidBackdrop } from "../liquid-glass/backdrop";
 import { useMenuMotion, type MenuLayout } from "../apple-motion/use-menu-motion";
 import { TRIGGER_RADIUS } from "../apple-motion/menu";
 import { useMenuMaterial } from "./use-menu-material";
+import { ScrollArea } from "./ScrollArea";
 
 const BASE_MENU_LENS = LIQUID_LENS;
 
@@ -312,7 +313,9 @@ export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, cla
           clipPath: contentClip,
         }}
       >
-        {children(open)}
+        <ScrollArea className="dg-liquid-menu__scroll" contentClassName="dg-liquid-menu__scroll-content" viewportProps={{ tabIndex: open ? 0 : -1, "aria-label": menuLabel }}>
+          {children(open)}
+        </ScrollArea>
       </motion.div>
     </div>
   );
