@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { motion, useMotionValue, useTransform } from "motion/react";
-import type { LensParams } from "../types";
+import type { LiquidLens } from "../liquid-glass/lens";
 import { LiquidGlassCanvas } from "../liquid-glass/LiquidGlassCanvas";
 import { LIQUID_LENS } from "../liquid-glass/LiquidGlass";
 import { liquidContentPose, liquidContentOptics } from "../liquid-glass/geometry";
@@ -13,20 +13,18 @@ import { ScrollArea } from "./ScrollArea";
 
 const BASE_MENU_LENS = LIQUID_LENS;
 
-const LIGHT_MENU_LENS: Partial<LensParams> = {
+const LIGHT_MENU_LENS: LiquidLens = {
   ...BASE_MENU_LENS,
   brightness: 0.015,
   glowStrength: 0.3,
   edgeStrength: 0.36,
-  specularDark: false,
 };
 
-const DARK_MENU_LENS: Partial<LensParams> = {
+const DARK_MENU_LENS: LiquidLens = {
   ...BASE_MENU_LENS,
   brightness: 0.035,
   glowStrength: 0.38,
   edgeStrength: 0.42,
-  specularDark: false,
 };
 
 function clamp(value: number, min: number, max: number) {

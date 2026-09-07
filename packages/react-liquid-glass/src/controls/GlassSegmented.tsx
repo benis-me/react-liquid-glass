@@ -1,8 +1,8 @@
 import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { animate, motion, useMotionValue, useReducedMotion } from "motion/react";
-import { LiquidGlass as Glass, LIQUID_LENS } from "../liquid-glass/LiquidGlass";
+import { LiquidGlass, LIQUID_LENS } from "../liquid-glass/LiquidGlass";
 import { GlassSurface } from "./GlassSurface";
-import type { LensParams } from "../types";
+import type { LiquidLens } from "../liquid-glass/lens";
 import { springTo, useGlassContact, usePointerReleaseFallback, waitForRest, useDerivedMotion, useDerivedMotion2, useVelocityDeformation, type SpringRun } from "../apple-motion/react";
 import { SEGMENTED_TRAVEL_SPRING, SEGMENTED_PRESS_SPRING, SEGMENTED_DRAG_CATCHUP_SPRING, SEGMENTED_RELEASE_SPRING, SEGMENTED_HEIGHT_RELEASE_SPRING, SEGMENTED_IMPACT_RETENTION, SEGMENTED_TRAIL_BIAS, SEGMENTED_HOLD_IMPACT_SCRIPT } from "../apple-motion/presets";
 
@@ -371,7 +371,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
     stopDragCatchup();
     releaseInteraction(0, dragMoved.current);
   });
-  const lens: Partial<LensParams> = {
+  const lens: LiquidLens = {
     ...LIQUID_LENS, lensW: 50, lensH: 20, borderRadius: 16, depth: 2.5, domeDepth: 8,
     chromaAmount: .24, edgeWidth: .9, brightness: darkTheme() ? .035 : .015,
   };
@@ -493,7 +493,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
         {items(true)}
       </div>
       <motion.div className="dg-tabs__glass-layer" aria-hidden style={{ opacity: glassOpacity }}>
-        <Glass
+        <LiquidGlass
           contact={{ ...contact, contactX }}
           className="dg-tabs__glass"
           backdropRoot={rootRef}
@@ -516,7 +516,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
           refractionTarget={<div className="dg-tabs__overlay"><div className="dg-tabs__group dg-tabs__group--overlay">{items(false, true)}</div></div>}
         >
           <div className="dg-tabs__group dg-tabs__group--glass-base">{items(false)}</div>
-        </Glass>
+        </LiquidGlass>
       </motion.div>
     </div>
   );

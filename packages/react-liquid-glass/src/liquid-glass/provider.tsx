@@ -1,3 +1,4 @@
+import type { GlassRendererBackend } from "./renderer";
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 
 export type GlassMaterial = Partial<
@@ -36,22 +37,30 @@ export const PRISM_MATERIAL = {
 /** Shared defaults; individual controls retain their own frost and edge calibration. */
 export const DEFAULT_MATERIAL = { chromaAmount: .33, domeDepth: 28 } as const satisfies GlassMaterial;
 
+const BackendContext = createContext<GlassRendererBackend>("auto");
+export const useGlassBackend = () => useContext(BackendContext);
+
 const MaterialContext = createContext<GlassMaterial>({});
 
 /** Optional optical overrides, inherited through nested providers. */
 export function LiquidGlassProvider({
   material,
+  backend,
   children,
 }: {
   material: GlassMaterial;
+  backend?: GlassRendererBackend;
   children: ReactNode;
 }) {
   const parent = useContext(MaterialContext);
+  const parentBackend = useContext(BackendContext);
   const value = useMemo(() => ({ ...parent, ...material }), [parent, material]);
   return (
+    <BackendContext.Provider value={backend ?? parentBackend}>
     <MaterialContext.Provider value={value}>
       {children}
     </MaterialContext.Provider>
+    </BackendContext.Provider>
   );
 }
 

@@ -4,7 +4,7 @@ import { createLiquidGlassRenderer, motionValue } from "../dist/index.js";
 
 // A small recording context checks the real renderer's resource lifecycle. Shader
 // compilation and pixels are additionally checked in the real-browser QA pass.
-test("Liquid shares a device, retains textures, recovers loss and disposes per owner", () => {
+test("Liquid shares a device, retains textures, recovers loss and disposes per owner", async () => {
   const calls = [];
   let devices = 0;
   class Canvas extends EventTarget {
@@ -35,6 +35,7 @@ test("Liquid shares a device, retains textures, recovers loss and disposes per o
   const first = createLiquidGlassRenderer(a, { shared: true, onRestore: () => restores++ });
   const second = createLiquidGlassRenderer(b, { shared: true, onRestore: () => restores++ });
   try {
+    await Promise.all([first.ready, second.ready]);
     assert.equal(devices, 1, "surface count must not multiply WebGL contexts");
     const x = motionValue(.5);
     const frame = { source, width: 100, height: 60, blobs: [{ x, y: .5, radius: 20 }], content: ink, contentOpacity: 1 };
@@ -78,21 +79,13 @@ test("Liquid shares a device, retains textures, recovers loss and disposes per o
     assert.equal(allocations(), warmAllocations, "continuous popup frost and alternating small controls reuse texture storage");
     first.draw({ ...frame, width: 300, height: 500, pixelRatio: 2 });
     const buffer = first.context.canvas;
-    let emissionRegion;
-    second.draw({ ...frame, pixelRatio: 2, blobs: [{ x: .5, y: .5, radius: 20, refractionRatio: [.4, .6] }] }, (_, region) => { emissionRegion = region; });
+    second.draw({ ...frame, pixelRatio: 2, blobs: [{ x: .5, y: .5, radius: 20, refractionRatio: [.4, .6] }] });
     assert.deepEqual([buffer.width, buffer.height, b.width, b.height], [600, 1000, 200, 120], "small controls retain the shared buffer and their own 2x output");
     assert.deepEqual(calls.findLast(([name]) => name === "copy").slice(2), [0, 880, 200, 120, 0, 0, 200, 120], "SDR copies only the current viewport");
-    assert.deepEqual(emissionRegion, { x: 0, y: 880, width: 200, height: 120 }, "HDR uses the same viewport crop");
     const ratios = calls.findLast(([name, uniform]) => name === "uniform2fv" && uniform === "uBlobRefractionRatio[0]")[2];
     assert.ok(Math.abs(ratios[0] - .4) < 1e-6 && Math.abs(ratios[1] - .6) < 1e-6);
     assert.equal(second.draw({ ...frame, blobs: [{ x: .5, y: .5, radius: 20, refractionRatio: [NaN, 1] }] }), false);
-    const present = () => {};
-    second.draw(frame, present);
-    const lightDraws = second.stats.emissionDraws;
-    second.draw({ ...frame, sourceRevision: 3 }, present);
-    assert.equal(second.stats.emissionDraws, lightDraws, "background-only scroll updates reuse the HDR mask");
-    second.draw({ ...frame, contentRevision: 3 }, present);
-    assert.equal(second.stats.emissionDraws, lightDraws + 1, "changed foreground occlusion refreshes HDR");
+    // HDR masks and their cache are verified against real GPU pixels in browser-smoke.mjs.
     const lost = new Event("webglcontextlost", { cancelable: true });
     first.context.canvas.dispatchEvent(lost);
     assert.equal(lost.defaultPrevented, true);

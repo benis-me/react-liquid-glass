@@ -3,10 +3,10 @@ import { usePointerReleaseFallback, springTo, useGlassContact } from "../apple-m
 import { contactTransform } from "../apple-motion/contact";
 import { ACTION_PRESS_SPRING, ACTION_RELEASE_SPRING } from "../apple-motion/presets";
 import { animate, motion, useMotionValue, useReducedMotion, useTransform } from "motion/react";
-import { LiquidGlass as Glass, LIQUID_LENS } from "../liquid-glass/LiquidGlass";
-import type { LensParams } from "../types";
+import { LiquidGlass, LIQUID_LENS } from "../liquid-glass/LiquidGlass";
+import type { LiquidLens } from "../liquid-glass/lens";
 
-const ACTION_LENS: Partial<LensParams> = {
+const ACTION_LENS: LiquidLens = {
   ...LIQUID_LENS,
   lensW: 88,
   lensH: 26,
@@ -54,7 +54,7 @@ export function GlassActionButton({ children, disabled, onClick, ...props }: Com
   const { arm, disarm } = usePointerReleaseFallback(release);
   return (
     <div className="dg-action">
-      <Glass
+      <LiquidGlass
         className="dg-action__glass"
         lens={ACTION_LENS}
         x={0.5}
@@ -67,10 +67,10 @@ export function GlassActionButton({ children, disabled, onClick, ...props }: Com
         material={{ tintStrength }}
         tintBlur={tintBlur}
         shadowOpacity={shadowOpacity}
-        filterResolution={2}
+        pixelRatio={2}
       >
         <div className="dg-action__surface" />
-      </Glass>
+      </LiquidGlass>
       <button
         {...props}
         ref={root}

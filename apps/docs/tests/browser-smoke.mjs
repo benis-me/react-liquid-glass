@@ -1,8 +1,11 @@
+// GL uniform/mask probes use the internal WebGL2 backend; application checks support both backends.
+// Native WebGPU parity, lifecycle and performance checks live in gpu-parity.html.
 // Run in the docs site's browser console (or through its CDP session):
 // const qa = await import('/@fs/<repo>/apps/docs/tests/browser-smoke.mjs');
 // await qa.checkCatalog(); await qa.checkInteractions(); await qa.checkPlayground();
 // This uses the real React app and WebGL canvases, without a mock DOM or test framework.
 import { catalog, componentAliases } from '../src/site/catalog.ts';
+import { readLiquidSource } from '../../../packages/react-liquid-glass/src/liquid-glass/canvas-sources.ts';
 const assert = (value, message) => { if (!value) throw new Error(message); };
 const until = async (predicate, message, timeout = 5000) => {
   const start = performance.now();
@@ -158,7 +161,7 @@ export async function checkBackdropBatching() {
 export async function checkGlobalMaterial() {
   const original=localStorage.getItem('glass-material')??'{}';
   const {createLiquidGlassRenderer,subscribeLiquidFrames}=await import('refractive-glass-react/liquid-glass/renderer');
-  const probe=createLiquidGlassRenderer(document.createElement('canvas'),{shared:true});
+  const probe=createLiquidGlassRenderer(document.createElement('canvas'),{shared:true,backend:'webgl2'}); await probe.ready;
   const drawn=new Map();
   const stop=subscribeLiquidFrames(canvas=>{
     const gl=canvas.getContext('webgl2')??probe.context,program=gl.getParameter(gl.CURRENT_PROGRAM);
@@ -174,12 +177,15 @@ export async function checkGlobalMaterial() {
     assert(presets.querySelectorAll('[role=tab]').length===4,'Presets do not use standard Tabs');
     assert(!presets.querySelector('[aria-selected=true]')&&presets.querySelector('[tabindex="0"]'),'Custom material has a false preset or no keyboard entry');
     const inspector=document.querySelector('.playground-inspector'),scroll=inspector.querySelector('.material-scroll > .dg-scroll-area__viewport');
+    // Short content should not create a scrollbar. Expand the real long content
+    // before checking internal scrolling, including on tall desktop viewports.
+    click('.material-advanced summary',inspector);await paint();
     const rect=inspector.getBoundingClientRect();
     assert(getComputedStyle(inspector).borderRadius==='32px'&&rect.bottom<=innerHeight,'Inspector exceeds the viewport or has wrong corners');
     assert(scroll.scrollHeight>scroll.clientHeight&&['auto','scroll'].includes(getComputedStyle(scroll).overflowY),'Inspector does not scroll internally');
     const pageScroll=pageViewport().scrollTop;scroll.scrollTop=scroll.scrollHeight;await paint();
     assert(scroll.scrollTop>0&&pageViewport().scrollTop===pageScroll,'Inspector scroll moved the page');
-    click('.playground-code .dg-accordion__heading button');await paint();
+    click('.playground-code button[aria-expanded]');await paint();
     const code=document.querySelector('.playground-code .code-block');
     assert(getComputedStyle(code).marginTop==='0px'&&getComputedStyle(code).marginBottom==='0px','Configuration code still has vertical margins');
     await go('/components');
@@ -206,18 +212,20 @@ export async function checkGlobalMaterial() {
 export async function checkVideoPixels() {
   const { subscribeLiquidFrames } = await import('../../../packages/react-liquid-glass/src/liquid-glass/renderer.ts');
   const reference = document.createElement('canvas'), ctx = reference.getContext('2d', {willReadFrequently:true});
-  const pixel = new Uint8Array(4), points = [[.14,.18],[.5,.18],[.83,.28]];
+  const sample = document.createElement('canvas'), sampleContext = sample.getContext('2d', {willReadFrequently:true});
+  const points = [[.14,.18],[.5,.18],[.83,.28]];
   const spacer = document.createElement('div'); spacer.style.height = '150vh';
   let frames = 0, failure, worstError = 0, video;
   const stop = subscribeLiquidFrames(canvas => {
     if (!canvas.isConnected || !canvas.matches('.dg-video-player__canvas')) return;
-    const source = document.querySelector('video'), gl = canvas.getContext('webgl2');
+    const source = document.querySelector('video');
     if (!source || source.readyState < 2 || canvas.width < 2 || canvas.height < 2) return;
-    const actual = points.map(([x,y]) => {
-      gl.readPixels(Math.floor(x*canvas.width),canvas.height-1-Math.floor(y*canvas.height),1,1,gl.RGBA,gl.UNSIGNED_BYTE,pixel);
-      return [...pixel];
-    });
-    if (gl.getError() !== gl.NO_ERROR) failure = 'Video texture upload produced a WebGL error';
+    sample.width = canvas.width; sample.height = canvas.height; sampleContext.drawImage(canvas,0,0);
+    const actual = points.map(([x,y]) => [...sampleContext.getImageData(Math.floor(x*canvas.width),Math.floor(y*canvas.height),1,1).data]);
+    if (canvas.dataset.dgRenderer === 'liquid-webgl2') {
+      const gl = canvas.getContext('webgl2');
+      if (gl.getError() !== gl.NO_ERROR) failure = 'Video texture upload produced a WebGL error';
+    }
     reference.width = canvas.width; reference.height = canvas.height;
     ctx.drawImage(source,0,0,reference.width,reference.height);
     const expected = points.map(([x,y])=>ctx.getImageData(Math.floor(x*canvas.width),Math.floor(y*canvas.height),1,1).data);
@@ -248,7 +256,8 @@ export async function checkVideoPixels() {
 }
 
 export async function checkClippedGlass() {
-  const { createLiquidGlassRenderer, subscribeLiquidFrames } = await import('../../../packages/react-liquid-glass/src/liquid-glass/renderer.ts');
+  const { createWebGL2GlassRenderer } = await import('../../../packages/react-liquid-glass/src/liquid-glass/webgl2-renderer.ts');
+  const { subscribeLiquidFrames } = await import('../../../packages/react-liquid-glass/src/liquid-glass/renderer.ts');
   const source = document.createElement('canvas'); source.width = 720; source.height = 520;
   const ctx = source.getContext('2d'); ctx.fillStyle = '#e4e4df'; ctx.fillRect(0,0,720,520);
   ctx.fillStyle = '#888'; for (let x=0;x<720;x+=31) ctx.fillRect(x,0,2,520);
@@ -262,7 +271,7 @@ export async function checkClippedGlass() {
   ];
   let comparisons=0,changed;
   for (const shared of [false,true]) {
-    const canvas=document.createElement('canvas'), renderer=createLiquidGlassRenderer(canvas,{shared}),gl=renderer.context;
+    const canvas=document.createElement('canvas'), renderer=createWebGL2GlassRenderer(canvas,{shared}); const gl=renderer.context;
     const stop=subscribeLiquidFrames((target,regions)=>{if(target===canvas)changed=regions});
     const scissor=gl.scissor;
     const pixels=()=>{const viewport=gl.getParameter(gl.VIEWPORT),data=new Uint8Array(viewport[2]*viewport[3]*4);gl.readPixels(0,0,viewport[2],viewport[3],gl.RGBA,gl.UNSIGNED_BYTE,data);return data};
@@ -272,7 +281,10 @@ export async function checkClippedGlass() {
       for(const pixelRatio of [1,2])for(const scenario of cases){
         const frame={source,width:360,height:260,pixelRatio,transparentOutside:true,blurStrength:4,...scenario};
         let clippedHDR,fullHDR;
-        renderer.draw(frame,()=>{clippedHDR=pixels()}); const clipped=pixels();
+        renderer.draw(frame,(surface,region)=>{
+          clippedHDR=pixels();
+          assert(region.x===0 && region.y===surface.height-Math.round(frame.height*pixelRatio) && region.width===Math.round(frame.width*pixelRatio), 'HDR uses the wrong shared viewport crop');
+        }); const clipped=pixels();
         gl.scissor=function(){const v=gl.getParameter(gl.VIEWPORT);scissor.call(gl,0,0,v[2],v[3])};
         renderer.draw(frame,()=>{fullHDR=pixels()}); const full=pixels();
         gl.scissor=scissor;
@@ -380,7 +392,7 @@ export async function checkRefinements() {
   await paint();
   const canvas = document.querySelector('.dg-slider canvas'), rect = canvas.getBoundingClientRect();
   assert(canvas.width >= rect.width * 1.99, 'Global resolution blurred the control');
-  const pixel = canvas.getContext('2d').getImageData(Math.floor(canvas.width / 2), Math.floor(canvas.height / 2), 1, 1).data;
+  const pixel = readLiquidSource(canvas).getContext('2d').getImageData(Math.floor(canvas.width / 2), Math.floor(canvas.height / 2), 1, 1).data;
   assert(pixel[0] > 250 && pixel[1] > 250 && pixel[2] > 250 && pixel[3] === 255, 'Material overrides destroyed the opaque rest thumb');
   click('button[aria-label="Reset material"]');
   passed.push('slider 2x sampling and opaque rest under global overrides');
@@ -548,12 +560,16 @@ export async function checkSwitchThemes() {
 export async function checkContactFeedback() {
   await go('/components/button');
   const button = document.querySelector('.component-preview .dg-button'), surface = button.querySelector('[data-dg-contact]');
+  // The app may be inside a clipped test iframe; offscreen optics correctly wait.
+  button.scrollIntoView({block:'center', inline:'nearest'}); await paint();
   const canvas = surface.querySelector('canvas'), ink = surface.querySelector('.dg-surface__content');
   const rect = surface.getBoundingClientRect(), sx = rect.left + rect.width * .84, sy = rect.top + rect.height / 2;
-  await until(() => canvas.width === (surface.offsetWidth + 80) * 2, 'Contact canvas has not rendered its first frame');
+  await until(() => canvas.width === (surface.offsetWidth + 80) * 2, 'Contact canvas has not rendered its first frame').catch(error => {
+    throw new Error(`${error.message}: ${canvas.width}/${surface.offsetWidth}, ${canvas.dataset.dgRenderer}, connected=${canvas.isConnected}`);
+  });
   await paint();
   const color = () => {
-    const data = canvas.getContext('2d').getImageData(Math.round((40 + rect.width * .84) * 2), Math.round((40 + rect.height / 2) * 2), 1, 1).data;
+    const data = readLiquidSource(canvas).getContext('2d').getImageData(Math.round((40 + rect.width * .84) * 2), Math.round((40 + rect.height / 2) * 2), 1, 1).data;
     return (data[0] + data[1] + data[2]) / 3;
   };
   const before = color(), label = button.textContent;
@@ -572,7 +588,7 @@ export async function checkContactFeedback() {
   await until(() => Math.abs(color() - before) < 2, 'Contact light changed the resting material');
   // The original grip fixes the material; the light must follow a different live pointer position.
   const left = rect.left + rect.width * .2;
-  const pixelAt = x => { const p = canvas.getContext('2d').getImageData(Math.round((40 + x) * 2), Math.round((40 + rect.height / 2) * 2), 1, 1).data; return (p[0] + p[1] + p[2]) / 3; };
+  const pixelAt = x => { const p = readLiquidSource(canvas).getContext('2d').getImageData(Math.round((40 + x) * 2), Math.round((40 + rect.height / 2) * 2), 1, 1).data; return (p[0] + p[1] + p[2]) / 3; };
   pointer(ink, 'pointerdown', left, sy); await new Promise(resolve => setTimeout(resolve, 160));
   const litLeft = pixelAt(rect.width * .2);
   pointer(window, 'pointermove', rect.left + rect.width * .8, sy); await paint();
@@ -701,7 +717,7 @@ export async function checkViewportBackdrop() {
   const source = document.createElement('canvas'); source.width = source.height = 80;
   const sourceContext = source.getContext('2d');
   const {createLiquidGlassRenderer, subscribeLiquidFrames} = await import('refractive-glass-react/liquid-glass/renderer');
-  const renderer = createLiquidGlassRenderer(probe, {shared:true});
+  const renderer = createLiquidGlassRenderer(probe, {shared:true,backend:'webgl2'}); await renderer.ready;
   const pixel = () => captured.snapshot.getContext('2d').getImageData(Math.round((rect.left + 80 - view.left) * 2), Math.round((rect.top + 230 - view.top) * 2), 1, 1).data;
   const draw = color => { sourceContext.fillStyle=color;sourceContext.fillRect(0,0,80,80);renderer.draw({source,sourceRevision:color==='rgb(20, 200, 40)'?1:2,width:80,height:80,blobs:[]}); };
   let floating;
@@ -821,18 +837,19 @@ export async function checkHDRScroll() {
 }
 
 export async function checkContactHDR() {
+  const { createWebGL2GlassRenderer } = await import('../../../packages/react-liquid-glass/src/liquid-glass/webgl2-renderer.ts');
   const { createHighlightHDR } = await import('../../../packages/react-liquid-glass/src/liquid-glass/highlight-hdr.ts');
-  const { createLiquidGlassRenderer } = await import('refractive-glass-react/liquid-glass/renderer');
   const host = document.createElement('div'), canvas = document.createElement('canvas'), source = document.createElement('canvas');
   host.style.cssText = 'position:fixed;left:-1000px;top:0;width:240px;height:140px'; host.append(canvas); document.body.append(host);
   source.width = 240; source.height = 140; const ctx = source.getContext('2d'); ctx.fillStyle = '#333'; ctx.fillRect(0,0,240,140);
-  const renderer = createLiquidGlassRenderer(canvas, {shared:true}); let hdr;
+  const renderer = createWebGL2GlassRenderer(canvas, {shared:true}); let hdr;
   try {
     hdr = await createHighlightHDR(canvas);
     if (!hdr) return { hdr: 'unavailable; ordinary WebGL contact light remains active' };
     const overlay = host.querySelector('[data-dg-highlight-hdr]'), context = overlay.getContext('webgpu'), configuration = context.getConfiguration(), device = configuration.device;
     context.configure({...configuration, usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC});
-    renderer.draw({source, width:240, height:140, pixelRatio:1, transparentOutside:true, blobs:[{x:.5,y:.5,radius:24,halfWidth:80,halfHeight:30,contactX:.8,contactY:0,contactStrength:1,pullX:3,pullY:-1}]}, hdr.draw);
+    const initial={source, width:240, height:140, pixelRatio:1, transparentOutside:true, blobs:[{x:.5,y:.5,radius:24,halfWidth:80,halfHeight:30,contactX:.8,contactY:0,contactStrength:1,pullX:3,pullY:-1}]};
+    renderer.draw(initial, hdr.draw);
     const bytesPerRow = 2048, buffer = device.createBuffer({size:bytesPerRow*140,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
     try {
       const commands = device.createCommandEncoder(); commands.copyTextureToBuffer({texture:context.getCurrentTexture()},{buffer,bytesPerRow},[240,140]); device.queue.submit([commands.finish()]);
@@ -843,9 +860,18 @@ export async function checkContactHDR() {
       assert(configuration.toneMapping.mode === 'extended', 'HDR output was tone mapped to SDR');
       assert(renderer.stats.emissionDraws === 1 && renderer.stats.sourceUploads === 1, 'HDR duplicated source capture or material work');
       buffer.unmap();
+      renderer.draw({...initial,sourceRevision:1},hdr.draw);
+      assert(renderer.stats.emissionDraws===1,'Background-only changes rebuilt the WebGL HDR mask');
+      const foreground=document.createElement('canvas');foreground.width=240;foreground.height=140;
+      foreground.getContext('2d');
+      const withInk={...initial,sourceRevision:1,content:foreground,contentOpacity:1};
+      renderer.draw(withInk,hdr.draw);const emissions=renderer.stats.emissionDraws;
+      foreground.getContext('2d').fillRect(190,50,30,40);
+      renderer.draw({...withInk,contentRevision:1},hdr.draw);
+      assert(renderer.stats.emissionDraws===emissions+1,'Foreground changes did not refresh WebGL HDR occlusion');
       // A static reflection emits extra light too, without illuminating the whole body.
       ctx.fillStyle = '#eee'; ctx.fillRect(0,0,240,140);
-      const frame = {source, sourceRevision:1, width:240, height:140, pixelRatio:1, transparentOutside:true, blobs:[{x:.5,y:.5,radius:24,halfWidth:80,halfHeight:30}]};
+      const frame = {source, sourceRevision:2, width:240, height:140, pixelRatio:1, transparentOutside:true, blobs:[{x:.5,y:.5,radius:24,halfWidth:80,halfHeight:30}]};
       renderer.draw(frame);
       const baseline = canvas.getContext('2d').getImageData(0,0,240,140).data;
       renderer.draw(frame, hdr.draw);
@@ -878,13 +904,13 @@ export async function checkContactHDR() {
 }
 
 export async function checkMaterialOptics() {
-  const { createLiquidGlassRenderer } = await import('refractive-glass-react/liquid-glass/renderer');
+  const { createWebGL2GlassRenderer } = await import('../../../packages/react-liquid-glass/src/liquid-glass/webgl2-renderer.ts');
   const { liquidSurfaceBlur } = await import('refractive-glass-react/liquid-glass');
   const { SURFACE_MATERIAL } = await import('../../../packages/react-liquid-glass/src/controls/GlassSurface.tsx');
   const source=document.createElement('canvas'), canvas=document.createElement('canvas'), mask=document.createElement('canvas');
   source.width=mask.width=320; source.height=mask.height=220;
   const ctx=source.getContext('2d'), capture=surface => { mask.width=surface.width; mask.height=surface.height; mask.getContext('2d').drawImage(surface,0,0); };
-  const renderer=createLiquidGlassRenderer(canvas);
+  const renderer=createWebGL2GlassRenderer(canvas);
   const frame={...SURFACE_MATERIAL,source,width:320,height:220,pixelRatio:2,edgeDepth:10,domeDepth:18,blobs:[{x:.5,y:.5,radius:24,halfWidth:120,halfHeight:70}]};
   const pixels=() => { const copy=document.createElement('canvas'); copy.width=canvas.width; copy.height=canvas.height; const context=copy.getContext('2d'); context.drawImage(canvas,0,0); return context.getImageData(0,0,copy.width,copy.height).data; };
   const red=(data,x,y) => data[(Math.floor(y*2)*640+Math.floor(x*2))*4];

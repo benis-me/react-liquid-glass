@@ -8,7 +8,7 @@ import {
   X,
 } from "lucide-react";
 import { GlassTabs, GlassSheet, ScrollArea } from "refractive-glass-react/controls";
-import { LiquidGlassProvider, type GlassMaterial } from "refractive-glass-react/liquid-glass";
+import { LiquidGlassProvider, type GlassMaterial, type GlassRendererBackend } from "refractive-glass-react/liquid-glass";
 import { sanitizeMaterial } from "./site/material";
 import { catalog, groups, groupZh, componentAliases, type ComponentId } from "./site/catalog";
 import {
@@ -41,7 +41,7 @@ function saved(key: string) {
     return null;
   }
 }
-export function App() {
+export function App({ backend }: { backend?: GlassRendererBackend } = {}) {
   const requestedPath = usePath();
   const path = requestedPath.replace(/^\/components\/([^/]+)$/, (_, id: string) => `/components/${componentAliases[id] ?? id}`);
   useEffect(() => { if (path !== requestedPath) history.replaceState(null, "", path + location.search + location.hash); }, [path, requestedPath]);
@@ -267,7 +267,7 @@ export function App() {
       </div>
     );
   return (
-    <LiquidGlassProvider material={displayMaterial}>
+    <LiquidGlassProvider material={displayMaterial} backend={backend}>
       <ScrollArea className="site-scroll" viewportProps={{ id: "page-scroll", tabIndex: -1 }}>
       <Link className="skip-link" href="#main-content">
         {zh ? "跳到内容" : "Skip to content"}

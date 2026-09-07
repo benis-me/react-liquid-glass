@@ -1,6 +1,5 @@
 import { liquidContentPose, liquidContentOptics } from "../packages/react-liquid-glass/dist/liquid-glass.js";
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 import { stripTypeScriptTypes } from "node:module";
@@ -18,18 +17,10 @@ import {
   retargetLiquidFrames,
 } from "../packages/react-liquid-glass/dist/apple-motion.js";
 import {
-  DEFAULT_LENS_PARAMS,
-  PLAYGROUND_DEFAULTS,
-  axisScaleMatrix,
   motionValue,
   LIQUID_GLASS_MATERIAL,
 } from "../packages/react-liquid-glass/dist/index.js";
 
-const filterSource = readFileSync(
-  process.env.FILTER_SOURCE ?? new URL("../packages/react-liquid-glass/src/glass.tsx", import.meta.url),
-  "utf8",
-);
-const displacementSource = readFileSync(new URL("../packages/react-liquid-glass/src/displacement-map.ts", import.meta.url), "utf8");
 const appSource = readFileSync(new URL("../apps/docs/src/App.tsx", import.meta.url), "utf8");
 const mainSource = readFileSync(new URL("../apps/docs/src/main.tsx", import.meta.url), "utf8");
 const libraryIndexSource = readFileSync(new URL("../packages/react-liquid-glass/src/index.ts", import.meta.url), "utf8");
@@ -42,7 +33,7 @@ const liquidDemoSource = [
   "lib/controls/use-menu-material.ts", "lib/apple-motion/menu.ts",
 ].map(path => readFileSync(new URL(`../${path.startsWith("lib/") ? "packages/react-liquid-glass/src/" + path.slice(4) : "apps/docs/src/" + path}`, import.meta.url), "utf8")).join("\n");
 const liquidCanvasUrl = new URL("../packages/react-liquid-glass/src/liquid-glass/LiquidGlassCanvas.tsx", import.meta.url);
-const liquidRendererSource = readFileSync(new URL("../packages/react-liquid-glass/src/liquid-glass/renderer.ts", import.meta.url), "utf8");
+const liquidRendererSource = ["webgl2-renderer.ts", "frame-geometry.ts", "render-frame.ts"].map(file => readFileSync(new URL(`../packages/react-liquid-glass/src/liquid-glass/${file}`, import.meta.url), "utf8")).join("\n");
 const liquidAdapterSource = readFileSync(new URL("../packages/react-liquid-glass/src/liquid-glass/LiquidGlass.tsx", import.meta.url), "utf8");
 const liquidCanvasSource = readFileSync(liquidCanvasUrl, "utf8") + liquidRendererSource;
 const indexSource = readFileSync(new URL("../apps/docs/index.html", import.meta.url), "utf8");
@@ -52,8 +43,6 @@ const demoStylesSource = readFileSync(new URL("../apps/docs/src/styles/demos.css
 const pageStylesSource = readFileSync(new URL("../apps/docs/src/styles/page.css", import.meta.url), "utf8");
 const baseStylesSource = readFileSync(new URL("../apps/docs/src/styles/base.css", import.meta.url), "utf8");
 const libraryStylesSource = readFileSync(new URL("../packages/react-liquid-glass/src/controls.css", import.meta.url), "utf8");
-const regenSource = readFileSync(new URL("../packages/react-liquid-glass/src/use-map-regen.ts", import.meta.url), "utf8");
-const contextSource = readFileSync(new URL("../packages/react-liquid-glass/src/context.ts", import.meta.url), "utf8");
 const componentSource = [
   "apple-motion/react.ts", "controls/use-thumb-motion.ts", "controls/GlassSwitch.tsx",
   "apple-motion/presets.ts", "controls/GlassSlider.tsx", "controls/GlassSegmented.tsx",
@@ -61,48 +50,13 @@ const componentSource = [
 const pointerFallbackSource = readFileSync(new URL("../packages/react-liquid-glass/src/apple-motion/use-pointer-release-fallback.ts", import.meta.url), "utf8");
 const videoSource = readFileSync(new URL("../packages/react-liquid-glass/src/controls/GlassVideo.tsx", import.meta.url), "utf8") + readFileSync(new URL("../packages/react-liquid-glass/src/apple-motion/spring.ts", import.meta.url), "utf8") + readFileSync(new URL("../packages/react-liquid-glass/src/apple-motion/presets.ts", import.meta.url), "utf8");
 const gitignoreSource = readFileSync(new URL("../.gitignore", import.meta.url), "utf8");
-const sha256 = (value) => createHash("sha256").update(value).digest("hex");
-
-test("single-lens filter clips blur and refraction to the rounded map alpha", () => {
-  assert.match(filterSource, /specularOpacity\?: MotionInput/);
-  assert.match(filterSource, /const mainSpecularRef = useRef<SVGFECompositeElement \| null>\(null\)/);
-  assert.match(filterSource, /merged\.specularStrength \* readMotion\(specularOpacity \?\? 1\)/);
-  assert.match(filterSource, /mainSpecularRef\.current\?\.setAttribute\("k2", String\(strength\)\)/);
-  assert.match(filterSource, /const units = isPool \|\| isIOS \? "userSpaceOnUse" : "objectBoundingBox"/);
-  assert.match(filterSource, /<feComposite in="lensResult" in2="rawMap" operator="in" result="clippedLensResult"/);
-  assert.match(filterSource, /<feComposite in="SourceGraphic" in2="rawMap" operator="out" result="holedSG"/);
-  assert.match(filterSource, /<feComposite in="clippedLensResult" in2="holedSG" operator="over"/);
-  assert.doesNotMatch(filterSource, /result="lensMask"/);
-  assert.match(displacementSource, /data\[idx \+ 3\] = insideLens \? 255 : 0/);
-  assert.match(displacementSource, /data\[iTL \+ 3\] = 0/);
-  assert.match(filterSource, /in=\{isSafari \? "rawMap" : "map"\}/);
-  assert.doesNotMatch(filterSource, /maskDataUrl/);
-});
-
-
-test("animated map regeneration commits numeric depth and surface changes to the live filter", () => {
-  assert.match(regenSource, /const genSizeRef = useRef\(0\)/);
-  assert.match(regenSource, /if \(!genRef\.current \|\| genSizeRef\.current !== mapSize\)/);
-  assert.match(regenSource, /opts\.depth,[\s\S]*opts\.specularRotation,[\s\S]*opts\.glowStrength,[\s\S]*opts\.edgeStrength/s);
-  assert.match(regenSource, /feImageRef\.current\?\.setAttribute\("href", url\);\s*cbRef\.current\(url\)/s);
-});
-
-test("offscreen glass invalidates cached geometry before restoring its filter", () => {
-  assert.match(
-    filterSource,
-    /if \(visible\) \{\s*lastLeftRef\.current = NaN;\s*lastTopRef\.current = NaN;\s*lastScaleRef\.current = NaN;\s*\}\s*applyLayoutRef\.current\(\)/s,
-  );
-});
 
 test("small controls retain sharp 2x Liquid surfaces and only draw when dirty", () => {
-  assert.match(filterSource, /filterEnabled\?: boolean/);
-  assert.match(filterSource, /const filterActive = filterEnabled &&/);
-  assert.match(filterSource, /filterEnabled \|\| animatedGeneratedRef\.current/);
   assert.equal((componentSource.match(/sourceFactory=\{sourceFactory\}/g) ?? []).length, 2);
   assert.match(liquidCanvasSource, /frame\.render\(drawFrame\)/);
   assert.match(liquidCanvasSource, /if \(!visible \|\| document\.hidden \|\| !source\) return/);
   assert.doesNotMatch(liquidAdapterSource, /requestAnimationFrame|toDataURL/);
-  assert.equal((componentSource.match(/filterResolution=\{2\}/g) ?? []).length, 2, "small thumbs must not upscale 1x coverage on Retina screens");
+  assert.equal((componentSource.match(/pixelRatio=\{2\}/g) ?? []).length, 2, "small thumbs must not upscale 1x coverage on Retina screens");
   assert.equal((componentSource.match(/const restTintBlur = compact \? 0 : 4/g) ?? []).length, 2);
 });
 
@@ -268,12 +222,12 @@ test("liquid uses the shared smooth-union compositor for its full lifecycle", ()
 
 test("liquid menu keeps one core-compatible Canvas material over the shared backdrop", () => {
   assert.doesNotMatch(liquidDemoSource, /buildQrGeometry|QR_SIZE|QR_GEOMETRY|occupancy|MENU_ACTIONS/);
-  assert.match(liquidDemoSource, /import type \{ LensParams \} from "\.\.\/types"/);
+  assert.match(liquidDemoSource, /import type \{ LiquidLens \} from "\.\.\/liquid-glass\/lens"/);
   assert.match(liquidDemoSource, /import \{ LiquidGlassCanvas \} from "\.\.\/liquid-glass\/LiquidGlassCanvas"/);
   assert.doesNotMatch(liquidDemoSource, /<Glass|coreOpacity|fusionOpacity/);
   assert.match(liquidDemoSource, /const BASE_MENU_LENS = LIQUID_LENS/);
-  assert.match(liquidDemoSource, /const LIGHT_MENU_LENS: Partial<LensParams>/);
-  assert.match(liquidDemoSource, /const DARK_MENU_LENS: Partial<LensParams>/);
+  assert.match(liquidDemoSource, /const LIGHT_MENU_LENS: LiquidLens/);
+  assert.match(liquidDemoSource, /const DARK_MENU_LENS: LiquidLens/);
   assert.equal(LIQUID_GLASS_MATERIAL.chromaAmount, .55);
   assert.equal(LIQUID_GLASS_MATERIAL.refractionStrength, .11);
   assert.equal(LIQUID_GLASS_MATERIAL.specularStrength, .72);
@@ -804,10 +758,9 @@ test("video demo refracts one live texture through the shared four-blob material
 
 
 test("runtime styling uses the project-owned namespace and private references stay ignored", () => {
+  assert.match(liquidAdapterSource, /data-dg-glass-surface=""/);
   const runtimeSource = [componentSource, heroSource, videoSource, liquidDemoSource, liquidCanvasSource, libraryStylesSource, demoStylesSource].join("\n");
   assert.match(runtimeSource, /dg-(?:control|switch|slider|tabs|hero|qr|video)/);
-  assert.match(filterSource, /data-dg-glass-surface=""/);
-  assert.match(contextSource, /\[data-dg-glass-surface\]/);
   assert.match(videoSource, /\.\.\/assets\/video\/pause\.svg\?raw/);
   assert.match(gitignoreSource, /^\.openai\/$/m);
   assert.match(gitignoreSource, /^\.dezin\/$/m);
@@ -844,7 +797,7 @@ test("control optics retain size-independent pixel gain and the approved menu ma
       assert.ok(Math.abs(scale * .5 * ratio[axis] * length - 4.84) < 1e-9, "padding and aspect ratio must not amplify refraction");
     }
   }
-  assert.deepEqual(gain({}, { scaleX: .08, scaleY: .12 }, { width: 124, height: 78 }), [.12, [.08 / .12, 1]], "existing objectBoundingBox callers keep their optics");
+  assert.deepEqual(gain({}, { scaleX: .08, scaleY: .12 }, { width: 124, height: 78 }), [.12, [.08 / .12, 1]], "per-axis optical gain remains unchanged");
   assert.equal(LIQUID_GLASS_MATERIAL.chromaAmount, .55);
   assert.match(componentSource, /SEGMENTED_TRAVEL_SPRING = \{ mass: 1, stiffness: 260, damping: 28 \}/);
   assert.match(componentSource, /SEGMENTED_HOLD_IMPACT_SCRIPT = \{\s*stiffness: 360,\s*damping: 24,\s*impulse: -1\.6,/s);
@@ -878,11 +831,7 @@ test("Slider's refracted fill retains a moving round cap at every progress", () 
 });
 
 
-test("source defaults and motion primitive stay stable", () => {
-  assert.equal(DEFAULT_LENS_PARAMS.mapSize, 256);
-  assert.equal(PLAYGROUND_DEFAULTS.mapSize, 512);
-  assert.equal(PLAYGROUND_DEFAULTS.scaleX, 0.07);
-  assert.equal(axisScaleMatrix(1, 0.5), "1 0 0 0 0  0 0.5 0 0 0.25  0 0 1 0 0  0 0 0 1 0");
+test("shared motion values notify until unsubscribed", () => {
   const value = motionValue(1);
   let observed = 0;
   const unsubscribe = value.on("change", (next) => { observed = next; });

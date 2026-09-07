@@ -12,6 +12,7 @@ import rewindSvg from "../assets/video/rewind.svg?raw";
 import forwardSvg from "../assets/video/forward.svg?raw";
 import playSvg from "../assets/video/play.svg?raw";
 import { useGlassMaterial } from "../liquid-glass/provider";
+import { useRendererBackend } from "../liquid-glass/use-renderer-backend";
 import { createLiquidGlassRenderer, type LiquidGlassBlob } from "../liquid-glass/renderer";
 import { usePointerReleaseFallback } from "../apple-motion/react";
 
@@ -58,6 +59,7 @@ function seekRubberBand(distance: number, limit: number) {
 
 export function GlassVideo({ src, poster, caption, autoPlay = false, loop = true, muted = true, labels }: GlassVideoProps) {
   const material = useGlassMaterial();
+  const { requested, backend, fallback, onFallback } = useRendererBackend();
   const reduce = useReducedMotion();
   const reduceRef = useRef(reduce); reduceRef.current = reduce;
   const [loadError, setLoadError] = useState(false);
@@ -101,8 +103,7 @@ export function GlassVideo({ src, poster, caption, autoPlay = false, loop = true
     const video = videoRef.current;
     const player = playerRef.current;
     if (!canvas || !video || !player) return;
-    const renderer = createLiquidGlassRenderer(canvas, { onRestore: () => ensureDrawRef.current() });
-    canvas.dataset.dgRenderer = "liquid-webgl2";
+    const renderer = createLiquidGlassRenderer(canvas, { backend, onReady: () => ensureDrawRef.current(), onRestore: () => ensureDrawRef.current(), onFallback });
     readyRef.current = false; textureDirtyRef.current = true; setReady(false); setLoadError(false);
     let sourceRevision = 0;
     const blobs: LiquidGlassBlob[] = Array.from({ length: 4 }, () => ({ x: .5, y: .5, radius: 1 }));
@@ -187,7 +188,7 @@ export function GlassVideo({ src, poster, caption, autoPlay = false, loop = true
         bar.style.transformOrigin = barStretch >= 0 ? "0 50%" : "100% 50%";
         bar.style.transform = `scaleX(${1 + Math.abs(barStretch) / layout.bar[2]})`;
       }
-      renderer.draw({
+      const rendered = renderer.draw({
         source: video, sourceRevision, width, height, blobs, pixelRatio: ratio,
         opacity: strengthRef.current, edgeDepth: 9, tintStrength: .045,
         shadowStrength: .11, mergeDistance: 32,
@@ -198,7 +199,7 @@ export function GlassVideo({ src, poster, caption, autoPlay = false, loop = true
         barRef.current?.setAttribute("aria-valuenow", String(video.currentTime));
         barRef.current?.setAttribute("aria-valuemax", String(video.duration));
       }
-      if (!readyRef.current) {
+      if (rendered && !readyRef.current) {
         readyRef.current = true;
         setReady(true);
       }
@@ -268,6 +269,7 @@ export function GlassVideo({ src, poster, caption, autoPlay = false, loop = true
       if (visible === next) return;
       visible = next;
       if (!visible) {
+        renderer.suspend();
         resumeWhenVisible = !video.paused;
         cancelScheduled();
         if (resumeWhenVisible) video.pause();
@@ -301,7 +303,7 @@ export function GlassVideo({ src, poster, caption, autoPlay = false, loop = true
       cancelScheduled();
       renderer.dispose();
     };
-  }, [src]);
+  }, [src, backend, onFallback]);
 
   const togglePlayback = useCallback(() => {
     const video = videoRef.current;
@@ -406,7 +408,7 @@ export function GlassVideo({ src, poster, caption, autoPlay = false, loop = true
             onPlay={() => setPlaying(true)}
             onPause={() => setPlaying(false)}
           />
-          <canvas ref={canvasRef} className="dg-video-player__canvas" style={{ opacity: ready ? 1 : 0 }} aria-label={text.canvas} role="img" />
+          <canvas key={`${requested}:${backend}:${src}`} ref={canvasRef} data-dg-renderer-fallback={fallback?.message} className="dg-video-player__canvas" style={{ opacity: ready ? 1 : 0 }} aria-label={text.canvas} role="img" />
           <div className="dg-video-player__controls" data-visible={controlsVisible && ready}>
             <button ref={(element) => { buttonRefs.current[0] = element; }} type="button" aria-label={text.rewind} className="dg-video-player__button dg-video-player__button--small" onClick={() => skip(-15)} onMouseEnter={() => hover(0, true)} onMouseLeave={() => { hover(0, false); press(0, 1); }} onPointerDown={() => press(0, 0.8)} onPointerUp={() => press(0, 1)} onPointerCancel={() => press(0, 1)}><SourceVideoIcon source={rewindSvg} /></button>
             <button ref={(element) => { buttonRefs.current[1] = element; }} type="button" aria-label={playing ? text.pause : text.play} className="dg-video-player__button dg-video-player__button--large" onClick={togglePlayback} onMouseEnter={() => hover(1, true)} onMouseLeave={() => { hover(1, false); press(1, 1); }} onPointerDown={() => press(1, 0.8)} onPointerUp={() => press(1, 1)} onPointerCancel={() => press(1, 1)}><SourceVideoIcon source={playing ? pauseSvg : playSvg} /></button>

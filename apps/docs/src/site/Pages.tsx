@@ -508,13 +508,13 @@ export function Installation({ locale }: PageProps) {
         </h2>
         <p>
           {zh
-            ? "UI 组件共用 WebGL2 材质与 DOM 底图采样。GlassStage 只提供可见背景；视频和 Spotlight 使用媒体源。采样支持常见内容，并非完整的浏览器画面捕获。"
-            : "UI components share the WebGL2 material and DOM backdrop adapter. GlassStage provides a visible background; Video and Spotlight use media sources. The adapter supports common content, not every browser effect."}
+            ? "UI 组件共用 WebGPU 材质与 DOM 底图采样，并保留 WebGL2 回退。GlassStage 只提供可见背景；视频和 Spotlight 使用媒体源。采样支持常见内容，并非完整的浏览器画面捕获。"
+            : "UI components share the WebGPU material and DOM backdrop adapter, with WebGL2 fallback. GlassStage provides a visible background; Video and Spotlight use media sources. The adapter supports common content, not every browser effect."}
         </p>
         <p>
           {zh
-            ? "组件样式独立于文档站，支持 color-scheme: light / dark 与 dg-* 变量。现代浏览器需要 WebGL2；对话框和浮层使用原生 dialog / popover。使用受支持的同源或 CORS 媒体。"
-            : "Component styles are independent of the docs app and support color-scheme: light / dark and dg-* tokens. A modern browser with WebGL2 is required; overlays use native dialog and popover. Supply same-origin or CORS-enabled media."}
+            ? "组件样式独立于文档站，支持 color-scheme: light / dark 与 dg-* 变量。浏览器需要支持 WebGPU 或 WebGL2；对话框和浮层使用原生 dialog / popover。使用受支持的同源或 CORS 媒体。"
+            : "Component styles are independent of the docs app and support color-scheme: light / dark and dg-* tokens. A browser with WebGPU or WebGL2 is required; overlays use native dialog and popover. Supply same-origin or CORS-enabled media."}
         </p>
       </section>
     </>

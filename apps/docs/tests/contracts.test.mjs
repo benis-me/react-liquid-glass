@@ -28,7 +28,13 @@ test('every catalog entry has a real exported component and a type-correct stand
       assert.ok(entry.description && entry.summary && entry.props.length);
       writeFileSync(join(folder, `${entry.id}.tsx`), exampleCode(entry.id));
     }
-    writeFileSync(join(folder, 'tsconfig.json'), JSON.stringify({ compilerOptions: { target: 'ES2022', module: 'ESNext', moduleResolution: 'Bundler', jsx: 'react-jsx', strict: true, skipLibCheck: true, noEmit: true, types: ['react','react-dom'] }, include: ['*.tsx'] }));
+    writeFileSync(join(folder, 'public-api.tsx'), `import { LiquidGlass, GlassSwitch, LiquidGlassCanvas, type LiquidLens } from "refractive-glass-react";
+import { createLiquidGlassRenderer } from "refractive-glass-react/liquid-glass/renderer";
+export const api = [LiquidGlass, GlassSwitch, LiquidGlassCanvas, createLiquidGlassRenderer];
+export const lens: LiquidLens = { depth: 10, domeDepth: 28, chromaAmount: .33 };
+// @ts-expect-error SVG map generation is no longer a lens parameter.
+export const obsolete: LiquidLens = { mapSize: 256 };`);
+    writeFileSync(join(folder, 'tsconfig.json'), JSON.stringify({ compilerOptions: { target: 'ES2022', module: 'ESNext', moduleResolution: 'Bundler', jsx: 'react-jsx', strict: true, skipLibCheck: false, noEmit: true, types: ['react','react-dom'] }, include: ['*.tsx'] }));
     execFileSync(fileURLToPath(new URL('../../../node_modules/.bin/tsc', import.meta.url)), ['-p', join(folder, 'tsconfig.json')], { stdio: 'pipe' });
   } catch (error) { if (error.stdout) throw new Error(error.stdout.toString()); throw error; }
   finally { rmSync(folder, { recursive: true, force: true }); }

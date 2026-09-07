@@ -1,17 +1,4 @@
 /**
- * Math helpers recovered from the Dezin Glass runtime.
- *
- * The edge falloff uses a Gaussian-CDF-shaped profile built on a cheap erf
- * approximation; the dome profile treats the lens surface as a spherical cap
- * whose radius comes from the sagitta formula.
- */
-
-/** erf(x) ≈ tanh(√π · x) — the exact approximation the production bundle ships. */
-export function erf(x: number): number {
-  return Math.tanh(1.7724538509 * x);
-}
-
-/**
  * Mean slope of a circle of radius `r` sampled over [0, half].
  * Trapezoidal integration, 200 steps — matches the original's normalization
  * so the average displacement of a dome equals the flat-gradient case (0.5).
@@ -54,10 +41,4 @@ export function computeDomeConstants(
     scaleX: mx > 0 ? 0.5 / mx : 1,
     scaleY: my > 0 ? 0.5 / my : 1,
   };
-}
-
-/** Normalized slope of the dome surface at distance `dist` from the lens center. */
-export function domeGradient(dist: number, r: number, scale: number): number {
-  const c = Math.min(dist, 0.999 * r);
-  return (c / Math.sqrt(r * r - c * c)) * scale;
 }

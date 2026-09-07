@@ -1,0 +1,6 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>Liquid renderer regression</title>
+<style>body{font:14px system-ui;background:#eee;color:#111;margin:24px}button{padding:10px 18px}section{display:flex;gap:20px;flex-wrap:wrap}canvas{width:320px;height:240px;background:repeating-conic-gradient(#fff 0 25%,#ccc 0 50%) 0/16px 16px}pre{white-space:pre-wrap}</style>
+<h1>Liquid renderer regression</h1><button id="run">Run parity</button><button id="benchmark">Run benchmark</button><button id="lifecycle">Run lifecycle</button><button id="react">Run React recovery</button><button id="hdr">Run HDR pipeline</button><button id="hdr-fallback">Run fallback HDR</button><button id="switching">Run backend switching</button><button id="failures">Run failure modes</button>
+<section><figure><figcaption>WebGL2</figcaption><canvas id="gl"></canvas></figure><figure><figcaption>WebGPU</figcaption><canvas id="gpu"></canvas></figure></section>
+<pre id="result" role="status">Ready</pre><script type="module" src="./gpu-parity.ts"></script></html>

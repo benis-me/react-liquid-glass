@@ -1,9 +1,9 @@
 import { SLIDER_CLICK_SPRING } from "../apple-motion/presets";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { animate, motion, useMotionValue, useTransform } from "motion/react";
-import { LiquidGlass as Glass, LIQUID_LENS } from "../liquid-glass/LiquidGlass";
+import { LiquidGlass, LIQUID_LENS } from "../liquid-glass/LiquidGlass";
 import { liquidTrackSource } from "../liquid-glass/source";
-import type { LensParams } from "../types";
+import type { LiquidLens } from "../liquid-glass/lens";
 import { usePointerReleaseFallback, useGlassContact, rubberBand, springTo, type SpringRun } from "../apple-motion/react";
 import { useThumbMotion } from "./use-thumb-motion";
 
@@ -126,7 +126,7 @@ export function GlassSlider({
     trackHeight: refractedTrackHeight, travel, offset,
     scaleX: targetScaleX, scaleY: targetScaleY,
   }), [width, thumbHeight, padding, refractedTrackHeight, thumbWidth, travel, offset, targetScaleX, targetScaleY]);
-  const lens: Partial<LensParams> = {
+  const lens: LiquidLens = {
     ...LIQUID_LENS, depth: thumbHeight / 11, domeDepth: thumbHeight * (5 / 22),
     chromaAmount: .24, edgeWidth: .9,
     brightness: darkTheme() ? .035 : .015,
@@ -134,7 +134,7 @@ export function GlassSlider({
 
   return (
     <div ref={wrapperRef} data-size={size} className={["dg-slider", className].filter(Boolean).join(" ")} style={{ width, height: thumbHeight, "--dg-slider-fill": `${thumbWidth / 2 + toOffset(current)}px`, "--dg-slider-progress": toOffset(current) / travel } as React.CSSProperties}>
-      <Glass
+      <LiquidGlass
         contact={{ ...contact, contactX, contactY }}
         sourceFactory={sourceFactory}
         backdropRoot={wrapperRef}
@@ -150,7 +150,7 @@ export function GlassSlider({
         tintOpacity={tintOpacity}
         tintBlur={tintBlur}
         shadowOpacity={shadowOpacity}
-        filterResolution={2}
+        pixelRatio={2}
         pixelAlign
         style={{ width: filterWidth, height: filterHeight, overflow: "visible", margin: -padding }}
         refractionTarget={
@@ -250,7 +250,7 @@ export function GlassSlider({
             <motion.div className="dg-slider__thumb-hit" style={{ x: offset, width: thumbWidth, height: thumbHeight }} />
           </div>
         </div>
-      </Glass>
+      </LiquidGlass>
     </div>
   );
 }

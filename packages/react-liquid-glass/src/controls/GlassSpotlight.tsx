@@ -7,16 +7,15 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { PLAYGROUND_DEFAULTS } from "../presets";
 import { motionValue } from "../shared/values";
-import type { LensParams } from "../types";
-import { LiquidGlass as Glass, LIQUID_LENS } from "../liquid-glass/LiquidGlass";
+import type { LiquidLens } from "../liquid-glass/lens";
+import { LiquidGlass, LIQUID_LENS } from "../liquid-glass/LiquidGlass";
 
 export interface GlassSpotlightProps {
   variant?: "primary" | "secondary";
   interactive?: boolean;
   backgroundImage?: string;
-  lens?: Partial<LensParams>;
+  lens?: LiquidLens;
 }
 
 function useMobileScale() {
@@ -38,7 +37,7 @@ export function GlassSpotlight({
 }: GlassSpotlightProps) {
   const scale = useMobileScale();
   const reduce = useReducedMotion();
-  const sourceLens = { ...PLAYGROUND_DEFAULTS, ...LIQUID_LENS, ...lensOverrides };
+  const sourceLens = { lensW: 80, lensH: 80, borderRadius: 80, tint: 0, ...LIQUID_LENS, ...lensOverrides };
   const targetW = sourceLens.lensW * scale;
   const targetH = sourceLens.lensH * scale;
   const targetRadius = sourceLens.borderRadius * scale;
@@ -161,7 +160,7 @@ export function GlassSpotlight({
     if (reduce) { x.set(hoverTarget.current.x); y.set(hoverTarget.current.y); }
   }, [interactive, reduce, x, y, lensW, lensH]);
 
-  const lens: Partial<LensParams> = {
+  const lens: LiquidLens = {
     ...sourceLens,
     lensW: targetW,
     lensH: targetH,
@@ -199,7 +198,7 @@ export function GlassSpotlight({
         }, 400);
       } : undefined}
     >
-      <Glass
+      <LiquidGlass
         lens={lens}
         lensW={lensW}
         lensH={lensH}
@@ -223,7 +222,7 @@ export function GlassSpotlight({
             )}
           </div>
         </div>
-      </Glass>
+      </LiquidGlass>
     </div>
   );
 }

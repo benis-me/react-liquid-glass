@@ -6,10 +6,10 @@ import { captureLiquidSource, liquidRgb, liquidTheme, subscribeLiquidTheme, type
 import { isMotionValue, motionValue, readMotion, type MotionInput } from "../shared/values";
 import { useGlassMaterial } from "./provider";
 import { createLiquidBackdrop } from "./backdrop";
-import type { LensParams } from "../types";
+import type { LiquidLens } from "./lens";
 
-/** LensParams spelling for callers migrating from Glass. No second optical preset. */
-export const LIQUID_LENS: Partial<LensParams> = {
+/** Shared Liquid material defaults for DOM-backed lenses. */
+export const LIQUID_LENS = {
   depth: LIQUID_GLASS_MATERIAL.edgeDepth, domeDepth: LIQUID_GLASS_MATERIAL.domeDepth,
   scaleX: LIQUID_GLASS_MATERIAL.refractionStrength, scaleY: LIQUID_GLASS_MATERIAL.refractionStrength,
   chromaAmount: LIQUID_GLASS_MATERIAL.chromaAmount, blurAmount: LIQUID_GLASS_MATERIAL.blurStrength,
@@ -18,7 +18,7 @@ export const LIQUID_LENS: Partial<LensParams> = {
   glowSpread: LIQUID_GLASS_MATERIAL.glowSpread, glowExponent: LIQUID_GLASS_MATERIAL.glowExponent,
   edgeStrength: LIQUID_GLASS_MATERIAL.edgeStrength, edgeWidth: LIQUID_GLASS_MATERIAL.edgeWidth,
   edgeExponent: LIQUID_GLASS_MATERIAL.edgeExponent,
-};
+} satisfies LiquidLens;
 
 export interface LiquidGlassProps {
   children?: ReactNode;
@@ -31,13 +31,13 @@ export interface LiquidGlassProps {
   /** Exclude a composite control's native ink when it supplies its own foreground. */
   backdropRoot?: RefObject<HTMLElement | null>;
   sourceValues?: readonly MotionInput[];
-  lens?: Partial<LensParams>;
+  lens?: LiquidLens;
   x?: MotionInput; y?: MotionInput;
   lensW?: MotionInput; lensH?: MotionInput; borderRadius?: MotionInput;
   autoBorderRadius?: boolean;
   tintColor?: string; tintOpacity?: MotionInput; tintBlur?: MotionInput;
   shadowOpacity?: MotionInput;
-  filterResolution?: number;
+  pixelRatio?: number;
   /** Align small control canvases to physical pixels, avoiding a second compositor resample. */
   pixelAlign?: boolean;
   /** CSS-pixel displacement gain; independent of the padded source's dimensions. */
@@ -234,7 +234,7 @@ export function LiquidGlass(props: LiquidGlassProps) {
       refractionStrength={props.refractionPixels !== undefined && material.refractionStrength !== undefined ? scale * readMotion(material.refractionStrength) / .11 : material.refractionStrength ?? scale}
       // Provider tuning changes the optical material, not the opaque rest endpoint.
       tintStrength={tintStrength} blurStrength={blur}
-      pixelRatio={props.tintOpacity !== undefined ? 2 : material.pixelRatio ?? props.filterResolution ?? 2}
+      pixelRatio={props.tintOpacity !== undefined ? 2 : material.pixelRatio ?? props.pixelRatio ?? 2}
       style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} /> : null}
   </div>;
 }

@@ -1,3 +1,4 @@
+import { readLiquidSource } from "./canvas-sources";
 import { cancelFrame, frame } from "motion";
 import { paintLiquidSvg, paintLiquidText } from "./menu-content";
 import { liquidBackground, paintLiquidHatch } from "./source";
@@ -80,7 +81,7 @@ export function paintLiquidBackdrop(root: HTMLElement, canvas: HTMLCanvasElement
         const scale = css.objectFit === "cover" ? Math.max(rect.width / sw, rect.height / sh) : css.objectFit === "contain" ? Math.min(rect.width / sw, rect.height / sh) : 0;
         const w = scale ? sw * scale : rect.width, h = scale ? sh * scale : rect.height;
         ctx.save(); ctx.beginPath(); ctx.roundRect(x, y, rect.width, rect.height, corners); ctx.clip(); ctx.filter = css.filter;
-        ctx.drawImage(element, x + (rect.width - w) / 2, y + (rect.height - h) / 2, w, h); ctx.restore();
+        ctx.drawImage(element instanceof HTMLCanvasElement ? readLiquidSource(element) : element, x + (rect.width - w) / 2, y + (rect.height - h) / 2, w, h); ctx.restore();
       }
     } else if (element instanceof SVGSVGElement) {
       const alpha = ctx.globalAlpha;
@@ -153,6 +154,7 @@ export function observeLiquidBackdrop(root: HTMLElement, bounds: () => Bounds, e
 /** Retain the same bounded DOM backdrop for inline controls and explicit lenses. */
 export function createLiquidBackdrop(owner: HTMLElement, bounds: () => Bounds, changed: (canvas: HTMLCanvasElement) => void, visible: () => boolean = () => true) {
   const canvas = document.createElement("canvas");
+  canvas.getContext("2d");
   let sourceRoot: HTMLElement | undefined, offsetX = 0, offsetY = 0;
   const refresh = () => {
     const rect = bounds();

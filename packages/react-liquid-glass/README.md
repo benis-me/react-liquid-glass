@@ -7,12 +7,12 @@ Project-owned liquid glass optics, physical motion and accessible React componen
 | Entry | Responsibility |
 | --- | --- |
 | `refractive-glass-react/liquid-glass` | SDF geometry, continuous material, Canvas surfaces, explicit substrates, `LiquidGlassProvider` |
-| `refractive-glass-react/liquid-glass/renderer` | Imperative WebGL2 renderer for canvas, image and video sources |
+| `refractive-glass-react/liquid-glass/renderer` | WebGPU-first renderer with WebGL2 fallback for canvas, image and video sources |
 | `refractive-glass-react/apple-motion` | Analytic damped springs, trajectories, velocity and deformation presets; framework-independent |
 | `refractive-glass-react/apple-motion/react` | Motion/React adapters, continuous springs and pointer-release recovery |
 | `refractive-glass-react/controls` | Ready-to-use React components |
 | `refractive-glass-react/controls.css` | Optional component styles, independent of the documentation site |
-| `refractive-glass-react` | Convenience exports plus the retained legacy `Glass` / `GlassCanvas` APIs |
+| `refractive-glass-react` | Convenience exports for the current Liquid renderer, controls and motion values |
 
 The core APIs do not import CSS. Import `controls.css` explicitly when using styled controls. Fonts and icons are not runtime dependencies of the library.
 
@@ -35,7 +35,7 @@ export function Settings() {
 
 An empty `material={{}}` preserves every control's calibrated defaults. Ordinary UI uses the exported `PRISM_MATERIAL`; large popups retain stronger size-adaptive frost, while small thumb lenses keep their scale calibration and opaque white rest state. Nested providers inherit parent overrides. Settings affect the shared renderer; component motion remains independent of optical tuning.
 
-HDR defaults to enabled on supported displays. Set `material={{ hdr: false }}` on `LiquidGlassProvider` to disable the extended highlights globally, or pass `hdr={false}` to an individual `LiquidGlass` / `LiquidGlassCanvas`. An explicit instance flag wins over the provider. The Playground HDR switch persists and shares with the other material settings. Selecting a preset preserves this flag; Reset restores the default.
+HDR defaults to enabled on supported displays. Set `material={{ hdr: false }}` on `LiquidGlassProvider` to disable the extended highlights globally, or pass `hdr={false}` to an individual `LiquidGlass` / `LiquidGlassCanvas`. An explicit instance flag wins over the provider. The docs header persists HDR independently of material settings; presets and material reset preserve this preference.
 
 ## Components
 
@@ -71,9 +71,9 @@ For custom controls, `useGlassContact(ref)` from `apple-motion/react` returns Mo
 
 Compact UI surfaces use a restrained glow and fine directional rim. Popup background frost follows the live body size, from 0.4 CSS pixels for shallow controls/tooltips to 12 for large panels; an explicit material-provider override still wins. This follows Apple's [size-adaptive material guidance](https://developer.apple.com/videos/play/wwdc2025/219/?time=440), with project-calibrated values.
 
-On HDR displays with WebGPU extended tone mapping, a lazy shared presenter lifts the same SDF's fine inset reflection and contact light above SDR white using an `rgba16float` canvas. Foreground ink, coverage, tint and opacity also mask this light. Shared and direct WebGL canvases retain their base material; SDR and unsupported browsers use the ordinary highlights, and resting surfaces do not redraw continuously. This is a project-tuned interpretation, not measured iOS constants or a claim of native parity. See [HDR canvas tone mapping](https://developer.chrome.com/blog/new-in-webgpu-129).
+On HDR displays with WebGPU extended tone mapping, a lazy shared presenter lifts the same SDF's fine inset reflection and contact light above SDR white using an `rgba16float` canvas. Foreground ink, coverage, tint and opacity also mask this light. The WebGPU path renders this light directly on the shared device, without copying a WebGL mask. The SDR base remains available to the DOM backdrop adapter; SDR and unsupported browsers use the ordinary highlights, and resting surfaces do not redraw continuously. This is a project-tuned interpretation, not measured iOS constants or a claim of native parity. See [HDR canvas tone mapping](https://developer.chrome.com/blog/new-in-webgpu-129).
 
-WebGL2 is required. `GlassStage` supplies a visible demo background, not a private texture. Inline surfaces, lenses and popovers use the same bounded DOM-backdrop adapter: hiding, removing or changing the stage background updates the glass. Spotlight and Video use their explicit media sources; provide same-origin or CORS-enabled URLs.
+WebGPU is preferred; unsupported adapters and device failures fall back to WebGL2. A browser with either API is required. `GlassStage` supplies a visible demo background, not a private texture. Inline surfaces, lenses and popovers use the same bounded DOM-backdrop adapter: hiding, removing or changing the stage background updates the glass. Spotlight and Video use their explicit media sources; provide same-origin or CORS-enabled URLs.
 
 Text, boxes, Lucide SVG, form values and same-origin images/video/canvases can show through. Scroll, DOM changes and library canvas frames refresh the region. Inline surfaces sample preceding DOM layers; top-layer popovers sample the page beneath them. Both exclude their own rendering and stop drawing at rest. `paintLiquidBackdrop(root, canvas, bounds, exclude)` exposes the same adapter for custom sources. Composite controls use `LiquidGlass backdropRoot={ref}` to exclude native ink that their foreground source paints separately.
 
@@ -81,7 +81,7 @@ This is a DOM redraw adapter, not universal native backdrop capture. Complex CSS
 
 Controls keep their own motion and default material calibration. Switch/Slider tracks and segmented ink are composited over the shared backdrop from the same live control state; the menu retains one merged SDF for its body, button and neck throughout the transition.
 
-Small surfaces share a GPU device, cache textures, pause offscreen and stop drawing at rest. Video follows decoded-frame callbacks, pauses offscreen and redraws paused seeks/resizes. The default small-control canvas is 2×. `prefers-reduced-motion` suppresses automatic decorative drift and uses immediate control states where applicable.
+WebGPU surfaces share one device and batch their commands while presenting directly to their own canvases. A retained GPU texture preserves each SDR result after presentation. The DOM backdrop adapter requests a cached 2D snapshot only when another glass surface samples that canvas. Source textures, Gaussian intermediates and content mipmaps are cached by revision; offscreen and resting surfaces do not draw. The WebGL2 fallback retains its shared small-surface context. Video follows decoded-frame callbacks, pauses offscreen and redraws paused seeks/resizes. To preserve the accepted video colors across browser import APIs, the WebGPU source adapter normalizes each changed frame through one retained canvas before upload; it does not perform a pixel readback or allocate an ImageBitmap per frame. This color-compatibility step remains an input cost. The default small-control canvas is 2×. `prefers-reduced-motion` suppresses automatic decorative drift and uses immediate control states where applicable.
 
 `ScrollArea` is available from `/controls` with `orientation="vertical" | "horizontal" | "both"`, `viewportProps`, and `contentClassName`. It uses Radix's native scrolling with overlay thumbs shown on hover. Popovers, dialogs, menus and textareas use it internally; import `controls.css` for its styles.
 
@@ -94,3 +94,23 @@ npm pack --workspace refractive-glass-react
 ```
 
 The package includes built code, optional styles and declarations; it excludes docs, videos and other site assets. No npm publication is performed by these commands.
+
+## Renderer selection
+
+All controls, Video, Spotlight and Liquid surfaces use the WebGPU-first renderer. WebGL2 is the fallback. There is no SVG glass renderer or compatibility backend.
+
+The migration intentionally removes `Glass` / `DezinGlass`, `GlassCanvas`, the old target groups/providers, displacement-map generators, SVG presets and the `/legacy` entry. Existing imports of those APIs must be updated. Use `LiquidGlass` for DOM-backed surfaces, `LiquidGlassCanvas` for explicit image, canvas and video sources, and `LiquidGlassProvider` for shared materials. `LiquidLens` contains only parameters consumed by the GPU material; SVG map options are removed, and `LiquidGlass.pixelRatio` replaces `filterResolution`.
+
+Canvas2D supplies DOM redraws, video color normalization and requested backdrop snapshots; glass optics execute on the selected GPU backend. The bounded DOM adapter does not reproduce arbitrary browser-filtered DOM or external SVG displacement maps.
+
+`<LiquidGlassProvider material={material} backend="auto">` prefers WebGPU. Use `backend="webgl2"` for comparison or explicit compatibility, and `backend="webgpu"` to require WebGPU without fallback. Material values and Motion interactions are independent of backend selection.
+
+The imperative `createLiquidGlassRenderer(canvas, options)` returns immediately and loads only its selected backend. `await renderer.ready` resolves to `"webgpu"`, `"webgl2"`, or `null` when unavailable/disposed. Frames requested during initialization are coalesced to the latest one. Inspect `renderer.backend`, `renderer.error`, `renderer.stats`, and the canvas's `data-dg-renderer` diagnostic. Call `suspend()` when hidden and `dispose()` on teardown.
+
+A canvas cannot change its context type. On device failure, React controls remount their canvas while retaining controlled state. Imperative renderers replace the failed canvas: read `renderer.canvas` after recovery, or provide `onFallback(error)` to let the host recreate it. Initial adapter failure falls back before claiming the original canvas. Use `frame.hdr` for HDR on either backend; the old second-argument rendering callback has been removed.
+
+Changing the provider's backend selection retries that selection after a failure and preserves control/video state. Changing `LiquidGlassCanvas.shared` recreates its output canvas when needed by the WebGL2 fallback.
+
+Published declarations use the consumer's DOM WebGPU types. The development-only `@webgpu/types` package is not referenced by public declarations and does not inject duplicate globals into applications using current TypeScript.
+
+The docs dev server accepts `?renderer=webgl2` or `?renderer=webgpu` for comparison; production always uses automatic selection. `/tests/browser-smoke.html` runs the application checks in either mode; checks that inspect GL uniforms are marked separately and run in WebGL2. `/tests/gpu-parity.html` compares asymmetric sources at identical geometry/DPR, rejects empty renders, and exercises recovery, backend switching, HDR and performance. The floating-point HDR fixture can run on SDR hardware; it does not verify a physical HDR display's brightness or gamut. Performance results are workload/device-specific; API selection alone does not establish a speedup.

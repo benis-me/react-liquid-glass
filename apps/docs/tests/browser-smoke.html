@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8"><title>Liquid app regression</title>
+<style>body{font:14px system-ui;margin:20px}button{padding:10px 16px;margin-right:8px}iframe{display:block;width:940px;height:998px;border:1px solid #ccc;margin-top:16px}pre{white-space:pre-wrap}</style>
+<h1>Liquid app regression</h1>
+<button data-backend="webgpu">Run WebGPU app checks</button><button data-backend="webgl2">Run WebGL2 app checks</button>
+<iframe title="App under test"></iframe><pre id="result" role="status">Ready</pre>
+<script type="module">
+const result = document.querySelector('#result'), preview = document.querySelector('iframe');
+let running = false;
+const gpuExcluded = ['checkGlobalMaterial', 'checkModalMotion'];
+for (const button of document.querySelectorAll('button')) button.addEventListener('click', async () => {
+  if (running) return;
+  running = true;
+  const backend = button.dataset.backend;
+  const only = new URLSearchParams(location.search).get('check');
+  const saved = new Map(Object.keys(localStorage).filter(key => key.startsWith('glass-')).map(key => [key, localStorage.getItem(key)]));
+  const restore = () => { for (const key of Object.keys(localStorage)) if (key.startsWith('glass-')) localStorage.removeItem(key); for (const [key, value] of saved) localStorage.setItem(key, value); };
+  result.dataset.status = 'running'; result.textContent = 'Loading app…';
+  const receive = event => {
+    if (event.source !== preview.contentWindow || event.data?.type !== 'glass-app-test') return;
+    result.dataset.status = event.data.status;
+    result.textContent = JSON.stringify(event.data, null, 2);
+    if (event.data.status !== 'running') { window.removeEventListener('message', receive); restore(); running = false; }
+  };
+  window.addEventListener('message', receive);
+  preview.onload = () => {
+    const script = preview.contentDocument.createElement('script'); script.type = 'module';
+    script.textContent = `
+      import * as checks from '/tests/browser-smoke.mjs';
+      const rows = [], excluded = ${JSON.stringify(backend === 'webgpu' ? gpuExcluded : [])};
+      const send = status => parent.postMessage({type:'glass-app-test', backend:${JSON.stringify(backend)}, status, rows, excluded}, location.origin);
+      for (const [name, check] of Object.entries(checks)) {
+        if (${JSON.stringify(only)} && name !== ${JSON.stringify(only)}) continue;
+        if (excluded.includes(name)) continue;
+        rows.push({name,status:'running'});send('running');
+        try {
+          if (name === 'checkSwitchThemes') {
+            history.pushState(null, '', '/components/switch'); window.dispatchEvent(new PopStateEvent('popstate'));
+            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+          }
+          rows[rows.length-1] = {name,status:'pass',detail:await check()};
+        }
+        catch (error) { rows[rows.length-1] = {name,status:'fail',error:error.stack || String(error)}; }
+        send('running');
+      }
+      send(rows.some(row=>row.status==='fail')?'fail':'pass');
+    `;
+    preview.contentDocument.body.append(script);
+  };
+  // Set a stable test locale and material before the app reads persisted settings.
+  localStorage.setItem('glass-locale', 'en'); localStorage.setItem('glass-theme', 'light'); localStorage.setItem('glass-material', '{}');
+  preview.src = '/components?renderer=' + backend;
+});
+</script>
+</html>

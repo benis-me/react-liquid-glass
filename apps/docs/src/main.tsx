@@ -5,4 +5,6 @@ import "@fontsource-variable/noto-sans-sc";
 import { App } from "./App";
 import "./styles.css";
 
-createRoot(document.getElementById("root")!).render(<App />);
+// Local QA can compare backends without adding implementation controls to the site.
+const renderer = import.meta.env.DEV ? new URLSearchParams(location.search).get("renderer") : null;
+createRoot(document.getElementById("root")!).render(<App backend={renderer === "webgl2" || renderer === "webgpu" ? renderer : "auto"} />);

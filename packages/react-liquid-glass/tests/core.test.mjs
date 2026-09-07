@@ -186,3 +186,17 @@ test('popup trajectories keep a compact capsule, a live fusion neck, and one tri
     }
   }
 });
+
+test('public entries expose the GPU API and reject retired rendering APIs', async () => {
+  const root = await import('refractive-glass-react');
+  const liquid = await import('refractive-glass-react/liquid-glass');
+  for (const name of ['LiquidGlass', 'LiquidGlassCanvas', 'createLiquidGlassRenderer', 'LiquidGlassProvider']) {
+    assert.equal(root[name], liquid[name]);
+    assert.equal(typeof root[name], 'function');
+  }
+  for (const name of ['Glass', 'DezinGlass', 'GlassCanvas', 'GlassProvider', 'RefractionGroup', 'RefractionTarget', 'useGlassContext', 'useSharedLens', 'generateDisplacementMap', 'createMapGenerator', 'DEFAULT_LENS_PARAMS']) {
+    assert.ok(!(name in root) && !(name in liquid), `${name} must not retain a compatibility shim`);
+  }
+  await assert.rejects(import('refractive-glass-react/legacy'), {code:'ERR_PACKAGE_PATH_NOT_EXPORTED'});
+  assert.throws(() => createRequire(import.meta.url)('refractive-glass-react/legacy'), {code:'ERR_PACKAGE_PATH_NOT_EXPORTED'});
+});

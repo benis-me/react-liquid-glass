@@ -378,8 +378,8 @@ export function ComponentExample({
             {
               title: t("Is this a CSS filter?", "这是 CSS 滤镜吗？"),
               content: t(
-                "The Liquid material is rendered in WebGL2, with one shared SDF and optical pipeline.",
-                "Liquid 材质由 WebGL2 渲染，共用同一套 SDF 和光学管线。",
+                "The Liquid material uses WebGPU with a WebGL2 fallback, preserving the same SDF and optics.",
+                "Liquid 材质优先使用 WebGPU，回退到 WebGL2 时保留相同的 SDF 与光学效果。",
               ),
             },
             {

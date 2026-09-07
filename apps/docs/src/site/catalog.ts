@@ -357,7 +357,7 @@ export const catalog = [
       ["multiple", "boolean", "false"],
       ["lazy", "boolean", "false"],
     ],
-    code: '<GlassAccordion items={[{ title: "How does it work?", content: "One shared WebGL2 material." }]} />',
+    code: '<GlassAccordion items={[{ title: "How does it work?", content: "WebGPU optics with a WebGL2 fallback." }]} />',
   },
   {
     id: "morph-menu",
@@ -396,7 +396,7 @@ export const catalog = [
     props: [
       ["backgroundImage", "string", "grid fallback"],
       ["interactive", "boolean", "true"],
-      ["lens", "Partial<LensParams>", "calibrated preset"],
+      ["lens", "LiquidLens", "calibrated preset"],
     ],
     code: '<GlassSpotlight backgroundImage="/architecture.jpg" lens={{ lensW: 140, lensH: 140, borderRadius: 140 }} />',
   },
