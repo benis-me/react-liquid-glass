@@ -12,7 +12,7 @@ Build the library in `packages/react-liquid-glass/src/` and the documentation/de
 
 - All authored scroll regions use the shared `ScrollArea` with overlay scrollbars visible only on hover. Declare each region's scrolling axis; optical canvas bleed must not create phantom scrollbars. Material panels have one vertical scroll viewport, inset thumbs, and unclipped outer glass shadows; presets scroll horizontally only when their content actually overflows.
 
-- README cover art features the project's real rendered glass components. Do not use the black-and-white building photograph for the README cover.
+- README cover art features the project's real rendered glass on a diagonal-stripe substrate, with Orbit-style fused glass bodies and a Switch captured during an actual pointer hold so its expanded transparent lens is visible. Include a rich selection of real controls, such as Slider, Tabs, the liquid menu, inputs and buttons. Keep text and glass contours sharp with native-resolution captures; never stretch low-resolution component canvases to fill the artwork. Keep HDR, glass fusion, Apple-like motion and spring physics prominent in the opening README copy. Do not use the black-and-white building photograph for the README cover.
 
 - The home introduction has no technology-stack eyebrow or status dot; keep the removed “React · WebGL · Motion” line out.
 
