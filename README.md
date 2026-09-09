@@ -1,5 +1,7 @@
 # React Liquid Glass
 
+![React Liquid Glass — real glass components rendered with the library: a preferences card, switch, slider, tabs, button group, input and expanded morph menu.](.github/assets/readme-hero.png)
+
 A React component library built on project-owned liquid glass optics and physical motion. This repository is an npm-workspaces monorepo.
 
 - **`packages/react-liquid-glass`** — the independently buildable `refractive-glass-react` package, including the `liquid-glass` and `apple-motion` cores, 28 components, optional styles, and declarations.
