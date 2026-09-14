@@ -8,7 +8,7 @@ import {
   GlassSlider,
   GlassStage,
   GlassToggle,
-} from "refractive-glass-react/controls";
+} from "rglass/controls";
 import type { PageProps } from "../site/Pages";
 const pitches = [523.25, 392, 329.63, 261.63];
 const names = ["C5", "G4", "E4", "C4"];

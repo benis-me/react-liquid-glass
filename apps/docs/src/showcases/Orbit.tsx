@@ -5,14 +5,14 @@ import {
   motionValue,
   useReducedMotion,
 } from "motion/react";
-import { LiquidGlassCanvas, paintLiquidGrid } from "refractive-glass-react/liquid-glass";
-import { stepSpring } from "refractive-glass-react/apple-motion";
+import { LiquidGlassCanvas, paintLiquidGrid } from "rglass/liquid-glass";
+import { stepSpring } from "rglass/apple-motion";
 import {
   GlassButton,
   GlassButtonGroup,
   GlassSlider,
   GlassSwitch,
-} from "refractive-glass-react/controls";
+} from "rglass/controls";
 import type { PageProps } from "../site/Pages";
 const clamp = (value: number) => Math.max(0.18, Math.min(0.82, value));
 export function Orbit({ locale, theme }: PageProps) {

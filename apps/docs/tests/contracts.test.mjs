@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stripTypeScriptTypes } from 'node:module';
 import { execFileSync } from 'node:child_process';
-import * as library from 'refractive-glass-react/controls';
+import * as library from 'rglass/controls';
 const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
 const load = path => import(`data:text/javascript;base64,${Buffer.from(stripTypeScriptTypes(read(path))).toString('base64')}`);
 const { catalog, exampleCode, componentAliases } = await load('../src/site/catalog.ts');
@@ -28,8 +28,8 @@ test('every catalog entry has a real exported component and a type-correct stand
       assert.ok(entry.description && entry.summary && entry.props.length);
       writeFileSync(join(folder, `${entry.id}.tsx`), exampleCode(entry.id));
     }
-    writeFileSync(join(folder, 'public-api.tsx'), `import { LiquidGlass, GlassSwitch, LiquidGlassCanvas, type LiquidLens } from "refractive-glass-react";
-import { createLiquidGlassRenderer } from "refractive-glass-react/liquid-glass/renderer";
+    writeFileSync(join(folder, 'public-api.tsx'), `import { LiquidGlass, GlassSwitch, LiquidGlassCanvas, type LiquidLens } from "rglass";
+import { createLiquidGlassRenderer } from "rglass/liquid-glass/renderer";
 export const api = [LiquidGlass, GlassSwitch, LiquidGlassCanvas, createLiquidGlassRenderer];
 export const lens: LiquidLens = { depth: 10, domeDepth: 28, chromaAmount: .33 };
 // @ts-expect-error SVG map generation is no longer a lens parameter.

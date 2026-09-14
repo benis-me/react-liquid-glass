@@ -1,6 +1,8 @@
-# Design QA — Liquid menu
+# Historical design QA — Liquid menu
 
-## Current status — 2026-09-06
+This file preserves earlier visual investigations. Current behavior and acceptance criteria live in [AGENTS.md](AGENTS.md) and [design constraints](docs/design-constraints.md). These captures predate the WebGPU migration and retirement of the SVG APIs; their commands, local artifacts and pass counts are historical evidence.
+
+## Archived status — 2026-09-06
 
 Refactor baseline: rewritten `main` at `bf15f53`; implementation on `refactor`. The dated history below is retained as evidence of earlier iterations, not current acceptance criteria.
 
@@ -24,7 +26,7 @@ Verification:
 
 ## Archived QA — before the unified foundation
 
-All measurements, “passed” findings and checked items below belong to earlier captures. They do not supersede the current status above or the latest user-approved criteria in `AGENTS.md`.
+All measurements, “passed” findings and checked items below belong to earlier captures. They do not supersede the current design constraints.
 
 - Structural source: `/var/folders/3w/q39958316yq7bvbyg7ffcsmc0000gp/T/codex-clipboard-d0e7b45d-b537-4137-867c-879735d229ff.png` (768 × 1575 px at 144 dpi).
 - Regression evidence: opening edge frame `codex-clipboard-bea78dd1-588d-4b04-994a-585d5f26f879.png`; closing discontinuity frames `codex-clipboard-392a2c2f-d00f-4110-a288-9799e55f3eb0.png` and `codex-clipboard-a4492c10-3404-4f19-99db-373ba4ccea81.png`.
@@ -122,4 +124,4 @@ All measurements, “passed” findings and checked items below belong to earlie
 - [x] Uniform padding and fixed sort-row height
 - [x] Desktop motion sampling and interaction QA
 
-historical result: passed for that earlier iteration; current open items are listed above.
+Historical result: passed for that earlier iteration. Open items and local artifact paths above may be outdated.

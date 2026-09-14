@@ -7,8 +7,8 @@ import {
   Sun,
   X,
 } from "lucide-react";
-import { GlassTabs, GlassSheet, ScrollArea } from "refractive-glass-react/controls";
-import { LiquidGlassProvider, type GlassMaterial, type GlassRendererBackend } from "refractive-glass-react/liquid-glass";
+import { GlassTabs, GlassSheet, ScrollArea } from "rglass/controls";
+import { LiquidGlassProvider, type GlassMaterial, type GlassRendererBackend } from "rglass/liquid-glass";
 import { sanitizeMaterial } from "./site/material";
 import { catalog, groups, groupZh, componentAliases, type ComponentId } from "./site/catalog";
 import {

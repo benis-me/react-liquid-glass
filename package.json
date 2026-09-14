@@ -8,7 +8,7 @@
   ],
   "scripts": {
     "dev": "npm run dev --workspace @liquid-glass/docs",
-    "build:lib": "npm run build --workspace refractive-glass-react",
+    "build:lib": "npm run build --workspace rglass",
     "build:demo": "npm run build:lib && npm run build --workspace @liquid-glass/docs",
     "build": "npm run build:demo",
     "build:sites": "npm run build && node scripts/prepare-sites-build.mjs",

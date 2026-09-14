@@ -466,7 +466,7 @@ export function exampleCode(id: ComponentId) {
       ...Array.from(content.matchAll(/<([A-Z]\w+)/g), (match) => match[1]),
     ]),
   );
-  return `${setup[id] ? 'import { useState } from "react";\n' : ""}import { ${imports.join(", ")} } from "refractive-glass-react/controls";\nimport "refractive-glass-react/controls.css";\n\nexport default function Example() {\n  ${setup[id] ? setup[id] + "\n  " : ""}return (\n    <GlassStage>\n      ${content}\n    </GlassStage>\n  );\n}`;
+  return `${setup[id] ? 'import { useState } from "react";\n' : ""}import { ${imports.join(", ")} } from "rglass/controls";\nimport "rglass/controls.css";\n\nexport default function Example() {\n  ${setup[id] ? setup[id] + "\n  " : ""}return (\n    <GlassStage>\n      ${content}\n    </GlassStage>\n  );\n}`;
 }
 
 export const componentAliases: Partial<Record<string, ComponentId>> = { "liquid-button": "button", segmented: "tabs", "liquid-menu": "morph-menu" };

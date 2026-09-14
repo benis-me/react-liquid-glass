@@ -5,8 +5,8 @@ const library = resolve(import.meta.dirname, "../../packages/react-liquid-glass/
 export default defineConfig(({ command }) => ({
   plugins: [react()],
   resolve: { dedupe: ["react", "react-dom", "motion"], alias: command === "serve" ? [
-    { find: /^refractive-glass-react\/(.*)$/, replacement: `${library}/$1` },
-    { find: "refractive-glass-react", replacement: `${library}/index.ts` },
+    { find: /^rglass\/(.*)$/, replacement: `${library}/$1` },
+    { find: "rglass", replacement: `${library}/index.ts` },
   ] : [] },
   server: { host: "0.0.0.0", allowedHosts: ["terminal.local"] },
   build: { outDir: "../../dist/client", emptyOutDir: true },

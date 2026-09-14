@@ -1,10 +1,10 @@
 import { createLiquidGlassRenderer } from '../../../packages/react-liquid-glass/src/liquid-glass/renderer';
-import 'refractive-glass-react/controls.css';
+import 'rglass/controls.css';
 import { createRoot } from 'react-dom/client';
 import { createElement as h, useState } from 'react';
-import { GlassStage, GlassSwitch, GlassSlider, GlassTabs, GlassPopover, GlassVideo } from 'refractive-glass-react/controls';
-import { paintLiquidBackdrop, LiquidGlassProvider, LiquidGlassCanvas } from 'refractive-glass-react/liquid-glass';
-import type { GlassRendererBackend } from 'refractive-glass-react/liquid-glass/renderer';
+import { GlassStage, GlassSwitch, GlassSlider, GlassTabs, GlassPopover, GlassVideo } from 'rglass/controls';
+import { paintLiquidBackdrop, LiquidGlassProvider, LiquidGlassCanvas } from 'rglass/liquid-glass';
+import type { GlassRendererBackend } from 'rglass/liquid-glass/renderer';
 import { createWebGL2GlassRenderer } from '../../../packages/react-liquid-glass/src/liquid-glass/webgl2-renderer';
 import { createWebGPUGlassRenderer } from '../../../packages/react-liquid-glass/src/liquid-glass/webgpu-renderer';
 import { subscribeLiquidFrames } from '../../../packages/react-liquid-glass/src/liquid-glass/frame-events';

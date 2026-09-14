@@ -1,7 +1,7 @@
 import { memo, useMemo, useState, type Dispatch, type SetStateAction, type ReactNode } from "react";
 import { ChevronDown, RotateCcw } from "lucide-react";
-import { GlassButton, GlassTabs, GlassSlider, GlassSwitch, ScrollArea } from "refractive-glass-react/controls";
-import { PRISM_MATERIAL, useGlassMaterial, type GlassMaterial } from "refractive-glass-react/liquid-glass";
+import { GlassButton, GlassTabs, GlassSlider, GlassSwitch, ScrollArea } from "rglass/controls";
+import { PRISM_MATERIAL, useGlassMaterial, type GlassMaterial } from "rglass/liquid-glass";
 import type { Locale } from "../i18n";
 import { materialFields, type MaterialState } from "./material";
 const presets: {

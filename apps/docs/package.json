@@ -18,6 +18,6 @@
     "motion": "13.1.1",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "refractive-glass-react": "0.1.0"
+    "rglass": "0.1.1"
   }
 }

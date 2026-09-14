@@ -16,7 +16,7 @@ import {
   GlassInput,
   GlassPopover,
   ScrollArea,
-} from "refractive-glass-react/controls";
+} from "rglass/controls";
 import {
   catalog,
   groups,
@@ -453,8 +453,8 @@ export function Installation({ locale }: PageProps) {
         <h2>{zh ? "从仓库开始" : "Start from the repository"}</h2>
         <p>
           {zh
-            ? "这个版本尚未发布到 npm。你可以在 monorepo 内直接使用，或将构建好的包安装到自己的项目。"
-            : "This version is not published to npm yet. Use it within the monorepo, or install a built package in your own project."}
+            ? "克隆仓库可在本地运行文档和示例。要在自己的 React 项目中使用，请安装 npm 包 rglass。"
+            : "Clone the repository to run the docs and examples locally. Install rglass from npm to use it in your own React project."}
         </p>
         <CodeBlock
           label="Terminal"
@@ -470,13 +470,13 @@ export function Installation({ locale }: PageProps) {
           label="Terminal"
           locale={locale}
           code={
-            "# In this repository\nnpm run build:lib\nnpm pack --workspace refractive-glass-react\n\n# In your React project (use the actual tarball path)\nnpm install /path/to/refractive-glass-react-0.1.0.tgz\nnpm install react@^19 react-dom@^19 motion@^13"
+            "npm install rglass react@^19 react-dom@^19 motion@^13"
           }
         />
         <CodeBlock
           locale={locale}
           code={
-            'import { GlassButton, GlassStage } from "refractive-glass-react/controls";\nimport "refractive-glass-react/controls.css";\n\nexport default function App() {\n  return (\n    <GlassStage style={{ padding: 48 }}>\n      <GlassButton onClick={() => alert("Hello, glass.")}>\n        Hello, glass\n      </GlassButton>\n    </GlassStage>\n  );\n}'
+            'import { GlassButton, GlassStage } from "rglass/controls";\nimport "rglass/controls.css";\n\nexport default function App() {\n  return (\n    <GlassStage style={{ padding: 48 }}>\n      <GlassButton onClick={() => alert("Hello, glass.")}>\n        Hello, glass\n      </GlassButton>\n    </GlassStage>\n  );\n}'
           }
         />
       </section>
@@ -492,7 +492,7 @@ export function Installation({ locale }: PageProps) {
         <CodeBlock
           locale={locale}
           code={
-            'import { LiquidGlassProvider } from "refractive-glass-react/liquid-glass";\nimport { stepSpring } from "refractive-glass-react/apple-motion";\nimport { GlassButton } from "refractive-glass-react/controls";\n\n// An interrupted spring retains its current velocity.\nconst state = stepSpring(0, 20, 1, {\n  stiffness: 170, damping: 22, mass: 1,\n}, 1 / 60);\n\n// Empty material preserves every component’s calibrated defaults.\n<LiquidGlassProvider material={{ chromaAmount: 0.24 }}>\n  <GlassButton>Continue</GlassButton>\n</LiquidGlassProvider>;'
+            'import { LiquidGlassProvider } from "rglass/liquid-glass";\nimport { stepSpring } from "rglass/apple-motion";\nimport { GlassButton } from "rglass/controls";\n\n// An interrupted spring retains its current velocity.\nconst state = stepSpring(0, 20, 1, {\n  stiffness: 170, damping: 22, mass: 1,\n}, 1 / 60);\n\n// Empty material preserves every component’s calibrated defaults.\n<LiquidGlassProvider material={{ chromaAmount: 0.24 }}>\n  <GlassButton>Continue</GlassButton>\n</LiquidGlassProvider>;'
           }
         />
         <Link className="text-link" href="/playground">

@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import type { Locale } from "../i18n";
-import { GlassMorphMenu } from "refractive-glass-react/controls";
+import { GlassMorphMenu } from "rglass/controls";
 import {
   Check,
   ChevronRight,

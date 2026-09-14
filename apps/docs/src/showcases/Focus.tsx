@@ -9,7 +9,7 @@ import {
   GlassSurface,
   GlassTextarea,
   GlassToast,
-} from "refractive-glass-react/controls";
+} from "rglass/controls";
 import type { PageProps } from "../site/Pages";
 export function Focus({ locale }: PageProps) {
   const zh = locale === "zh";

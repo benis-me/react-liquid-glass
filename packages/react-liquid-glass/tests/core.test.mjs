@@ -2,12 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createRequire } from 'node:module';
 import { readFileSync, readdirSync } from 'node:fs';
-import * as physics from 'refractive-glass-react/apple-motion';
-import { springTo, popoverFrames } from 'refractive-glass-react/apple-motion/react';
+import * as physics from 'rglass/apple-motion';
+import { springTo, popoverFrames } from 'rglass/apple-motion/react';
 import { motionValue } from 'motion';
-import { LiquidMenu, GlassSwitch, GlassSlider, GlassSegmented } from 'refractive-glass-react/controls';
-import { createLiquidGlassRenderer, LIQUID_GLASS_MATERIAL } from 'refractive-glass-react/liquid-glass/renderer';
-import { liquidSurfaceBlur } from 'refractive-glass-react/liquid-glass';
+import { LiquidMenu, GlassSwitch, GlassSlider, GlassSegmented } from 'rglass/controls';
+import { createLiquidGlassRenderer, LIQUID_GLASS_MATERIAL } from 'rglass/liquid-glass/renderer';
+import { liquidSurfaceBlur } from 'rglass/liquid-glass';
 
 const near = (actual, expected, epsilon = 1e-9) => assert.ok(Math.abs(actual - expected) <= epsilon, `${actual} != ${expected}`);
 const configurations = [
@@ -97,9 +97,9 @@ test('cancelled Motion springs settle their completion promise without losing th
 test('independent package entries expose real reusable implementations in ESM and CommonJS', () => {
   for (const api of [LiquidMenu, GlassSwitch, GlassSlider, GlassSegmented, createLiquidGlassRenderer]) assert.equal(typeof api, 'function');
   const require = createRequire(import.meta.url);
-  assert.equal(typeof require('refractive-glass-react/apple-motion').stepSpring, 'function');
-  assert.equal(require('refractive-glass-react/liquid-glass/renderer').LIQUID_GLASS_MATERIAL.chromaAmount, LIQUID_GLASS_MATERIAL.chromaAmount);
-  assert.equal(typeof require('refractive-glass-react/controls').LiquidMenu, 'function');
+  assert.equal(typeof require('rglass/apple-motion').stepSpring, 'function');
+  assert.equal(require('rglass/liquid-glass/renderer').LIQUID_GLASS_MATERIAL.chromaAmount, LIQUID_GLASS_MATERIAL.chromaAmount);
+  assert.equal(typeof require('rglass/controls').LiquidMenu, 'function');
 });
 
 test('neither core imports the other implementation, control views, or demo code', () => {
@@ -188,8 +188,8 @@ test('popup trajectories keep a compact capsule, a live fusion neck, and one tri
 });
 
 test('public entries expose the GPU API and reject retired rendering APIs', async () => {
-  const root = await import('refractive-glass-react');
-  const liquid = await import('refractive-glass-react/liquid-glass');
+  const root = await import('rglass');
+  const liquid = await import('rglass/liquid-glass');
   for (const name of ['LiquidGlass', 'LiquidGlassCanvas', 'createLiquidGlassRenderer', 'LiquidGlassProvider']) {
     assert.equal(root[name], liquid[name]);
     assert.equal(typeof root[name], 'function');
@@ -197,6 +197,6 @@ test('public entries expose the GPU API and reject retired rendering APIs', asyn
   for (const name of ['Glass', 'DezinGlass', 'GlassCanvas', 'GlassProvider', 'RefractionGroup', 'RefractionTarget', 'useGlassContext', 'useSharedLens', 'generateDisplacementMap', 'createMapGenerator', 'DEFAULT_LENS_PARAMS']) {
     assert.ok(!(name in root) && !(name in liquid), `${name} must not retain a compatibility shim`);
   }
-  await assert.rejects(import('refractive-glass-react/legacy'), {code:'ERR_PACKAGE_PATH_NOT_EXPORTED'});
-  assert.throws(() => createRequire(import.meta.url)('refractive-glass-react/legacy'), {code:'ERR_PACKAGE_PATH_NOT_EXPORTED'});
+  await assert.rejects(import('rglass/legacy'), {code:'ERR_PACKAGE_PATH_NOT_EXPORTED'});
+  assert.throws(() => createRequire(import.meta.url)('rglass/legacy'), {code:'ERR_PACKAGE_PATH_NOT_EXPORTED'});
 });

@@ -1,25 +1,33 @@
-# refractive-glass-react
+# rglass
 
 Project-owned liquid glass optics, physical motion and accessible React components. React 19 and Motion 13 are peer dependencies. ESM, CommonJS and TypeScript declarations are included.
+
+## Install
+
+```sh
+npm install rglass react@^19 react-dom@^19 motion@^13
+```
+
+[Documentation and live examples](https://react-liquid-glass-alpha.vercel.app/).
 
 ## Entry points
 
 | Entry | Responsibility |
 | --- | --- |
-| `refractive-glass-react/liquid-glass` | SDF geometry, continuous material, Canvas surfaces, explicit substrates, `LiquidGlassProvider` |
-| `refractive-glass-react/liquid-glass/renderer` | WebGPU-first renderer with WebGL2 fallback for canvas, image and video sources |
-| `refractive-glass-react/apple-motion` | Analytic damped springs, trajectories, velocity and deformation presets; framework-independent |
-| `refractive-glass-react/apple-motion/react` | Motion/React adapters, continuous springs and pointer-release recovery |
-| `refractive-glass-react/controls` | Ready-to-use React components |
-| `refractive-glass-react/controls.css` | Optional component styles, independent of the documentation site |
-| `refractive-glass-react` | Convenience exports for the current Liquid renderer, controls and motion values |
+| `rglass/liquid-glass` | SDF geometry, continuous material, Canvas surfaces, explicit substrates, `LiquidGlassProvider` |
+| `rglass/liquid-glass/renderer` | WebGPU-first renderer with WebGL2 fallback for canvas, image and video sources |
+| `rglass/apple-motion` | Analytic damped springs, trajectories, velocity and deformation presets; framework-independent |
+| `rglass/apple-motion/react` | Motion/React adapters, continuous springs and pointer-release recovery |
+| `rglass/controls` | Ready-to-use React components |
+| `rglass/controls.css` | Optional component styles, independent of the documentation site |
+| `rglass` | Convenience exports for the current Liquid renderer, controls and motion values |
 
-The core APIs do not import CSS. Import `controls.css` explicitly when using styled controls. Fonts and icons are not runtime dependencies of the library.
+The core APIs do not import CSS. Import `controls.css` explicitly when using styled controls. The library does not bundle fonts. Lucide icons and Radix ScrollArea are installed as dependencies.
 
 ```tsx
-import { GlassStage, GlassButton, GlassSwitch } from "refractive-glass-react/controls";
-import { LiquidGlassProvider } from "refractive-glass-react/liquid-glass";
-import "refractive-glass-react/controls.css";
+import { GlassStage, GlassButton, GlassSwitch } from "rglass/controls";
+import { LiquidGlassProvider } from "rglass/liquid-glass";
+import "rglass/controls.css";
 
 export function Settings() {
   return (
@@ -52,7 +60,7 @@ Dialog and Sheet share Popover's stable trigger/body compositor, with longer ope
 ## Independent motion
 
 ```ts
-import { stepSpring } from "refractive-glass-react/apple-motion";
+import { stepSpring } from "rglass/apple-motion";
 
 const [position, velocity] = stepSpring(
   0, 20, 1,
@@ -90,7 +98,7 @@ WebGPU surfaces share one device and batch their commands while presenting direc
 ```sh
 npm ci
 npm run build:lib
-npm pack --workspace refractive-glass-react
+npm pack --workspace rglass
 ```
 
 The package includes built code, optional styles and declarations; it excludes docs, videos and other site assets. No npm publication is performed by these commands.
@@ -114,3 +122,7 @@ Changing the provider's backend selection retries that selection after a failure
 Published declarations use the consumer's DOM WebGPU types. The development-only `@webgpu/types` package is not referenced by public declarations and does not inject duplicate globals into applications using current TypeScript.
 
 The docs dev server accepts `?renderer=webgl2` or `?renderer=webgpu` for comparison; production always uses automatic selection. `/tests/browser-smoke.html` runs the application checks in either mode; checks that inspect GL uniforms are marked separately and run in WebGL2. `/tests/gpu-parity.html` compares asymmetric sources at identical geometry/DPR, rejects empty renders, and exercises recovery, backend switching, HDR and performance. The floating-point HDR fixture can run on SDR hardware; it does not verify a physical HDR display's brightness or gamut. Performance results are workload/device-specific; API selection alone does not establish a speedup.
+
+## License
+
+MIT. See [LICENSE](./LICENSE).

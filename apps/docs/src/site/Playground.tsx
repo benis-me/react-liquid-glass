@@ -8,7 +8,7 @@ import {
   GlassSurface,
   ScrollArea,
   type GlassBackground,
-} from "refractive-glass-react/controls";
+} from "rglass/controls";
 import { catalog, componentAliases, type ComponentId } from "./catalog";
 import { ComponentExample } from "./ComponentExample";
 import { CodeBlock, PageHeading, type PageProps } from "./Pages";
@@ -123,7 +123,7 @@ export function Playground({ locale, theme, material, setMaterial }: PageProps &
             <GlassAccordion items={[{ title: zh ? "材质配置" : "Material configuration", content: (
             <CodeBlock
               locale={locale}
-              code={`import { LiquidGlassProvider } from "refractive-glass-react/liquid-glass";\n\n<LiquidGlassProvider material={${JSON.stringify(material, null, 2)}}>\n  {/* Your glass components */}\n</LiquidGlassProvider>`}
+              code={`import { LiquidGlassProvider } from "rglass/liquid-glass";\n\n<LiquidGlassProvider material={${JSON.stringify(material, null, 2)}}>\n  {/* Your glass components */}\n</LiquidGlassProvider>`}
             />
             ) }]} />
           </div>

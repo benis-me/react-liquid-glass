@@ -26,7 +26,7 @@ import {
   GlassToggle,
   GlassTooltip,
   GlassVideo,
-} from "refractive-glass-react/controls";
+} from "rglass/controls";
 import { MorphMenuDemo } from "../demos/MorphMenuDemo";
 import type { Locale } from "../i18n";
 import type { ComponentId } from "./catalog";

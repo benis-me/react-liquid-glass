@@ -768,12 +768,12 @@ test("runtime styling uses the project-owned namespace and private references st
 
 test("core library stays CSS-free while optional controls ship standalone styles", () => {
   assert.doesNotMatch(libraryIndexSource, /import ["']\.\/(?:style|controls)\.css["']/);
-  assert.match(stylesSource, /@import "refractive-glass-react\/controls\.css"/);
+  assert.match(stylesSource, /@import "rglass\/controls\.css"/);
   assert.equal(JSON.parse(packageSource).exports["./controls.css"].default, "./dist/controls.css");
   assert.doesNotMatch(packageSource, /"\.\/style\.css"/);
   assert.match(libraryConfigSource, /copyFileSync\(resolve\(import\.meta\.dirname, "src\/controls\.css"\), resolve\(libraryDir, "controls\.css"\)\)/);
-  assert.doesNotMatch(readmeSource, /refractive-glass-react\/style\.css/);
-  assert.match(readmeSource, /refractive-glass-react\/controls\.css/);
+  assert.doesNotMatch(readmeSource, /rglass\/style\.css/);
+  assert.match(readmeSource, /rglass\/controls\.css/);
   assert.match(libraryStylesSource, /--dg-control-accent: var\(--primary, light-dark\(#262626, #dededb\)\)/);
   assert.match(libraryStylesSource, /--dg-control-track: var\(--bg-4, light-dark\(#dcdcd8, #2c2c2c\)\)/);
 });

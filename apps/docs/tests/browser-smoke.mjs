@@ -93,7 +93,7 @@ export async function checkPlaygroundNavigation() {
 }
 
 export async function checkDisclosureMotion() {
-  const {subscribeLiquidFrames}=await import('refractive-glass-react/liquid-glass/renderer');
+  const {subscribeLiquidFrames}=await import('rglass/liquid-glass/renderer');
   await go('/playground?component=button');
   const trigger=document.querySelector('.playground-code button[aria-expanded]');
   const panel=document.querySelector('.playground-code [role=region]');
@@ -160,7 +160,7 @@ export async function checkBackdropBatching() {
 
 export async function checkGlobalMaterial() {
   const original=localStorage.getItem('glass-material')??'{}';
-  const {createLiquidGlassRenderer,subscribeLiquidFrames}=await import('refractive-glass-react/liquid-glass/renderer');
+  const {createLiquidGlassRenderer,subscribeLiquidFrames}=await import('rglass/liquid-glass/renderer');
   const probe=createLiquidGlassRenderer(document.createElement('canvas'),{shared:true,backend:'webgl2'}); await probe.ready;
   const drawn=new Map();
   const stop=subscribeLiquidFrames(canvas=>{
@@ -602,7 +602,7 @@ export async function checkContactFeedback() {
 }
 
 async function captureLiquidCanvas(canvas) {
-  const {subscribeLiquidFrames} = await import('refractive-glass-react/liquid-glass/renderer');
+  const {subscribeLiquidFrames} = await import('rglass/liquid-glass/renderer');
   const snapshot = document.createElement('canvas'); snapshot.width = snapshot.height = 0;
   const stop = subscribeLiquidFrames(target => {
     if(target !== canvas) return;
@@ -640,7 +640,7 @@ export async function checkSharedBackdrops() {
     } finally { captured.stop();spacer.remove();substrate.style.display='';stage.prepend(substrate);stage.style.backgroundColor=''; }
   }
   await go('/components/button');
-  const {subscribeLiquidFrames}=await import('refractive-glass-react/liquid-glass/renderer');
+  const {subscribeLiquidFrames}=await import('rglass/liquid-glass/renderer');
   await new Promise(resolve=>setTimeout(resolve,600));
   let frames=0;const stop=subscribeLiquidFrames(()=>frames++);
   try { await new Promise(resolve=>setTimeout(resolve,250));assert(frames===0,`Backdrop feedback keeps rendering at rest: ${frames}`); }
@@ -716,7 +716,7 @@ export async function checkViewportBackdrop() {
   document.body.append(probe);
   const source = document.createElement('canvas'); source.width = source.height = 80;
   const sourceContext = source.getContext('2d');
-  const {createLiquidGlassRenderer, subscribeLiquidFrames} = await import('refractive-glass-react/liquid-glass/renderer');
+  const {createLiquidGlassRenderer, subscribeLiquidFrames} = await import('rglass/liquid-glass/renderer');
   const renderer = createLiquidGlassRenderer(probe, {shared:true,backend:'webgl2'}); await renderer.ready;
   const pixel = () => captured.snapshot.getContext('2d').getImageData(Math.round((rect.left + 80 - view.left) * 2), Math.round((rect.top + 230 - view.top) * 2), 1, 1).data;
   const draw = color => { sourceContext.fillStyle=color;sourceContext.fillRect(0,0,80,80);renderer.draw({source,sourceRevision:color==='rgb(20, 200, 40)'?1:2,width:80,height:80,blobs:[]}); };
@@ -905,7 +905,7 @@ export async function checkContactHDR() {
 
 export async function checkMaterialOptics() {
   const { createWebGL2GlassRenderer } = await import('../../../packages/react-liquid-glass/src/liquid-glass/webgl2-renderer.ts');
-  const { liquidSurfaceBlur } = await import('refractive-glass-react/liquid-glass');
+  const { liquidSurfaceBlur } = await import('rglass/liquid-glass');
   const { SURFACE_MATERIAL } = await import('../../../packages/react-liquid-glass/src/controls/GlassSurface.tsx');
   const source=document.createElement('canvas'), canvas=document.createElement('canvas'), mask=document.createElement('canvas');
   source.width=mask.width=320; source.height=mask.height=220;
@@ -996,7 +996,7 @@ export async function checkConsolidatedControls() {
 }
 export async function checkModalMotion() {
   await document.fonts.ready;
-  const {subscribeLiquidFrames}=await import('refractive-glass-react/liquid-glass/renderer');
+  const {subscribeLiquidFrames}=await import('rglass/liquid-glass/renderer');
   const results=[];
   for(const id of ['dialog','sheet']) {
     await go(`/components/${id}`);
@@ -1107,7 +1107,7 @@ export async function checkHDRPreference() {
 export async function checkControlledModal() {
   const {createElement: h, useState}=await import('react');
   const {createRoot}=await import('react-dom/client');
-  const {GlassButton, GlassDialog}=await import('refractive-glass-react/controls');
+  const {GlassButton, GlassDialog}=await import('rglass/controls');
   document.activeElement instanceof HTMLElement && document.activeElement.blur();
   const host=document.createElement('div');Object.assign(host.style,{position:'fixed',left:'30px',top:'120px',zIndex:'10'});document.body.append(host);
   const root=createRoot(host);

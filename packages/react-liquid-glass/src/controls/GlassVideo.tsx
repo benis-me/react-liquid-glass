@@ -191,8 +191,9 @@ export function GlassVideo({ src, poster, caption, autoPlay = false, loop = true
       const rendered = renderer.draw({
         source: video, sourceRevision, width, height, blobs, pixelRatio: ratio,
         opacity: strengthRef.current, edgeDepth: 9, tintStrength: .045,
-        shadowStrength: .11, mergeDistance: 32,
+        shadowStrength: .11,
         ...materialRef.current,
+        mergeDistance: 0,
       });
       if (progressRef.current && Number.isFinite(video.duration) && video.duration > 0) {
         progressRef.current.style.width = `${(video.currentTime / video.duration) * 100}%`;
