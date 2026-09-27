@@ -110,6 +110,12 @@ export function GlassVideo({ src, sources, poster, caption, autoPlay = false, lo
   const candidates = [...(sources ?? []), { src, type: undefined as string | undefined }].filter((candidate, index, all) => all.findIndex(other => other.src === candidate.src) === index);
   const sourceKey = candidates.map(candidate => candidate.src).join("|");
   useEffect(() => { ensureDrawRef.current(); }, [material]);
+  // Localized value text follows label changes at once, even while paused or offscreen.
+  useEffect(() => {
+    const video = videoRef.current, bar = barRef.current;
+    if (!video || !bar || !Number.isFinite(video.duration) || video.duration <= 0) return;
+    bar.setAttribute("aria-valuetext", text.progressValue.replace("{current}", clock(video.currentTime)).replace("{duration}", clock(video.duration)));
+  }, [text.progressValue]);
   // Browsers only pick among <source> children again after an explicit load().
   const loadedSources = useRef(sourceKey);
   useEffect(() => {
