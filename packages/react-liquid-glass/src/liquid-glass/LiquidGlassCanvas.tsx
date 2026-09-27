@@ -48,11 +48,14 @@ export function LiquidGlassCanvas(props: LiquidGlassCanvasProps) {
     let renderer: ReturnType<typeof createLiquidGlassRenderer>;
     try { renderer = createLiquidGlassRenderer(canvas, { backend, shared: props.shared, onReady: scheduleDraw, onRestore: scheduleDraw, onFallback }); }
     catch (error) { canvas.dataset.dgRenderer = "unavailable"; console.error(error); return; }
-    let visible = false;
+    let visible = false, unrendered = false;
     const dynamicRange = matchMedia("(dynamic-range: high)");
     const draw = () => {
       const p = config.current;
       const source = p.sourceRef.current;
+      // Chromium does not report a canvas again after it was moved while not
+      // rendered, such as into a popover before it opens; observe it afresh.
+      if (unrendered && !document.hidden) { unrendered = false; observer.unobserve(canvas); observer.observe(canvas); }
       if (!visible || document.hidden || !source) return;
       renderer.draw({
         ...p, source, content: p.contentRef?.current,
@@ -64,8 +67,11 @@ export function LiquidGlassCanvas(props: LiquidGlassCanvasProps) {
     };
     drawRef.current = draw;
     // Keep the first draw lazy. Dozens of offscreen experiment controls do no GPU work.
-    const observer = new IntersectionObserver(([entry]) => {
+    const observer = new IntersectionObserver(entries => {
+      const entry = entries[entries.length - 1];
       visible = entry.isIntersecting;
+      // An empty box means display: none or detached, not merely offscreen.
+      unrendered = !visible && !entry.boundingClientRect.width && !entry.boundingClientRect.height;
       if (visible) scheduleDraw(); else { cancelFrame(drawFrame); renderer.suspend(); }
     }, { rootMargin: "80px 0px" });
     observer.observe(canvas);

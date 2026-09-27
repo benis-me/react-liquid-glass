@@ -16,6 +16,8 @@ const paint = () => new Promise(resolve => requestAnimationFrame(() => requestAn
 const go = async path => {
   history.pushState(null, '', path); window.dispatchEvent(new PopStateEvent('popstate')); pageViewport().scrollTo(0, 0);
   await until(() => location.pathname === path.split('?')[0], `Navigation failed: ${path}`); await paint();
+  // Playground and guides are lazy routes; wait for their Suspense fallback to resolve.
+  await until(() => !document.querySelector('.page-loading'), `Route did not load: ${path}`, 15000); await paint();
 };
 const click = (selector, parent = document) => { const element = parent.querySelector(selector); assert(element, `Missing ${selector}`); element.focus({ preventScroll: true }); element.click(); return element; };
 const input = (element, value) => { assert(element, 'Input missing'); Object.getOwnPropertyDescriptor(element instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype, 'value').set.call(element, value); element.dispatchEvent(new Event('input', { bubbles: true })); };
