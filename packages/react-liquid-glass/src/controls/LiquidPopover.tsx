@@ -67,7 +67,8 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
   // Relative geometry only: viewport translation moves the host, not React state.
   const [frame, setFrame] = useState({ width: 1, height: 1, tx: 0, ty: 0, tw: 1, th: 1, tr: 16, px: 0, py: 0, pw: 1, ph: 1 });
   const resting = useRef<{ width: number; height: number; dx: number; dy: number; bodyX: number; bodyY: number } | null>(null);
-  const foreignScroll = useRef(false);
+  // Content beneath a resting trigger changed without moving it.
+  const backdropStale = useRef(false);
   const callback = useRef(onOpenChange); callback.current = onOpenChange;
   const change = (next: boolean) => { setLocal(next); callback.current?.(next); };
   const changeRef = useRef(change); changeRef.current = change;
@@ -129,8 +130,8 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
     if (!isShowing && !activeRef.current && rest && !mirrorDirty.current && rest.width === rect.width && rest.height === rect.height) {
       backdropBounds.current = { ...backdropBounds.current, left: rect.left + rest.dx, top: rect.top + rest.dy };
       const bodyX = rect.left - body.left, bodyY = rect.top - body.top;
-      if (foreignScroll.current || Math.abs(bodyX - rest.bodyX) > .01 || Math.abs(bodyY - rest.bodyY) > .01) {
-        rest.bodyX = bodyX; rest.bodyY = bodyY; foreignScroll.current = false;
+      if (backdropStale.current || Math.abs(bodyX - rest.bodyX) > .01 || Math.abs(bodyY - rest.bodyY) > .01) {
+        rest.bodyX = bodyX; rest.bodyY = bodyY; backdropStale.current = false;
         scheduleLiquidBackdrop(refreshBackdrop);
       }
       return;
@@ -196,7 +197,7 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
     const canvas = source.current ?? document.createElement("canvas"); source.current = canvas;
     backdropBounds.current = { left: fl, top: ft, width: fw, height: fh };
     resting.current = isShowing ? null : { width: rect.width, height: rect.height, dx: fl - rect.left, dy: ft - rect.top, bodyX: rect.left - body.left, bodyY: rect.top - body.top };
-    foreignScroll.current = false;
+    backdropStale.current = false;
     scheduleLiquidBackdrop(refreshBackdrop);
   };
   useLayoutEffect(() => {
@@ -210,19 +211,21 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
     const scroll = (event: Event) => {
       if (event.target instanceof Node && panel.current?.contains(event.target)) return;
       // A nested scroller that does not carry the trigger moves content beneath it.
-      if (event.target instanceof Element && anchor.current && !event.target.contains(anchor.current)) foreignScroll.current = true;
+      if (event.target instanceof Element && anchor.current && !event.target.contains(anchor.current)) backdropStale.current = true;
       update();
     };
+    // A viewport resize can reflow content beneath a trigger that stays put.
+    const resized = () => { backdropStale.current = true; update(); };
     const resize = new ResizeObserver(() => { mirrorDirty.current = true; update(); });
     if (anchor.current) resize.observe(anchor.current);
     if (panel.current) resize.observe(panel.current);
-    window.addEventListener("resize", update); window.addEventListener("scroll", scroll, true);
+    window.addEventListener("resize", resized); window.addEventListener("scroll", scroll, true);
     const viewport = window.visualViewport;
-    viewport?.addEventListener("resize", update); viewport?.addEventListener("scroll", update);
+    viewport?.addEventListener("resize", resized); viewport?.addEventListener("scroll", update);
     return () => {
       cancelFrame(measure); cancelLiquidBackdrop(refreshBackdrop); resize.disconnect();
-      window.removeEventListener("resize", update); window.removeEventListener("scroll", scroll, true);
-      viewport?.removeEventListener("resize", update); viewport?.removeEventListener("scroll", update); host?.remove();
+      window.removeEventListener("resize", resized); window.removeEventListener("scroll", scroll, true);
+      viewport?.removeEventListener("resize", resized); viewport?.removeEventListener("scroll", update); host?.remove();
     };
   }, [host, stage]);
   useEffect(() => {
