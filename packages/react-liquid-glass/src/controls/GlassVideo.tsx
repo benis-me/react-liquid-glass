@@ -15,6 +15,7 @@ import { useGlassMaterial } from "../liquid-glass/provider";
 import { useRendererBackend } from "../liquid-glass/use-renderer-backend";
 import { createLiquidGlassRenderer, type LiquidGlassBlob } from "../liquid-glass/renderer";
 import { usePointerReleaseFallback } from "../apple-motion/react";
+import { useReducedMotionPreference } from "../liquid-glass/light";
 
 function SourceVideoIcon({ source }: { source: string }) {
   return <span className="dg-video-player__source-icon" aria-hidden="true" dangerouslySetInnerHTML={{ __html: source }} />;
@@ -103,9 +104,13 @@ export function GlassVideo({ src, sources, poster, caption, autoPlay = false, lo
   const seekPointerRef = useRef<number | null>(null);
   const resumeAfterSeekRef = useRef(false);
   const [ready, setReady] = useState(false);
-  // Reduced motion turns autoplay off; the play control still starts the video.
-  const autoPlaying = autoPlay && !reduce;
-  const [playing, setPlaying] = useState(autoPlaying);
+  // Starts false on the server and client alike; the play event reports playback.
+  const [playing, setPlaying] = useState(false);
+  // Autoplay starts on the client once the reduced-motion preference is known, never
+  // from server markup, and stops again if the preference turns on mid-playback.
+  // Playback the reader started stays theirs. The play control always works.
+  const reducePreference = useReducedMotionPreference();
+  const autoplay = useRef({ key: "", state: "pending" as "pending" | "playing" | "done" });
   const [controlsVisible, setControlsVisible] = useState(true);
   const text = { ...defaultLabels, ...labels };
   const textRef = useRef(text); textRef.current = text;
@@ -126,6 +131,19 @@ export function GlassVideo({ src, sources, poster, caption, autoPlay = false, lo
     if (loadedSources.current !== sourceKey && sources?.length) videoRef.current?.load();
     loadedSources.current = sourceKey;
   }, [sourceKey, sources?.length]);
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !autoPlay) return;
+    if (autoplay.current.key !== sourceKey) autoplay.current = { key: sourceKey, state: "pending" };
+    // Read the live query: a hydrating render still carries the server's snapshot.
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      if (autoplay.current.state === "playing") { autoplay.current.state = "done"; video.pause(); }
+      return;
+    }
+    if (autoplay.current.state !== "pending") return;
+    autoplay.current.state = "playing";
+    void video.play().catch(() => { autoplay.current.state = "done"; });
+  }, [autoPlay, reducePreference, sourceKey]);
 
   useEffect(() => {
     strengthTargetRef.current = controlsVisible ? 1 : 0;
@@ -348,6 +366,7 @@ export function GlassVideo({ src, sources, poster, caption, autoPlay = false, lo
   const togglePlayback = useCallback(() => {
     const video = videoRef.current;
     if (!video) return;
+    autoplay.current.state = "done";
     if (video.paused) void video.play().catch(() => setPlaying(false));
     else video.pause();
   }, []);
@@ -440,7 +459,6 @@ export function GlassVideo({ src, sources, poster, caption, autoPlay = false, lo
             src={sources?.length ? undefined : src}
             crossOrigin="anonymous"
             onError={() => setLoadError(true)}
-            autoPlay={autoPlaying}
             muted={muted}
             loop={loop}
             playsInline

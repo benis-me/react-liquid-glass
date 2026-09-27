@@ -19,6 +19,10 @@ test("controls render static markup on the server", async () => {
   assert.match(html, /type="range"/);
   assert.match(html, /role="tablist"/);
   assert.doesNotMatch(html, /data-dg-tone/, "tone is measured after hydration, never on the server");
+  // The reduced-motion preference is unknown on the server, so autoplay starts on the client.
+  const video = renderToString(h(lib.GlassVideo, { src: "/film.mp4", autoPlay: true, muted: true }));
+  assert.match(video, /<video/);
+  assert.doesNotMatch(video, /autoplay/i, "server markup must not autoplay before the preference is known");
 });
 
 test("React entries are client modules; the renderer and motion cores are not", () => {
