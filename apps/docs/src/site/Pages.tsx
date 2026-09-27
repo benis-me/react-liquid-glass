@@ -27,6 +27,7 @@ import {
 import { MaterialControls } from "./MaterialControls";
 import type { MaterialState } from "./material";
 import { ComponentExample, PHOTO } from "./ComponentExample";
+import { propNote } from "./prop-notes";
 import { Link } from "./router";
 import type { Locale } from "../i18n";
 export type PageProps = { locale: Locale; theme: "light" | "dark" };
@@ -395,6 +396,7 @@ export function ComponentPage({
                 <th>{zh ? "属性" : "Prop"}</th>
                 <th>{zh ? "类型" : "Type"}</th>
                 <th>{zh ? "默认值" : "Default"}</th>
+                <th>{zh ? "说明" : "Description"}</th>
               </tr>
             </thead>
             <tbody>
@@ -407,6 +409,7 @@ export function ComponentPage({
                     <code>{type}</code>
                   </td>
                   <td>{fallback}</td>
+                  <td className="api-description">{propNote(id, prop)?.[zh ? 1 : 0]}</td>
                 </tr>
               ))}
             </tbody>

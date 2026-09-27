@@ -13,7 +13,7 @@ import {
   type TextareaHTMLAttributes,
 } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, X } from "lucide-react";
 import { LiquidPopover, useClosePopover } from "./LiquidPopover";
 import { usePointerReleaseFallback } from "../apple-motion/react";
 import { GlassSurface } from "./GlassSurface";
@@ -470,17 +470,31 @@ export function GlassToast({
   const reduce = useReducedMotion();
   const close = useRef(onClose);
   close.current = onClose;
+  // Hover or focus holds the message (WCAG 2.2.1); it resumes with the time left.
+  const [held, setHeld] = useState(false);
+  const remaining = useRef(duration);
+  // A toast that closes under the pointer never sees pointerleave; start each showing fresh.
+  useEffect(() => { remaining.current = duration; setHeld(false); }, [open, duration]);
   useEffect(() => {
-    if (!open || duration <= 0) return;
-    const timer = setTimeout(() => close.current(), duration);
-    return () => clearTimeout(timer);
-  }, [open, duration]);
+    if (!open || duration <= 0 || held) return;
+    const started = performance.now();
+    const timer = setTimeout(() => close.current(), Math.max(1000, remaining.current));
+    return () => {
+      clearTimeout(timer);
+      remaining.current = Math.max(0, remaining.current - (performance.now() - started));
+    };
+  }, [open, duration, held]);
   return (
     <motion.div className="dg-toast" role="status" aria-live="polite" initial={false}
       style={{ display: "grid" }} animate={{ gridTemplateRows: open ? "1fr" : "0fr" }} transition={{ duration: reduce ? 0 : .24, ease: [.32, 0, .2, 1] }}>
       <AnimatePresence initial={false}>
       {open && (
-        <motion.div key="toast" style={{ minHeight: 0 }} initial={reduce ? false : { opacity: 0, transform: "translateY(16px) scale(.96)" }} animate={{ opacity: 1, transform: "translateY(0px) scale(1)" }} exit={{ opacity: 0, transform: "translateY(16px) scale(.96)" }} transition={{ duration: reduce ? 0 : .24, ease: [.23, 1, .32, 1] }}>
+        <motion.div key="toast" style={{ minHeight: 0 }}
+          onPointerEnter={event => { if (event.pointerType === "mouse") setHeld(true); }}
+          onPointerLeave={event => { if (event.pointerType === "mouse") setHeld(false); }}
+          onFocus={() => setHeld(true)}
+          onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setHeld(false); }}
+          initial={reduce ? false : { opacity: 0, transform: "translateY(16px) scale(.96)" }} animate={{ opacity: 1, transform: "translateY(0px) scale(1)" }} exit={{ opacity: 0, transform: "translateY(16px) scale(.96)" }} transition={{ duration: reduce ? 0 : .24, ease: [.23, 1, .32, 1] }}>
         <GlassSurface radius={20}>
           <div>
             <strong>{title}</strong>
@@ -492,7 +506,7 @@ export function GlassToast({
             aria-label={closeLabel}
             onClick={onClose}
           >
-            ×
+            <X size={16} strokeWidth={2} aria-hidden="true" />
           </button>
         </GlassSurface>
         </motion.div>

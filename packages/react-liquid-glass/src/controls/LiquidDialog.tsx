@@ -1,4 +1,5 @@
 import { useId, type ComponentProps, type ReactElement, type ReactNode } from "react";
+import { X } from "lucide-react";
 import { LiquidPopover } from "./LiquidPopover";
 
 export interface GlassDialogProps {
@@ -16,7 +17,7 @@ export interface GlassDialogProps {
 export function GlassDialog({ open, onOpenChange, title, description, children, closeLabel = "Close", trigger, placement = "dialog" }: GlassDialogProps & { placement?: "dialog" | "sheet" }) {
   const id = useId();
   return <LiquidPopover trigger={trigger} open={open} onOpenChange={onOpenChange} label={title} placement={placement} descriptionId={description ? `${id}-description` : undefined}>
-    <header><h2>{title}</h2><button type="button" className="dg-dismiss" aria-label={closeLabel} onClick={() => onOpenChange(false)}>×</button></header>
+    <header><h2>{title}</h2><button type="button" className="dg-dismiss" aria-label={closeLabel} onClick={() => onOpenChange(false)}><X size={16} strokeWidth={2} aria-hidden="true" /></button></header>
     {description && <p id={`${id}-description`} className="dg-dialog__description">{description}</p>}
     {children}
   </LiquidPopover>;
