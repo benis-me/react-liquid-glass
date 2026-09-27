@@ -67,7 +67,7 @@ export function Focus({ locale }: PageProps) {
       <div className="focus-layout">
         <div className="focus-clock">
           <span className="eyebrow">
-            {zh ? "一次，只做一件事。" : "ONE THING AT A TIME."}
+            {zh ? "一次，只做一件事。" : "One thing at a time."}
           </span>
           <GlassSurface className="focus-clock__glass" radius={44}>
             <span
@@ -128,7 +128,7 @@ export function Focus({ locale }: PageProps) {
           />
         </div>
         <div className="focus-note">
-          <span className="eyebrow">{zh ? "留在这里" : "KEEP IT HERE"}</span>
+          <span className="eyebrow">{zh ? "留在这里" : "Keep it here"}</span>
           <h2>{zh ? "把脑中的杂音，放下来。" : "Put the noise on paper."}</h2>
           <GlassTextarea
             label={zh ? "此刻的想法" : "On your mind"}

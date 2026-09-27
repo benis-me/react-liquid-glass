@@ -186,7 +186,7 @@ const guides: Guide[] = [
       {
         en: "Contrast and motion",
         zh: "对比度与动态",
-        body: [["Glass floats over arbitrary content, so check contrast where it meets photos or video and enable data-dg-tone to adapt ink. Reduced motion is respected throughout, and forced-colors mode keeps visible focus.", "玻璃会悬浮在任意内容之上，在照片或视频上请检查对比度，并启用 data-dg-tone 调整文字颜色。全程遵循减少动态效果设置，强制颜色模式下保留可见焦点。"]],
+        body: [["Glass floats over arbitrary content, so check contrast where it meets photos or video and enable data-dg-tone to adapt ink. Reduced motion is respected throughout, including GlassVideo's autoPlay, and forced-colors mode keeps visible focus. Keyboard focus underlines text, or the icon of an icon-only control, without an outer halo.", "玻璃会悬浮在任意内容之上，在照片或视频上请检查对比度，并启用 data-dg-tone 调整文字颜色。全程遵循减少动态效果设置（包括 GlassVideo 的 autoPlay），强制颜色模式下保留可见焦点。键盘焦点以下划线标出文字；纯图标控件则在图标下方显示短下划线，不使用外发光。"]],
       },
     ],
   },
@@ -247,7 +247,7 @@ export function GuidePage({ id, locale }: PageProps & { id: string }) {
   const title = guideList.find(item => item.id === guide.id)!;
   return (
     <>
-      <PageHeading kicker={zh ? "指南" : "GUIDE"} title={zh ? title.zh : title.en} description={guide.summary[zh ? 1 : 0]} />
+      <PageHeading kicker={zh ? "指南" : "Guide"} title={zh ? title.zh : title.en} description={guide.summary[zh ? 1 : 0]} />
       {guide.sections.map(section => (
         <section className="doc-section" key={section.en}>
           <h2>{zh ? section.zh : section.en}</h2>
