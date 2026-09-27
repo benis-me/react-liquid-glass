@@ -40,7 +40,11 @@ export async function createHighlightHDR(canvas: HTMLCanvasElement) {
     Object.assign(overlay.style, { position: "absolute", pointerEvents: "none", opacity: "0" });
     canvas.after(overlay);
     let texture: GPUTexture | undefined, group: GPUBindGroup | undefined, width = 0, height = 0, disposed = false;
-    const dispose = () => { if (disposed) return; disposed = true; presenters.delete(dispose); texture?.destroy(); context.unconfigure(); overlay.remove(); };
+    // Follow the canvas box from ResizeObserver instead of reading layout per draw.
+    const place = () => Object.assign(overlay.style, { left: `${canvas.offsetLeft}px`, top: `${canvas.offsetTop}px`, width: `${canvas.clientWidth}px`, height: `${canvas.clientHeight}px` });
+    const observer = new ResizeObserver(place); observer.observe(canvas);
+    const show = (value: string) => { if (overlay.style.opacity !== value) overlay.style.opacity = value; };
+    const dispose = () => { if (disposed) return; disposed = true; observer.disconnect(); presenters.delete(dispose); texture?.destroy(); context.unconfigure(); overlay.remove(); };
     presenters.add(dispose);
     return {
       draw(source: HTMLCanvasElement, region = { x: 0, y: 0, width: source.width, height: source.height }) {
@@ -51,14 +55,14 @@ export async function createHighlightHDR(canvas: HTMLCanvasElement) {
           texture = device.createTexture({ size: [width, height], format: "rgba8unorm", usage: 2 | 4 | 16 });
           group = device.createBindGroup({ layout: pipeline.getBindGroupLayout(0), entries: [{ binding: 0, resource: texture.createView() }] });
         }
-        Object.assign(overlay.style, { left: `${canvas.offsetLeft}px`, top: `${canvas.offsetTop}px`, width: `${canvas.clientWidth}px`, height: `${canvas.clientHeight}px`, opacity: "1" });
+        show("1");
         device.queue.copyExternalImageToTexture({ source, origin: [region.x, region.y] }, { texture: texture! }, [width, height]);
         const commands = device.createCommandEncoder();
         const pass = commands.beginRenderPass({ colorAttachments: [{ view: context.getCurrentTexture().createView(), loadOp: "clear", storeOp: "store", clearValue: [0, 0, 0, 0] }] });
         pass.setPipeline(pipeline); pass.setBindGroup(0, group!); pass.draw(3); pass.end(); device.queue.submit([commands.finish()]);
       },
-      show() { overlay.style.opacity = "1"; },
-      hide() { overlay.style.opacity = "0"; },
+      show() { show("1"); },
+      hide() { show("0"); },
       dispose,
     };
   } catch { return null; }

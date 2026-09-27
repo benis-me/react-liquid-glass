@@ -1,5 +1,5 @@
 import { readLiquidSource } from "./canvas-sources";
-import { createFrameGeometry } from "./frame-geometry";
+import { createFrameGeometry, frostPyramid } from "./frame-geometry";
 import { readMotion } from "../shared/values";
 import { MAX_BLOBS, LIQUID_GLASS_MATERIAL, type LiquidGlassSource, type LiquidGlassFrame, type LiquidFrameRegion, type LiquidRendererStats } from "./render-frame";
 import { notifyLiquidFrame } from "./frame-events";
@@ -63,6 +63,8 @@ uniform vec2 uBlobRefractionRatio[8];
 uniform float uOpacity;
 uniform bool uTransparentOutside;
 uniform bool uDebug;
+uniform vec4 uBounds[8];
+uniform vec2 uOutputSize;
 
 float smoothMin(float a, float b, float radius) {
   float k = max(radius, .001);
@@ -127,6 +129,22 @@ float sceneSdf(vec2 point, float inset) {
   return distance;
 }
 
+// Whole 2x2 quads outside every conservative blob box skip all SDF work. Deciding
+// per quad keeps screen derivatives valid for the pixels that continue.
+bool quadNearGlass() {
+  vec2 scale = uSourceSize / uOutputSize;
+  vec2 quad = floor(gl_FragCoord.xy * .5) * 2.;
+  // Window Y increases upward; the boxes use the top-left source origin.
+  vec2 lo = vec2(quad.x, uOutputSize.y - quad.y - 2.) * scale;
+  vec2 hi = vec2(quad.x + 2., uOutputSize.y - quad.y) * scale;
+  for (int index = 0; index < 8; index++) {
+    if (index >= uBlobCount) break;
+    vec4 box = uBounds[index];
+    if (all(greaterThanEqual(hi, box.xy)) && all(lessThanEqual(lo, box.zw))) return true;
+  }
+  return false;
+}
+
 float erfApprox(float value) {
   return tanh(1.7724538509 * value);
 }
@@ -182,6 +200,10 @@ void main() {
     return;
   }
 
+  if (!quadNearGlass()) {
+    outputColor = uEmissionOnly || uTransparentOutside ? vec4(0.) : (uDebug ? vec4(.5, .5, .5, 1.) : raw);
+    return;
+  }
   vec2 point = vUv * uSourceSize;
   float distance = sceneSdf(point, 0.);
   float shadowDistance = sceneSdf(point - vec2(0., uShadowOffset), 0.);
@@ -346,7 +368,12 @@ vec4 sampleInput(vec2 uv) {
 void main() {
   // FBO textures keep their row order; only the final canvas flips the HTML UV.
   vec2 uv = vec2(vUv.x, 1. - vUv.y);
-  if (uCopy) { outputColor = sampleInput(uv); return; }
+  // Reductions average the output texel's four quadrants; at exactly 2x this is
+  // the 2x2 box, and a final 1-2x resample still covers its whole footprint.
+  if (uCopy) {
+    outputColor = .25 * (sampleInput(uv + uAxis) + sampleInput(uv - uAxis) + sampleInput(uv + vec2(uAxis.x, -uAxis.y)) + sampleInput(uv + vec2(-uAxis.x, uAxis.y)));
+    return;
+  }
   vec4 color = sampleInput(uv) * uKernel[0].y;
   for (int i = 1; i < 8; i++) {
     if (i >= uCount) break;
@@ -390,6 +417,7 @@ const uniformNames = [
   "uSpecularRotation", "uGlowStrength", "uGlowSpread", "uGlowExponent",
   "uEdgeStrength", "uEdgeWidth", "uEdgeExponent", "uTintColor", "uTint", "uZoom",
   "uShadow", "uShadowOffset", "uShadowBlur", "uOpacity", "uTransparentOutside", "uDebug",
+  "uBounds[0]", "uOutputSize",
 ] as const;
 const scalarUniforms = {
   mergeDistance: "uMergeDistance", refractionStrength: "uRefraction",
@@ -490,11 +518,13 @@ export function createWebGL2GlassRenderer(
   let version = -1;
   if (onRestore) device.listeners.add(onRestore);
   const geometry = createFrameGeometry();
-  const { blobs, sizes, corners, velocities, contacts, contactInverses, contactOffsets, domes, refractionRatios } = geometry;
+  const { blobs, sizes, corners, velocities, contacts, contactInverses, contactOffsets, domes, refractionRatios, bounds } = geometry;
   let lastSource: LiquidGlassSource | undefined;
   let sourceRevision: number | undefined;
   let sourceWidth = 0, sourceHeight = 0;
   let lastBlur = NaN, frostWidth = 0, frostHeight = 0;
+  let pyramid: WebGLTexture[] = [], pyramidSizes: Array<[number, number]> = [];
+  let pyramidWidth = 0, pyramidHeight = 0, pyramidReady = 0;
   let frostViewWidth = 0, frostViewHeight = 0;
   const kernel = new Float32Array(16);
   let lastContent: HTMLCanvasElement | undefined;
@@ -528,6 +558,7 @@ export function createWebGL2GlassRenderer(
       frostTexture = createTexture(gl);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
       lastBlur = NaN; frostWidth = frostHeight = 0;
+      pyramid = []; pyramidWidth = pyramidHeight = pyramidReady = 0;
       lastHighlight = undefined;
       version = device.version;
     }
@@ -557,7 +588,7 @@ export function createWebGL2GlassRenderer(
         gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, source);
       }
       sourceWidth = sw; sourceHeight = sh; lastSource = source; sourceRevision = p.sourceRevision ?? 0;
-      lastBlur = NaN;
+      lastBlur = NaN; pyramidReady = 0;
       stats.sourceUploads++;
     }
     const requestedBlur = readMotion(p.blurStrength ?? LIQUID_GLASS_MATERIAL.blurStrength);
@@ -583,41 +614,62 @@ export function createWebGL2GlassRenderer(
       gl.useProgram(device.frostProgram);
       const f = device.frostUniforms;
       gl.uniform1i(f.uInput, 0); gl.uniform1i(f.uCount, pairs + 1);
-      gl.uniform2f(f.uInputScale, 1, 1);
       gl.uniform2fv(f["uKernel[0]"], kernel);
       gl.bindFramebuffer(gl.FRAMEBUFFER, device.framebuffer);
-      gl.viewport(0, 0, fw, fh);
-      gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, frostTexture);
       // Retain storage at CSS resolution; the active blur viewport still shrinks
       // continuously. Morphs must not reallocate two textures on every frame.
+      gl.activeTexture(gl.TEXTURE2);
       if (frostWidth < fw || frostHeight < fh) {
         frostWidth = Math.max(frostWidth, Math.ceil(p.width)); frostHeight = Math.max(frostHeight, Math.ceil(p.height));
+        gl.bindTexture(gl.TEXTURE_2D, frostTexture);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, frostWidth, frostHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
       }
-      if (fw !== sw || fh !== sh) {
-        // Paired bilinear taps require adjacent INPUT texels. Resolve the source
-        // to the blur grid first, otherwise 2x DOM ink develops alternating bands.
-        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, frostTexture, 0);
-        gl.uniform1i(f.uCopy, 1); gl.drawArrays(gl.TRIANGLES, 0, 6);
-        gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, frostTexture);
-        gl.uniform2f(f.uInputScale, fw / frostWidth, fh / frostHeight);
-      }
-      gl.uniform1i(f.uCopy, 0);
-      gl.activeTexture(gl.TEXTURE2);
-      gl.bindTexture(gl.TEXTURE_2D, device.scratch);
       if (device.scratchWidth < fw || device.scratchHeight < fh) {
         device.scratchWidth = Math.max(device.scratchWidth, Math.ceil(p.width)); device.scratchHeight = Math.max(device.scratchHeight, Math.ceil(p.height));
+        gl.bindTexture(gl.TEXTURE_2D, device.scratch);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, device.scratchWidth, device.scratchHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
       }
-      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, device.scratch, 0);
-      gl.uniform2f(f.uAxis, 1 / fw, 0);
-      gl.drawArrays(gl.TRIANGLES, 0, 6);
-      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, device.scratch);
-      gl.uniform2f(f.uInputScale, fw / device.scratchWidth, fh / device.scratchHeight);
-      gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, frostTexture);
-      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, frostTexture, 0);
-      gl.uniform2f(f.uAxis, 0, 1 / fh);
-      gl.drawArrays(gl.TRIANGLES, 0, 6);
+      const frostPass = (input: WebGLTexture, scaleX: number, scaleY: number, output: WebGLTexture, width: number, height: number, axisX: number, axisY: number, copy: boolean) => {
+        gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, input);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, output, 0);
+        gl.viewport(0, 0, width, height);
+        gl.uniform2f(f.uInputScale, scaleX, scaleY);
+        gl.uniform2f(f.uAxis, axisX, axisY);
+        gl.uniform1i(f.uCopy, copy ? 1 : 0);
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
+      };
+      // Paired bilinear taps require adjacent INPUT texels. Exact 2x box levels
+      // are retained per source revision; one tap over a 4-9x reduction skipped
+      // most texels, so moving text, grids and hatching made coarse frost flicker.
+      let level = 0, lw = sw, lh = sh;
+      if (sw > fw || sh > fh) {
+        if (pyramidWidth !== sw || pyramidHeight !== sh) {
+          pyramid.forEach(level => gl.deleteTexture(level));
+          pyramidSizes = frostPyramid(sw, sh); pyramidWidth = sw; pyramidHeight = sh; pyramidReady = 0;
+          // One single-level texture per level: no mip feedback or completeness rules.
+          gl.activeTexture(gl.TEXTURE0);
+          pyramid = pyramidSizes.map(([width, height]) => {
+            const level = createTexture(gl);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+            return level;
+          });
+        }
+        for (; (lw > fw * 2 || lh > fh * 2) && level < pyramidSizes.length; level++) {
+          [lw, lh] = pyramidSizes[level];
+          if (level >= pyramidReady) {
+            frostPass(level ? pyramid[level - 1] : texture, 1, 1, pyramid[level], lw, lh, .25 / lw, .25 / lh, true);
+            pyramidReady = level + 1;
+          }
+        }
+      }
+      let input = level ? pyramid[level - 1] : texture, scaleX = 1, scaleY = 1;
+      if (lw !== fw || lh !== fh) {
+        // Quadrant taps cover the whole output texel, including a final 1-2x step.
+        frostPass(input, scaleX, scaleY, frostTexture, fw, fh, .25 / fw, .25 / fh, true);
+        input = frostTexture; scaleX = fw / frostWidth; scaleY = fh / frostHeight;
+      }
+      frostPass(input, scaleX, scaleY, device.scratch, fw, fh, 1 / fw, 0, false);
+      frostPass(device.scratch, fw / device.scratchWidth, fh / device.scratchHeight, frostTexture, fw, fh, 0, 1 / fh, false);
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       gl.useProgram(device.program);
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -649,6 +701,8 @@ export function createWebGL2GlassRenderer(
     gl.uniform2fv(u["uContactOffset[0]"], contactOffsets);
     gl.uniform4fv(u["uDome[0]"], domes);
     gl.uniform2fv(u["uBlobRefractionRatio[0]"], refractionRatios);
+    gl.uniform4fv(u["uBounds[0]"], bounds);
+    gl.uniform2f(u.uOutputSize, width, height);
     gl.uniform1i(u.uBlobCount, count);
     for (const key of scalarKeys) {
       const value = readMotion(p[key] ?? LIQUID_GLASS_MATERIAL[key]);
@@ -712,6 +766,7 @@ export function createWebGL2GlassRenderer(
     if (texture) gl.deleteTexture(texture);
     if (contentTexture) gl.deleteTexture(contentTexture);
     if (frostTexture) gl.deleteTexture(frostTexture);
+    pyramid.forEach(level => gl.deleteTexture(level));
     if (--device.users === 0) {
       if (sharedDevice === device) sharedDevice = undefined;
       destroyDevice(device);

@@ -4,7 +4,7 @@ import { LiquidGlassCanvas } from "./LiquidGlassCanvas";
 import { LIQUID_GLASS_MATERIAL, type LiquidGlassFrame, type LiquidGlassBlob } from "./renderer";
 import { captureLiquidSource, liquidRgb, liquidTheme, subscribeLiquidTheme, type LiquidSourceFactory, type LiquidSourcePainter } from "./source";
 import { isMotionValue, motionValue, readMotion, type MotionInput } from "../shared/values";
-import { useGlassMaterial } from "./provider";
+import { DEFAULT_MATERIAL, useGlassMaterialOverrides } from "./provider";
 import { createLiquidBackdrop } from "./backdrop";
 import type { LiquidLens } from "./lens";
 
@@ -52,8 +52,9 @@ export interface LiquidGlassProps {
 }
 
 export function LiquidGlass(props: LiquidGlassProps) {
-  const inheritedMaterial = useGlassMaterial();
-  const material = { ...props.material, ...inheritedMaterial };
+  // Explicit provider values override this lens; shared defaults only fill in
+  // parameters that the lens does not calibrate (see `lens` below).
+  const material = { ...props.material, ...useGlassMaterialOverrides() };
   const rootRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const targetRef = useRef<HTMLDivElement>(null);
@@ -64,6 +65,10 @@ export function LiquidGlass(props: LiquidGlassProps) {
   const sourceRevision = useRef(motionValue(0)).current;
   const config = useRef(props); config.current = props;
   const [size, setSize] = useState({ width: 0, height: 0 });
+  const sizeRef = useRef(size); sizeRef.current = size;
+  const measured = size.width > 0 && size.height > 0;
+  const backdropHandle = useRef<{ refresh: () => void } | null>(null);
+  const capturedKey = useRef("");
   const [tint, setTint] = useState<readonly [number, number, number]>([1, 1, 1]);
   const generation = useRef(0);
   const theme = useSyncExternalStore(subscribeLiquidTheme, liquidTheme, () => "light");
@@ -107,23 +112,28 @@ export function LiquidGlass(props: LiquidGlassProps) {
 
   // Retain content textures across optical/geometry updates. Never rasterize DOM per frame.
   const hasTarget = !!props.refractionTarget;
+  const themeRef = useRef(theme); themeRef.current = theme;
+  // Observers live as long as the source configuration; size and theme changes
+  // only re-capture (below) instead of rebuilding every listener.
   useEffect(() => {
     const root = targetRef.current ?? contentRef.current;
-    if (!root || !size.width || !size.height) return;
+    if (!root || !measured) return;
     let cancelled = false;
     const capture = () => {
       const token = ++generation.current;
+      const { width, height } = sizeRef.current;
+      capturedKey.current = `${width}x${height}:${themeRef.current}`;
       if (props.sourceFactory) {
         const canvas = sourceRef.current ?? document.createElement("canvas");
-        canvas.width = Math.round(size.width * 2); canvas.height = Math.round(size.height * 2);
+        canvas.width = Math.round(width * 2); canvas.height = Math.round(height * 2);
         sourceRef.current = canvas;
-        painterRef.current = props.sourceFactory(root, size.width, size.height);
+        painterRef.current = props.sourceFactory(root, width, height);
         scheduleSource();
       } else {
         painterRef.current = null;
-        const background = props.sourceBackground?.(root, size.width, size.height);
-        void captureLiquidSource(root, size.width, size.height, ctx => {
-          if (backdropRef.current) ctx.drawImage(backdropRef.current, 0, 0, size.width, size.height);
+        const background = props.sourceBackground?.(root, width, height);
+        void captureLiquidSource(root, width, height, ctx => {
+          if (backdropRef.current) ctx.drawImage(backdropRef.current, 0, 0, width, height);
           background?.(ctx);
         }).then(canvas => {
           if (cancelled || generation.current !== token) return;
@@ -133,7 +143,6 @@ export function LiquidGlass(props: LiquidGlassProps) {
       }
     };
     captureRef.current = capture;
-    setTint(liquidRgb(root, config.current.tintColor ?? "white"));
     capture();
     const changes = props.sourceFactory ? null : new MutationObserver(capture);
     changes?.observe(root, {
@@ -159,27 +168,36 @@ export function LiquidGlass(props: LiquidGlassProps) {
       root.removeEventListener("transitionend", settledStyle);
       document.fonts.removeEventListener("loadingdone", capture);
     };
-  }, [props.sourceFactory, props.sourceBackground, props.tintColor, hasTarget, theme, size, scheduleSource, drawSource, sourceRevision]);
+  }, [props.sourceFactory, props.sourceBackground, hasTarget, measured, scheduleSource, drawSource, sourceRevision]);
+  useEffect(() => {
+    if (measured && capturedKey.current !== `${size.width}x${size.height}:${theme}`) captureRef.current();
+    backdropHandle.current?.refresh();
+  }, [size, theme, measured]);
+  useEffect(() => {
+    const root = targetRef.current ?? contentRef.current;
+    if (root && measured) setTint(liquidRgb(root, props.tintColor ?? "white"));
+  }, [props.tintColor, theme, measured, hasTarget]);
 
   useEffect(() => {
     const owner = rootRef.current;
-    if (!owner || !size.width || !size.height) return;
+    if (!owner || !measured) return;
     const visible = () => readMotion(config.current.tintOpacity ?? 0) < 1;
     const backdrop = createLiquidBackdrop(props.backdropRoot?.current ?? owner, () => {
       const rect = owner.getBoundingClientRect();
-      return { left: rect.left, top: rect.top, width: size.width, height: size.height };
+      return { left: rect.left, top: rect.top, width: sizeRef.current.width, height: sizeRef.current.height };
     }, canvas => {
       backdropRef.current = canvas;
       if (painterRef.current) scheduleSource(); else captureRef.current();
     }, visible);
+    backdropHandle.current = backdrop;
     let wasVisible = visible();
     const stop = isMotionValue(props.tintOpacity) ? props.tintOpacity.on("change", () => {
       const next = visible();
       if (next && !wasVisible) backdrop.refresh();
       wasVisible = next;
     }) : undefined;
-    return () => { stop?.(); backdrop.dispose(); };
-  }, [size, props.backdropRoot, props.tintOpacity, scheduleSource]);
+    return () => { stop?.(); backdrop.dispose(); backdropHandle.current = null; };
+  }, [measured, props.backdropRoot, props.tintOpacity, scheduleSource]);
 
   useEffect(() => {
     const stops: Array<() => void> = [];
@@ -187,7 +205,7 @@ export function LiquidGlass(props: LiquidGlassProps) {
     return () => stops.forEach(stop => stop());
   }, [props.sourceValues, scheduleSource]);
 
-  const lens = { ...LIQUID_LENS, ...props.lens };
+  const lens = { ...LIQUID_LENS, chromaAmount: DEFAULT_MATERIAL.chromaAmount, domeDepth: DEFAULT_MATERIAL.domeDepth, ...props.lens };
   const width = props.lensW ?? lens.lensW ?? 34, height = props.lensH ?? lens.lensH ?? 34;
   // Derived views subscribe to the same upstream values; no per-frame React state.
   const derived = (get: () => number, inputs: MotionInput[]) => ({

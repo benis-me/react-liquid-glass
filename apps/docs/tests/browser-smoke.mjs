@@ -11,7 +11,7 @@ const until = async (predicate, message, timeout = 5000) => {
   const start = performance.now();
   while (!predicate()) { if (performance.now() - start > timeout) throw new Error(message); await new Promise(resolve => setTimeout(resolve, 16)); }
 };
-const pageViewport = () => document.getElementById("page-scroll");
+const pageViewport = () => document.scrollingElement;
 const paint = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 const go = async path => {
   history.pushState(null, '', path); window.dispatchEvent(new PopStateEvent('popstate')); pageViewport().scrollTo(0, 0);
@@ -246,7 +246,7 @@ export async function checkVideoPixels() {
     video.pause(); await paint();
     const beforeSeek = frames; video.currentTime = Math.min(4,video.duration/2);
     await until(()=>!video.seeking && frames>beforeSeek,'Paused seeking did not repaint'); assert(!failure,failure);
-    pageViewport().firstElementChild.append(spacer); await video.play(); pageViewport().scrollTo(0,pageViewport().scrollHeight);
+    document.body.append(spacer); await video.play(); pageViewport().scrollTo(0,pageViewport().scrollHeight);
     await until(()=>video.paused,'Offscreen video did not pause'); await paint();
     const idle = frames; await new Promise(resolve=>setTimeout(resolve,120)); assert(frames===idle,'Offscreen video kept rendering');
     document.querySelector('.dg-video-player').scrollIntoView({block:'center'});
@@ -632,7 +632,7 @@ export async function checkSharedBackdrops() {
     try {
       substrate.style.display='none'; stage.style.backgroundColor='rgb(25, 190, 65)';
       await until(()=>hasColor(1),`${id} retained the hidden substrate`);
-      if(id==='button') { spacer.style.height='200vh';pageViewport().firstElementChild.append(spacer);pageViewport().scrollTo({top:pageViewport().scrollHeight,behavior:'instant'});await paint(); }
+      if(id==='button') { spacer.style.height='200vh';document.body.append(spacer);pageViewport().scrollTo({top:pageViewport().scrollHeight,behavior:'instant'});await paint(); }
       substrate.remove(); stage.style.backgroundColor='rgb(205, 35, 55)';
       if(id==='button') { await paint();pageViewport().scrollTo({top:0,behavior:'instant'}); }
       await until(()=>hasColor(0),`${id} retained the removed substrate`);

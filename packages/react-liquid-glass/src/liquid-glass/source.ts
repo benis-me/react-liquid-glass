@@ -44,9 +44,24 @@ export function subscribeLiquidTheme(notify: () => void) {
 }
 export const liquidTheme = () => `${document.documentElement.dataset.theme ?? "light"}:${themeRevision}`;
 
+// Keyed by every input the probe can observe, so a hit is exact rather than stale.
+const resolvedColors = new Map<string, string>();
+const resolvedRgb = new Map<string, readonly [number, number, number]>();
+const remember = <T,>(cache: Map<string, T>, key: string, value: T) => {
+  if (cache.size >= 256) cache.delete(cache.keys().next().value!);
+  cache.set(key, value);
+  return value;
+};
+
 /** Resolve CSS tokens once when a source is prepared, never in an animation loop. */
 export function liquidCssColor(root: HTMLElement, value: string): string {
   const css = getComputedStyle(root);
+  // Computed custom properties are already var()-substituted, so the tokens the
+  // value names, plus color and color-scheme, are its complete context.
+  const tokens = [...new Set(value.match(/--[\w-]+/g) ?? [])];
+  const key = [value, css.color, css.colorScheme, ...tokens.map(token => `${token}:${css.getPropertyValue(token)}`)].join("\n");
+  const cached = resolvedColors.get(key);
+  if (cached) return cached;
   const host = document.createElement("span");
   const probe = document.createElement("span");
   // Never probe the live source: changing its color starts inherited transitions,
@@ -54,15 +69,13 @@ export function liquidCssColor(root: HTMLElement, value: string): string {
   host.style.cssText = "position:fixed;visibility:hidden;contain:strict;width:0;height:0;pointer-events:none";
   host.style.color = css.color;
   host.style.colorScheme = css.colorScheme;
-  for (const property of css) {
-    if (property.startsWith("--")) host.style.setProperty(property, css.getPropertyValue(property));
-  }
+  for (const token of tokens) host.style.setProperty(token, css.getPropertyValue(token));
   probe.style.setProperty("transition", "none", "important");
   probe.style.setProperty("animation", "none", "important");
   probe.style.color = value;
   host.appendChild(probe);
   document.body.appendChild(host);
-  try { return getComputedStyle(probe).color; }
+  try { return remember(resolvedColors, key, getComputedStyle(probe).color); }
   finally { host.remove(); }
 }
 
@@ -114,13 +127,16 @@ export function paintLiquidBackground(root: HTMLElement, ctx: CanvasRenderingCon
 }
 
 export function liquidRgb(root: HTMLElement, value: string): readonly [number, number, number] {
+  const color = liquidCssColor(root, value);
+  const cached = resolvedRgb.get(color);
+  if (cached) return cached;
   const canvas = document.createElement("canvas");
   canvas.width = canvas.height = 1;
   const context = canvas.getContext("2d")!;
-  context.fillStyle = liquidCssColor(root, value);
+  context.fillStyle = color;
   context.fillRect(0, 0, 1, 1);
   const [r, g, b] = context.getImageData(0, 0, 1, 1).data;
-  return [r / 255, g / 255, b / 255];
+  return remember(resolvedRgb, color, [r / 255, g / 255, b / 255] as const);
 }
 
 /** Retained analytic track painting uses the very same live values as the native control. */

@@ -10,6 +10,7 @@ import { useMenuMotion, type MenuLayout } from "../apple-motion/use-menu-motion"
 import { TRIGGER_RADIUS } from "../apple-motion/menu";
 import { useMenuMaterial } from "./use-menu-material";
 import { ScrollArea } from "./ScrollArea";
+import { useGlassMaterialOverrides } from "../liquid-glass/provider";
 
 const BASE_MENU_LENS = LIQUID_LENS;
 
@@ -92,6 +93,8 @@ export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, cla
   const contentActive = useMotionValue(0);
   const contentRevision = useMotionValue(0);
   const { depth, tintOpacity, zoom, buttonDepth, buttonTintOpacity, buttonZoom, closingBlur, transition, press } = useMenuMaterial();
+  // The approved menu material is calibrated; shared ordinary-glass defaults must not replace it.
+  const materialOverrides = useGlassMaterialOverrides();
   const captureContent = useCallback(() => {
     const panel = panelRef.current;
     const canvas = contentSourceRef.current;
@@ -250,6 +253,8 @@ export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, cla
           pixelRatio={2 * scale}
           className="dg-liquid-menu__fusion-canvas"
           ariaLabel={menuLabel}
+          inheritMaterial={false}
+          {...materialOverrides}
         />
       </div>
 

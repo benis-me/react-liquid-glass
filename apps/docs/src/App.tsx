@@ -21,7 +21,7 @@ import {
   ShowcaseCards,
 } from "./site/Pages";
 import { Playground } from "./site/Playground";
-import { Link, navigate, usePath } from "./site/router";
+import { Link, navigate, usePath, useScrollRestoration } from "./site/router";
 import type { Locale } from "./i18n";
 const Focus = lazy(() =>
   import("./showcases/Focus").then((module) => ({ default: module.Focus })),
@@ -44,7 +44,8 @@ function saved(key: string) {
 export function App({ backend }: { backend?: GlassRendererBackend } = {}) {
   const requestedPath = usePath();
   const path = requestedPath.replace(/^\/components\/([^/]+)$/, (_, id: string) => `/components/${componentAliases[id] ?? id}`);
-  useEffect(() => { if (path !== requestedPath) history.replaceState(null, "", path + location.search + location.hash); }, [path, requestedPath]);
+  useEffect(() => { if (path !== requestedPath) history.replaceState(history.state, "", path + location.search + location.hash); }, [path, requestedPath]);
+  useScrollRestoration(path);
   const previousPath = useRef(path),
     main = useRef<HTMLElement>(null);
   const [theme, setTheme] = useState<"light" | "dark">(() =>
@@ -268,7 +269,7 @@ export function App({ backend }: { backend?: GlassRendererBackend } = {}) {
     );
   return (
     <LiquidGlassProvider material={displayMaterial} backend={backend}>
-      <ScrollArea className="site-scroll" viewportProps={{ id: "page-scroll", tabIndex: -1 }}>
+      <div className="site-shell">
       <Link className="skip-link" href="#main-content">
         {zh ? "跳到内容" : "Skip to content"}
       </Link>
@@ -397,7 +398,7 @@ export function App({ backend }: { backend?: GlassRendererBackend } = {}) {
           <ArrowUpRight size={12} />
         </Link>
       </footer>
-      </ScrollArea>
+      </div>
     </LiquidGlassProvider>
   );
 }

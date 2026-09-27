@@ -45,7 +45,7 @@ export function Playground({ locale, theme, material, setMaterial }: PageProps &
       component,
       material: JSON.stringify(material),
     }).toString();
-    history.replaceState(null, "", url);
+    history.replaceState(history.state, "", url);
     try {
       await navigator.clipboard.writeText(url.href);
       setShared({ key: shareKey, message: zh ? "链接已复制" : "Link copied" });
@@ -72,7 +72,7 @@ export function Playground({ locale, theme, material, setMaterial }: PageProps &
                   setComponent(event.target.value as ComponentId | "all");
                   const url = new URL(location.href);
                   url.searchParams.set("component", event.target.value);
-                  history.replaceState(null, "", url);
+                  history.replaceState(history.state, "", url);
                 }}
               >
                 <option value="all">

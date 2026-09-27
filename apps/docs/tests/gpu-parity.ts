@@ -101,6 +101,48 @@ document.querySelector('#benchmark')!.addEventListener('click',()=>report(async(
     return {adapter:info?{vendor:info.vendor,architecture:info.architecture,description:info.description}:null,note:'CPU includes encoding/submission and any synchronous presentation stalls. Frame intervals are not GPU pass timings.',rows};
   }finally{host.remove()}
 }));
+// Read a presented WebGPU frame through a buffer; some headless compositors cannot drawImage it.
+async function readGPU(canvas:HTMLCanvasElement){
+  const context=canvas.getContext('webgpu')!,device=context.getConfiguration()!.device,texture=context.getCurrentTexture(),bytesPerRow=Math.ceil(canvas.width*4/256)*256;
+  const buffer=device.createBuffer({size:bytesPerRow*canvas.height,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
+  const encoder=device.createCommandEncoder();encoder.copyTextureToBuffer({texture},{buffer,bytesPerRow},[canvas.width,canvas.height]);device.queue.submit([encoder.finish()]);
+  await buffer.mapAsync(GPUMapMode.READ);const bytes=new Uint8Array(buffer.getMappedRange().slice(0));buffer.unmap();buffer.destroy();
+  const out=new Uint8ClampedArray(canvas.width*canvas.height*4);
+  for(let y=0;y<canvas.height;y++)out.set(bytes.subarray(y*bytesPerRow,y*bytesPerRow+canvas.width*4),y*canvas.width*4);
+  return out;
+}
+// Coarse frost must prefilter: shifting 1-CSS-px lines by one source pixel may not pulse its mean.
+document.querySelector('#frost')!.addEventListener('click',()=>report(async()=>{
+  await reset();const host=fixture(),image=document.createElement('canvas');image.width=640;image.height=480;const ctx=image.getContext('2d')!;
+  const pattern=(phase:number)=>{ctx.fillStyle='#fff';ctx.fillRect(0,0,640,480);ctx.fillStyle='#000';for(let x=phase-12;x<640;x+=12)ctx.fillRect(x,0,2,480)};
+  const rows:{backend:string;blur:number;meanRange:number}[]=[];let revision=0;
+  try{
+    for(const backend of ['webgl2','webgpu'] as const){
+      const canvas=document.createElement('canvas');host.append(canvas);const renderer=createLiquidGlassRenderer(canvas,{backend,shared:backend==='webgl2'});
+      try{
+        assert(await renderer.ready===backend,`${backend} unavailable`);
+        for(const blur of [2,4,8,12,18]){
+          const means:number[]=[];
+          for(let phase=0;phase<12;phase++){
+            pattern(phase);
+            const frame:LiquidGlassFrame={source:image,sourceRevision:++revision,width:320,height:240,pixelRatio:1,blobs:[{x:.5,y:.5,radius:30,halfWidth:140,halfHeight:100}],blurStrength:blur,refractionStrength:0,chromaAmount:0,specularStrength:0,edgeStrength:0,tintStrength:0,brightness:0,glowStrength:0,shadowStrength:0,hdr:false};
+            const data=await new Promise<Uint8ClampedArray>((resolve,reject)=>{
+              const timer=setTimeout(()=>{stop();reject(new Error('Renderer did not present'))},5000);
+              const stop=subscribeLiquidFrames(output=>{if(output!==renderer.canvas)return;clearTimeout(timer);stop();resolve(backend==='webgpu'?readGPU(renderer.canvas):pixels(renderer.canvas))});
+              renderer.draw(frame);
+            });
+            let sum=0,count=0;for(let y=100;y<140;y++)for(let x=120;x<200;x++){sum+=data[(y*320+x)*4];count++}
+            means.push(sum/count);
+          }
+          rows.push({backend,blur,meanRange:+(Math.max(...means)-Math.min(...means)).toFixed(2)});
+        }
+      }finally{renderer.dispose();canvas.remove()}
+    }
+    const unstable=rows.filter(row=>row.meanRange>6);
+    assert(!unstable.length,`Frost flickers while content moves: ${JSON.stringify(unstable)}`);
+    return {pattern:'1 CSS px lines shifted by one source pixel',rows};
+  }finally{host.remove()}
+}));
 document.querySelector('#lifecycle')!.addEventListener('click',()=>report(async()=>{
   await reset();const host=fixture(),image=source(),p=baseFrame(image);let renderers:ReturnType<typeof createLiquidGlassRenderer>[]=[];
   const own=Object.getOwnPropertyDescriptor(navigator,'gpu');

@@ -9,6 +9,7 @@ struct Blob {
   offset: vec4f,
   dome: vec4f,
   ratio: vec4f,
+  bounds: vec4f,
 }
 struct Params {
   size: vec4f,
@@ -71,6 +72,20 @@ fn sceneSdf(point: vec2f, inset: f32) -> f32 {
   }
   return distance;
 }
+// Whole 2x2 quads outside every conservative blob box skip all SDF work. Deciding
+// per quad keeps screen derivatives valid for the pixels that continue.
+fn quadNearGlass(position: vec2f) -> bool {
+  let scale = p.size.xy / p.size.zw;
+  let quad = floor(position * 0.5) * 2.0;
+  let lo = quad * scale;
+  let hi = (quad + vec2f(2.0)) * scale;
+  for (var index = 0u; index < 8u; index++) {
+    if (index >= u32(p.flags.x)) { break; }
+    let box = p.blobs[index].bounds;
+    if (all(hi >= box.xy) && all(lo <= box.zw)) { return true; }
+  }
+  return false;
+}
 fn erfApprox(value: f32) -> f32 { return tanh(1.7724538509 * value); }
 fn sampleChroma(uv: vec2f, displacement: vec2f) -> vec3f {
   return vec3f(
@@ -108,11 +123,16 @@ fn sampleContent(uv: vec2f) -> vec4f {
   if (any(uv < vec2f(0.0)) || any(uv > vec2f(1.0))) { return vec4f(0.0); }
   return textureSampleBias(content, linearSampler, uv, log2(1.0 + p.ink.z * 2.0));
 }
-fn shade(uv: vec2f, emissionOnly: bool) -> vec4f {
+fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
   let transparent = p.flags.y > 0.5;
   let debug = p.flags.z > 0.5;
   let raw = textureSample(source, linearSampler, uv);
   if (p.flags.x < 1.0) {
+    if (emissionOnly || transparent) { return vec4f(0.0); }
+    if (debug) { return vec4f(0.5, 0.5, 0.5, 1.0); }
+    return raw;
+  }
+  if (!quadNearGlass(position)) {
     if (emissionOnly || transparent) { return vec4f(0.0); }
     if (debug) { return vec4f(0.5, 0.5, 0.5, 1.0); }
     return raw;
@@ -228,12 +248,12 @@ fn shade(uv: vec2f, emissionOnly: bool) -> vec4f {
   return vec4f(color, raw.a);
 }
 @fragment fn fragment(v: Vertex) -> @location(0) vec4f {
-  let c = clamp(shade(v.uv, false), vec4f(0.0), vec4f(1.0));
+  let c = clamp(shade(v.uv, v.position.xy, false), vec4f(0.0), vec4f(1.0));
   return vec4f(c.rgb * c.a, c.a);
 }
 @fragment fn highlight(v: Vertex) -> @location(0) vec4f {
   // Match the existing 8-bit mask calibration, directly on the same device.
-  let light = floor(clamp(shade(v.uv, true).rg, vec2f(0.0), vec2f(1.0)) * 255.0 + 0.5) / 255.0;
+  let light = floor(clamp(shade(v.uv, v.position.xy, true).rg, vec2f(0.0), vec2f(1.0)) * 255.0 + 0.5) / 255.0;
   let edge = light.g * 0.26;
   return vec4f(vec3f(light.r * 2.4 + edge * 4.0), light.r * 0.35 + edge * 0.12);
 }

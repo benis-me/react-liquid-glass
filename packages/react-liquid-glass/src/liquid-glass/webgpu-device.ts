@@ -21,6 +21,7 @@ export interface GlassGPUDevice {
   retain(lost: (error: Error) => void): (() => void) | undefined;
 }
 let shared: Promise<GlassGPUDevice> | undefined;
+const IDLE_DEVICE_MS = 30_000;
 let generation = 0;
 
 export function getGlassGPUDevice(): Promise<GlassGPUDevice> {
@@ -39,6 +40,7 @@ async function createDevice(invalidate: () => void): Promise<GlassGPUDevice> {
   const losses = new Set<(error: Error) => void>();
   const pending = new Set<GPUWork>();
   let queued = false, stopped = false, users = 0;
+  let idle: ReturnType<typeof setTimeout> | undefined;
   const fail = (error: Error) => {
     if (stopped) return;
     stopped = true; pending.clear(); invalidate();
@@ -96,12 +98,18 @@ async function createDevice(invalidate: () => void): Promise<GlassGPUDevice> {
       cancel(owner) { pending.delete(owner); },
       retain(lost) {
         if (stopped) return undefined;
+        clearTimeout(idle);
         users++; losses.add(lost);
         let released = false;
         return () => {
           if (released) return;
           released = true; users--; losses.delete(lost);
-          queueMicrotask(() => { if (!users && !stopped) { stopped = true; pending.clear(); invalidate(); device.destroy(); } });
+          // Keep the compiled device briefly: transient surfaces such as an
+          // occasional dialog would otherwise recompile every pipeline per open.
+          if (!users) {
+            clearTimeout(idle);
+            idle = setTimeout(() => { if (!users && !stopped) { stopped = true; pending.clear(); invalidate(); device.destroy(); } }, IDLE_DEVICE_MS);
+          }
         };
       },
     };

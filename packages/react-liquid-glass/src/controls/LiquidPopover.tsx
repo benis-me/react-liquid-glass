@@ -45,7 +45,9 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
   const [local, setLocal] = useState(false);
   const open = controlled ?? local;
   const liveOpen = useRef(open); liveOpen.current = open;
-  const [active, setActive] = useState(false);
+  const [active, setActiveState] = useState(false);
+  const activeRef = useRef(false);
+  const setActive = (next: boolean) => { activeRef.current = next; setActiveState(next); };
   const [host] = useState(() => typeof document === "undefined" ? null : document.createElement("span"));
   const anchor = useRef<HTMLSpanElement>(null), topLayer = useRef<HTMLDivElement | HTMLDialogElement>(null), panel = useRef<HTMLDivElement>(null);
   const scrollViewport = useRef<HTMLDivElement>(null);
@@ -62,7 +64,10 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
   const padding = Math.ceil(Math.max(28, (material.shadowBlur ?? 18) * 3 + Math.abs(material.shadowOffset ?? 6)));
   const model = usePopoverMotion();
   const layoutRef = useRef<PopoverLayout | null>(null);
-  const [frame, setFrame] = useState({ left: 0, top: 0, width: 1, height: 1, tx: 0, ty: 0, tw: 1, th: 1, tr: 16, px: 0, py: 0, pw: 1, ph: 1 });
+  // Relative geometry only: viewport translation moves the host, not React state.
+  const [frame, setFrame] = useState({ width: 1, height: 1, tx: 0, ty: 0, tw: 1, th: 1, tr: 16, px: 0, py: 0, pw: 1, ph: 1 });
+  const resting = useRef<{ width: number; height: number; dx: number; dy: number; bodyX: number; bodyY: number } | null>(null);
+  const foreignScroll = useRef(false);
   const callback = useRef(onOpenChange); callback.current = onOpenChange;
   const change = (next: boolean) => { setLocal(next); callback.current?.(next); };
   const changeRef = useRef(change); changeRef.current = change;
@@ -117,6 +122,19 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
     const rect = button?.getBoundingClientRect() ?? new DOMRect(innerWidth / 2 - 24, innerHeight / 2 - 18, 48, 36);
     if (!rect.width || !rect.height) return;
     const isShowing = showing();
+    const body = document.body.getBoundingClientRect();
+    // A closed trigger at rest keeps its retained frame; scrolling only translates
+    // it, and content that moves with the trigger leaves its backdrop unchanged.
+    const rest = resting.current;
+    if (!isShowing && !activeRef.current && rest && !mirrorDirty.current && rest.width === rect.width && rest.height === rect.height) {
+      backdropBounds.current = { ...backdropBounds.current, left: rect.left + rest.dx, top: rect.top + rest.dy };
+      const bodyX = rect.left - body.left, bodyY = rect.top - body.top;
+      if (foreignScroll.current || Math.abs(bodyX - rest.bodyX) > .01 || Math.abs(bodyY - rest.bodyY) > .01) {
+        rest.bodyX = bodyX; rest.bodyY = bodyY; foreignScroll.current = false;
+        scheduleLiquidBackdrop(refreshBackdrop);
+      }
+      return;
+    }
     opener.current = button;
     const viewport = window.visualViewport;
     const vl = viewport?.offsetLeft ?? 0, vt = viewport?.offsetTop ?? 0;
@@ -144,7 +162,7 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
       ...(modal ? { originX: tx + rect.width * (point.current.x - .5), originY: ty + rect.height * (point.current.y - .5) } : {}),
     };
     layoutRef.current = layout;
-    const nextFrame = { left: fl, top: ft, width: fw, height: fh, tx, ty, tw: rect.width, th: rect.height, tr, px: layout.panelX, py: layout.panelY, pw, ph };
+    const nextFrame = { width: fw, height: fh, tx, ty, tw: rect.width, th: rect.height, tr, px: layout.panelX, py: layout.panelY, pw, ph };
     const changed = (Object.keys(nextFrame) as Array<keyof typeof nextFrame>).some(key => nextFrame[key] !== frameRef.current[key]);
     if (changed && isShowing && settled.current) {
       model.x.jump(layout.panelX); model.y.jump(layout.panelY);
@@ -177,6 +195,8 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
     Object.assign(host.style, { position: "absolute", left: `${fl - origin.left}px`, top: `${ft - origin.top}px`, width: `${fw}px`, height: `${fh}px`, pointerEvents: "none", zIndex: "0" });
     const canvas = source.current ?? document.createElement("canvas"); source.current = canvas;
     backdropBounds.current = { left: fl, top: ft, width: fw, height: fh };
+    resting.current = isShowing ? null : { width: rect.width, height: rect.height, dx: fl - rect.left, dy: ft - rect.top, bodyX: rect.left - body.left, bodyY: rect.top - body.top };
+    foreignScroll.current = false;
     scheduleLiquidBackdrop(refreshBackdrop);
   };
   useLayoutEffect(() => {
@@ -189,6 +209,8 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
     const update = () => motionFrame.read(measure);
     const scroll = (event: Event) => {
       if (event.target instanceof Node && panel.current?.contains(event.target)) return;
+      // A nested scroller that does not carry the trigger moves content beneath it.
+      if (event.target instanceof Element && anchor.current && !event.target.contains(anchor.current)) foreignScroll.current = true;
       update();
     };
     const resize = new ResizeObserver(() => { mirrorDirty.current = true; update(); });
