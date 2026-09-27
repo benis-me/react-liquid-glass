@@ -67,9 +67,14 @@ test("Liquid shares a device, retains textures, recovers loss and disposes per o
     before = draws(); first.draw({ ...frostFrame, sourceRevision: 2, tintStrength: 1, blurStrength: 2 });
     assert.equal(draws() - before, 1, "opaque resting thumbs do not build invisible frost");
     source.width = 200; source.height = 120;
+    const storage = () => calls.filter(([name, ...args]) => name === "texImage2D" && args.at(-1) === null).length;
+    const allocated = storage();
     before = draws(); first.draw(frostFrame);
     assert.equal(draws() - before, 4, "a 2x source resolves to the blur grid before paired taps");
+    assert.equal(storage(), allocated, "light frost on a 2x source allocates no box levels");
     second.draw({ ...frostFrame, width: 60, height: 40 });
+    // Box levels are allocated once, on first coarse use.
+    first.draw({ ...frostFrame, blurStrength: 12 });
     const allocations = () => calls.filter(([name]) => name === "texImage2D").length;
     const warmAllocations = allocations();
     for (const blurStrength of [4.1, 5.5, 8, 12, 8, 4]) {

@@ -40,11 +40,17 @@ export async function createHighlightHDR(canvas: HTMLCanvasElement) {
     Object.assign(overlay.style, { position: "absolute", pointerEvents: "none", opacity: "0" });
     canvas.after(overlay);
     let texture: GPUTexture | undefined, group: GPUBindGroup | undefined, width = 0, height = 0, disposed = false;
-    // Follow the canvas box from ResizeObserver instead of reading layout per draw.
-    const place = () => Object.assign(overlay.style, { left: `${canvas.offsetLeft}px`, top: `${canvas.offsetTop}px`, width: `${canvas.clientWidth}px`, height: `${canvas.clientHeight}px` });
-    const observer = new ResizeObserver(place); observer.observe(canvas);
-    const show = (value: string) => { if (overlay.style.opacity !== value) overlay.style.opacity = value; };
-    const dispose = () => { if (disposed) return; disposed = true; observer.disconnect(); presenters.delete(dispose); texture?.destroy(); context.unconfigure(); overlay.remove(); };
+    // Track the canvas box whenever the light is shown: it can move without
+    // resizing. Unchanged styles are not rewritten.
+    const place = () => {
+      const style = overlay.style, box = [canvas.offsetLeft, canvas.offsetTop, canvas.clientWidth, canvas.clientHeight].map(value => `${value}px`);
+      if (style.left !== box[0]) style.left = box[0];
+      if (style.top !== box[1]) style.top = box[1];
+      if (style.width !== box[2]) style.width = box[2];
+      if (style.height !== box[3]) style.height = box[3];
+    };
+    const show = (value: string) => { if (value === "1") place(); if (overlay.style.opacity !== value) overlay.style.opacity = value; };
+    const dispose = () => { if (disposed) return; disposed = true; presenters.delete(dispose); texture?.destroy(); context.unconfigure(); overlay.remove(); };
     presenters.add(dispose);
     return {
       draw(source: HTMLCanvasElement, region = { x: 0, y: 0, width: source.width, height: source.height }) {

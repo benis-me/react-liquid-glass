@@ -61,10 +61,15 @@ export async function createWebGPUGlassRenderer(canvas: HTMLCanvasElement, onFai
   let previousWidth = 0, previousHeight = 0;
   let retained: GPUTexture | undefined, retainedWidth = 0, retainedHeight = 0, revision = 0, snapshotRevision = -1;
   let retainedScissor: readonly number[] | null = null;
-  let overlayObserver: ResizeObserver | undefined;
-  // Follow the canvas box from ResizeObserver instead of reading layout per draw.
+  // Track the canvas box on each HDR draw: it can move without resizing. Only
+  // HDR displays pay these reads, and unchanged styles are not rewritten.
   const placeOverlay = () => {
-    if (hdr) Object.assign(hdr.canvas.style, { left: `${canvas.offsetLeft}px`, top: `${canvas.offsetTop}px`, width: `${canvas.clientWidth}px`, height: `${canvas.clientHeight}px` });
+    if (!hdr) return;
+    const style = hdr.canvas.style, box = [canvas.offsetLeft, canvas.offsetTop, canvas.clientWidth, canvas.clientHeight].map(value => `${value}px`);
+    if (style.left !== box[0]) style.left = box[0];
+    if (style.top !== box[1]) style.top = box[1];
+    if (style.width !== box[2]) style.width = box[2];
+    if (style.height !== box[3]) style.height = box[3];
   };
   let relay: HTMLCanvasElement | undefined, relayContext: GPUCanvasContext | undefined, snapshot: HTMLCanvasElement | undefined;
   const unregister = registerLiquidCanvas(canvas, () => {
@@ -178,7 +183,8 @@ export async function createWebGPUGlassRenderer(canvas: HTMLCanvasElement, onFai
         // Exact 2x box levels are retained per source revision: a morph that only
         // changes blur resamples the nearest level instead of refiltering the source.
         let level = 0, lw = sw, lh = sh;
-        if (sw > fw || sh > fh) {
+        // Levels are only sampled beyond a 2x reduction; a 2x source at light blur allocates none.
+        if (sw > fw * 2 || sh > fh * 2) {
           if (!pyramid || pyramidWidth !== sw || pyramidHeight !== sh) {
             pyramid?.destroy(); pyramidWidth = sw; pyramidHeight = sh; pyramidReady = 0;
             pyramidSizes = frostPyramid(sw, sh);
@@ -264,7 +270,6 @@ export async function createWebGPUGlassRenderer(canvas: HTMLCanvasElement, onFai
             overlay.dataset.dgHighlightHdr = ""; overlay.setAttribute("aria-hidden", "true");
             Object.assign(overlay.style, { position: "absolute", pointerEvents: "none", opacity: "0" }); canvas.after(overlay);
             hdr = { canvas: overlay, context: ctx, pipeline }; if (latest) { pending = latest; runtime.enqueue(work); }
-            overlayObserver = new ResizeObserver(placeOverlay); overlayObserver.observe(canvas);
           } catch { ctx.unconfigure(); }
         }).catch(() => { /* SDR material remains available. */ });
       }
@@ -272,6 +277,7 @@ export async function createWebGPUGlassRenderer(canvas: HTMLCanvasElement, onFai
         const opacity = highRange ? "1" : "0";
         if (hdr.canvas.style.opacity !== opacity) hdr.canvas.style.opacity = opacity;
         if (highRange) {
+          placeOverlay();
           if (hdr.canvas.width !== width) hdr.canvas.width = width;
           if (hdr.canvas.height !== height) hdr.canvas.height = height;
           const changed = lightContent !== p.content || lightRevision !== p.contentRevision || params.some((value, i) => value !== lastLight[i]);
@@ -317,7 +323,7 @@ export async function createWebGPUGlassRenderer(canvas: HTMLCanvasElement, onFai
       if (disposed) return;
       disposed = true; pending = undefined; runtime.cancel(work);
       unregister(); retained?.destroy(); relayContext?.unconfigure();
-      overlayObserver?.disconnect(); hdr?.context.unconfigure(); hdr?.canvas.remove(); context.unconfigure();
+      hdr?.context.unconfigure(); hdr?.canvas.remove(); context.unconfigure();
       uniform.destroy(); frostUniforms.forEach(buffer => buffer?.destroy());
       source.destroy(); content.destroy(); frost.destroy(); scratch.destroy(); pyramid?.destroy(); release();
     },

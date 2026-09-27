@@ -27,7 +27,11 @@ export type GlassMaterial = Partial<
     | "mergeDistance",
     number
   >
-> & { debug?: boolean; hdr?: boolean; refractionModel?: "dome" | "bevel"; lightSource?: LiquidLightSource };
+> & {
+  debug?: boolean; hdr?: boolean; refractionModel?: "dome" | "bevel"; lightSource?: LiquidLightSource;
+  /** Publish `data-dg-tone="light" | "dark"` on surfaces from their backdrop luminance. Off by default. */
+  tone?: boolean;
+};
 
 /** Clear, chromatic UI glass. Large surfaces supply their own frost. */
 export const PRISM_MATERIAL = {
@@ -48,6 +52,8 @@ const BackendContext = createContext<GlassRendererBackend>("auto");
 export const useGlassBackend = () => useContext(BackendContext);
 
 const MaterialContext = createContext<GlassMaterial>({});
+/** Whether surfaces below publish `data-dg-tone`. */
+export const useGlassTone = () => useContext(MaterialContext).tone === true;
 
 /** Optional optical overrides, inherited through nested providers. */
 export function LiquidGlassProvider({

@@ -478,7 +478,8 @@ export function GlassToast({
   useEffect(() => {
     if (!open || duration <= 0 || held) return;
     const started = performance.now();
-    const timer = setTimeout(() => close.current(), Math.max(1000, remaining.current));
+    // A resumed toast gets at least a second to be read again; a fresh one keeps its duration.
+    const timer = setTimeout(() => close.current(), remaining.current < duration ? Math.max(1000, remaining.current) : duration);
     return () => {
       clearTimeout(timer);
       remaining.current = Math.max(0, remaining.current - (performance.now() - started));

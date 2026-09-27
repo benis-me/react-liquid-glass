@@ -4,7 +4,7 @@ import { isMotionValue, readMotion, type MotionInput } from "../shared/values";
 import { createLiquidGlassRenderer, type GlassRendererBackend, type LiquidGlassFrame, type LiquidGlassSource } from "./renderer";
 import { useGlassMaterial } from "./provider";
 import { useRendererBackend } from "./use-renderer-backend";
-import { readLiquidLightAngle, subscribeLiquidLight, type LiquidLightSource } from "./light";
+import { readLiquidLightAngle, subscribeLiquidLight, useReducedMotionPreference, type LiquidLightSource } from "./light";
 
 export type { LiquidGlassBlob } from "./renderer";
 export interface LiquidGlassCanvasProps extends Omit<LiquidGlassFrame, "source" | "content" | "sourceRevision" | "contentRevision"> {
@@ -83,18 +83,21 @@ export function LiquidGlassCanvas(props: LiquidGlassCanvasProps) {
   }, [backend, props.shared, drawFrame, scheduleDraw, onFallback]);
 
   const lightSource = props.lightSource ?? "fixed";
+  const reduceMotion = useReducedMotionPreference();
   useEffect(() => {
     lightAngle.current = undefined;
-    const canvas = canvasRef.current;
-    if (lightSource === "fixed" || !canvas || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (lightSource === "fixed" || reduceMotion) return;
     const stop = subscribeLiquidLight(lightSource, () => {
+      // Read the live canvas: a backend or sharing change remounts it.
+      const canvas = canvasRef.current;
+      if (!canvas?.isConnected) return;
       const angle = readLiquidLightAngle(lightSource, canvas.getBoundingClientRect());
       if (angle === undefined || Math.abs(angle - (lightAngle.current ?? Infinity)) < .5) return;
       lightAngle.current = angle;
       scheduleDraw();
     });
     return () => { stop(); lightAngle.current = undefined; scheduleDraw(); };
-  }, [lightSource, scheduleDraw, backend]);
+  }, [lightSource, reduceMotion, scheduleDraw]);
 
   useEffect(() => {
     const values = new Set<unknown>([

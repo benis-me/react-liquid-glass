@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from "react";
 import { frame } from "motion";
 
 export type LiquidLightSource = "fixed" | "pointer" | "device";
@@ -53,3 +54,14 @@ export function readLiquidLightAngle(source: "pointer" | "device", rect: DOMRect
   if (!vector || Math.hypot(vector.x, vector.y) < 1e-3) return undefined;
   return Math.atan2(-vector.y, vector.x) * 180 / Math.PI;
 }
+
+const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
+const subscribeReducedMotion = (notify: () => void) => {
+  if (typeof matchMedia !== "function") return () => undefined;
+  const query = matchMedia(REDUCED_MOTION);
+  query.addEventListener("change", notify);
+  return () => query.removeEventListener("change", notify);
+};
+const readReducedMotion = () => typeof matchMedia === "function" && matchMedia(REDUCED_MOTION).matches;
+/** Live reduced-motion preference; a moving light must stop when it turns on. */
+export const useReducedMotionPreference = () => useSyncExternalStore(subscribeReducedMotion, readReducedMotion, () => false);

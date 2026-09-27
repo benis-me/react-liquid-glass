@@ -39,9 +39,11 @@ export function GlassSlider({
   const current = controlled ? value : local;
   // The thumb brightens slightly on dark pages; follow theme changes, not just the first render.
   const dark = useSyncExternalStore(subscribeLiquidTheme, liquidTheme, () => "light").startsWith("dark");
-  // Report each snapped value once: dragging across one step emits one change, not one per pointer event.
+  // Within one gesture, report each snapped value once rather than once per pointer
+  // event. Each gesture starts from the owner's value, so a rejected value can be
+  // requested again.
+  const currentRef = useRef(current); currentRef.current = current;
   const reported = useRef(current);
-  useEffect(() => { reported.current = current; }, [current]);
   const compact = size === "small";
   const width = compact ? 120 : 240;
   const thumbHeight = compact ? 16 : 22;
@@ -180,6 +182,7 @@ export function GlassSlider({
             onChange={(event) => {
               const next = event.currentTarget.valueAsNumber;
               clickAnimation.current?.stop();
+              reported.current = currentRef.current;
               emit(next);
               offset.set(toOffset(next));
             }}
@@ -198,6 +201,7 @@ export function GlassSlider({
               pointerMoved.current = false;
               inputRef.current?.focus({ preventScroll: true });
               const rect = event.currentTarget.getBoundingClientRect();
+              reported.current = currentRef.current;
               const clickedValue = fromOffset(event.clientX - rect.left - thumbWidth / 2);
               const next = toOffset(clickedValue);
               clickAnimation.current?.stop();

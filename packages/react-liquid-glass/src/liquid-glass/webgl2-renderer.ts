@@ -674,7 +674,8 @@ export function createWebGL2GlassRenderer(
       // are retained per source revision; one tap over a 4-9x reduction skipped
       // most texels, so moving text, grids and hatching made coarse frost flicker.
       let level = 0, lw = sw, lh = sh;
-      if (sw > fw || sh > fh) {
+      // Levels are only sampled beyond a 2x reduction; a 2x source at light blur allocates none.
+      if (sw > fw * 2 || sh > fh * 2) {
         if (pyramidWidth !== sw || pyramidHeight !== sh) {
           pyramid.forEach(level => gl.deleteTexture(level));
           pyramidSizes = frostPyramid(sw, sh); pyramidWidth = sw; pyramidHeight = sh; pyramidReady = 0;

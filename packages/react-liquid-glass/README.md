@@ -75,7 +75,7 @@ A dragged `GlassSwitch` thumb picks its side from a short projection along its r
 
 `material.lightSource` steers the highlight axis: `"fixed"` uses `specularRotation` (default); `"pointer"` follows a mouse or pen through one shared, frame-batched listener; `"device"` follows `deviceorientation` where the platform grants it (on iOS, call `DeviceOrientationEvent.requestPermission()` from a user gesture first). Reduced motion keeps the light fixed, and only visible surfaces redraw.
 
-Glass surfaces publish `data-dg-tone="light" | "dark"` from the luminance of their backdrop, with hysteresis and reads kept off the scroll and animation path. The library never recolors content; use the attribute to adapt ink over photos or video. `readLiquidTone(canvas, region)` exposes the same measurement for custom sources.
+With `material.tone: true`, glass surfaces publish `data-dg-tone="light" | "dark"` from the luminance of their backdrop, with hysteresis and reads kept off the scroll and animation path. It is off by default and does no work until enabled. The library never recolors content; use the attribute to adapt ink over photos or video. `readLiquidTone(canvas, region)` exposes the same measurement for custom sources.
 
 ## Independent motion
 
