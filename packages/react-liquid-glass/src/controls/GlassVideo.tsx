@@ -48,8 +48,21 @@ type VideoFrameApi = {
   cancelVideoFrameCallback?: (handle: number) => void;
 };
 
-const defaultLabels = { poster: "Video poster", canvas: "Video refracted through glass controls", rewind: "Rewind 15 seconds", pause: "Pause", play: "Play", forward: "Forward 15 seconds", progress: "Playback progress", error: "This video could not be loaded." };
-export interface GlassVideoProps { src: string; poster?: string; caption?: string; autoPlay?: boolean; loop?: boolean; muted?: boolean; labels?: Partial<typeof defaultLabels>; }
+const defaultLabels = { poster: "Video poster", canvas: "Video refracted through glass controls", rewind: "Rewind 15 seconds", pause: "Pause", play: "Play", forward: "Forward 15 seconds", progress: "Playback progress", progressValue: "{current} of {duration}", error: "This video could not be loaded." };
+export interface GlassVideoProps {
+  /** Fallback source, used last when `sources` are given. */
+  src: string;
+  /** Preferred encodings in order, such as WebM before MP4. */
+  sources?: ReadonlyArray<{ src: string; type?: string }>;
+  poster?: string; caption?: string; autoPlay?: boolean; loop?: boolean; muted?: boolean;
+  /** Pause playback while the player is offscreen or the page is hidden. Rendering always pauses. Default: true. */
+  pauseWhenHidden?: boolean;
+  labels?: Partial<typeof defaultLabels>;
+}
+const clock = (seconds: number) => {
+  const whole = Math.max(0, Math.floor(seconds));
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
+};
 
 function seekRubberBand(distance: number, limit: number) {
   const magnitude = Math.abs(distance);
@@ -57,7 +70,7 @@ function seekRubberBand(distance: number, limit: number) {
   return Math.sign(distance) * limit * (1 - 1 / (magnitude / limit + 1));
 }
 
-export function GlassVideo({ src, poster, caption, autoPlay = false, loop = true, muted = true, labels }: GlassVideoProps) {
+export function GlassVideo({ src, sources, poster, caption, autoPlay = false, loop = true, muted = true, pauseWhenHidden = true, labels }: GlassVideoProps) {
   const material = useGlassMaterial();
   const { requested, backend, fallback, onFallback } = useRendererBackend();
   const reduce = useReducedMotion();
@@ -91,7 +104,16 @@ export function GlassVideo({ src, poster, caption, autoPlay = false, loop = true
   const [playing, setPlaying] = useState(autoPlay);
   const [controlsVisible, setControlsVisible] = useState(true);
   const text = { ...defaultLabels, ...labels };
+  const textRef = useRef(text); textRef.current = text;
+  const pauseWhenHiddenRef = useRef(pauseWhenHidden); pauseWhenHiddenRef.current = pauseWhenHidden;
+  const sourceKey = [...(sources ?? []).map(source => source.src), src].join("|");
   useEffect(() => { ensureDrawRef.current(); }, [material]);
+  // Browsers only pick among <source> children again after an explicit load().
+  const loadedSources = useRef(sourceKey);
+  useEffect(() => {
+    if (loadedSources.current !== sourceKey && sources?.length) videoRef.current?.load();
+    loadedSources.current = sourceKey;
+  }, [sourceKey, sources?.length]);
 
   useEffect(() => {
     strengthTargetRef.current = controlsVisible ? 1 : 0;
@@ -197,8 +219,12 @@ export function GlassVideo({ src, poster, caption, autoPlay = false, loop = true
       });
       if (progressRef.current && Number.isFinite(video.duration) && video.duration > 0) {
         progressRef.current.style.width = `${(video.currentTime / video.duration) * 100}%`;
-        barRef.current?.setAttribute("aria-valuenow", String(video.currentTime));
-        barRef.current?.setAttribute("aria-valuemax", String(video.duration));
+        const bar = barRef.current, now = String(Math.round(video.currentTime));
+        if (bar && bar.getAttribute("aria-valuenow") !== now) {
+          bar.setAttribute("aria-valuenow", now);
+          bar.setAttribute("aria-valuemax", String(Math.round(video.duration)));
+          bar.setAttribute("aria-valuetext", textRef.current.progressValue.replace("{current}", clock(video.currentTime)).replace("{duration}", clock(video.duration)));
+        }
       }
       if (rendered && !readyRef.current) {
         readyRef.current = true;
@@ -271,7 +297,7 @@ export function GlassVideo({ src, poster, caption, autoPlay = false, loop = true
       visible = next;
       if (!visible) {
         renderer.suspend();
-        resumeWhenVisible = !video.paused;
+        resumeWhenVisible = pauseWhenHiddenRef.current && !video.paused;
         cancelScheduled();
         if (resumeWhenVisible) video.pause();
         return;
@@ -304,7 +330,7 @@ export function GlassVideo({ src, poster, caption, autoPlay = false, loop = true
       cancelScheduled();
       renderer.dispose();
     };
-  }, [src, backend, onFallback]);
+  }, [sourceKey, backend, onFallback]);
 
   const togglePlayback = useCallback(() => {
     const video = videoRef.current;
@@ -398,7 +424,7 @@ export function GlassVideo({ src, poster, caption, autoPlay = false, loop = true
           {poster && <img src={poster} alt={text.poster} className="dg-video-player__placeholder" />}
           <video
             ref={videoRef}
-            src={src}
+            src={sources?.length ? undefined : src}
             crossOrigin="anonymous"
             onError={() => setLoadError(true)}
             autoPlay={autoPlay}
@@ -408,8 +434,12 @@ export function GlassVideo({ src, poster, caption, autoPlay = false, loop = true
             className="dg-video-player__video"
             onPlay={() => setPlaying(true)}
             onPause={() => setPlaying(false)}
-          />
-          <canvas key={`${requested}:${backend}:${src}`} ref={canvasRef} data-dg-renderer-fallback={fallback?.message} className="dg-video-player__canvas" style={{ opacity: ready ? 1 : 0 }} aria-label={text.canvas} role="img" />
+          >
+            {/* A failure on the last candidate means no source could play. */}
+            {sources?.length ? [...sources, { src }].map((source, index, all) => <source key={source.src} src={source.src} type={"type" in source ? source.type : undefined}
+              onError={index === all.length - 1 ? () => setLoadError(true) : undefined} />) : null}
+          </video>
+          <canvas key={`${requested}:${backend}:${sourceKey}`} ref={canvasRef} data-dg-renderer-fallback={fallback?.message} className="dg-video-player__canvas" style={{ opacity: ready ? 1 : 0 }} aria-label={text.canvas} role="img" />
           <div className="dg-video-player__controls" data-visible={controlsVisible && ready}>
             <button ref={(element) => { buttonRefs.current[0] = element; }} type="button" aria-label={text.rewind} className="dg-video-player__button dg-video-player__button--small" onClick={() => skip(-15)} onMouseEnter={() => hover(0, true)} onMouseLeave={() => { hover(0, false); press(0, 1); }} onPointerDown={() => press(0, 0.8)} onPointerUp={() => press(0, 1)} onPointerCancel={() => press(0, 1)}><SourceVideoIcon source={rewindSvg} /></button>
             <button ref={(element) => { buttonRefs.current[1] = element; }} type="button" aria-label={playing ? text.pause : text.play} className="dg-video-player__button dg-video-player__button--large" onClick={togglePlayback} onMouseEnter={() => hover(1, true)} onMouseLeave={() => { hover(1, false); press(1, 1); }} onPointerDown={() => press(1, 0.8)} onPointerUp={() => press(1, 1)} onPointerCancel={() => press(1, 1)}><SourceVideoIcon source={playing ? pauseSvg : playSvg} /></button>

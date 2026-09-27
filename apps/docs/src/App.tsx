@@ -1,11 +1,10 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   ArrowLeft,
   ArrowUpRight,
   Menu,
   Moon,
   Sun,
-  X,
 } from "lucide-react";
 import { GlassTabs, GlassSheet, ScrollArea } from "rglass/controls";
 import { LiquidGlassProvider, type GlassMaterial, type GlassRendererBackend } from "rglass/liquid-glass";
@@ -20,9 +19,16 @@ import {
   scenes,
   ShowcaseCards,
 } from "./site/Pages";
-import { Playground } from "./site/Playground";
+import { docsPages, guideList, DocsPagination } from "./site/docs-index";
+const Playground = lazy(() =>
+  import("./site/Playground").then((module) => ({ default: module.Playground })),
+);
+const GuidePage = lazy(() =>
+  import("./site/Guides").then((module) => ({ default: module.GuidePage })),
+);
 import { Link, navigate, usePath, useScrollRestoration } from "./site/router";
 import type { Locale } from "./i18n";
+import { loadChineseFont } from "./fonts";
 const Focus = lazy(() =>
   import("./showcases/Focus").then((module) => ({ default: module.Focus })),
 );
@@ -41,6 +47,14 @@ function saved(key: string) {
     return null;
   }
 }
+// Without an explicit choice the site follows the system appearance live.
+const DARK_SCHEME = "(prefers-color-scheme: dark)";
+const subscribeScheme = (notify: () => void) => {
+  const query = matchMedia(DARK_SCHEME);
+  query.addEventListener("change", notify);
+  return () => query.removeEventListener("change", notify);
+};
+const systemDark = () => matchMedia(DARK_SCHEME).matches;
 export function App({ backend }: { backend?: GlassRendererBackend } = {}) {
   const requestedPath = usePath();
   const path = requestedPath.replace(/^\/components\/([^/]+)$/, (_, id: string) => `/components/${componentAliases[id] ?? id}`);
@@ -48,15 +62,12 @@ export function App({ backend }: { backend?: GlassRendererBackend } = {}) {
   useScrollRestoration(path);
   const previousPath = useRef(path),
     main = useRef<HTMLElement>(null);
-  const [theme, setTheme] = useState<"light" | "dark">(() =>
-    saved("glass-theme") === "dark"
-      ? "dark"
-      : saved("glass-theme") === "light"
-        ? "light"
-        : matchMedia("(prefers-color-scheme: dark)").matches
-          ? "dark"
-          : "light",
-  );
+  const [themeChoice, setThemeChoice] = useState<"light" | "dark" | null>(() => {
+    const value = saved("glass-theme");
+    return value === "dark" || value === "light" ? value : null;
+  });
+  const prefersDark = useSyncExternalStore(subscribeScheme, systemDark, () => false);
+  const theme = themeChoice ?? (prefersDark ? "dark" : "light");
   const [locale, setLocale] = useState<Locale>(() =>
     saved("glass-locale") === "zh" ? "zh" : "en",
   );
@@ -105,16 +116,19 @@ export function App({ backend }: { backend?: GlassRendererBackend } = {}) {
     : hdr ? (zh ? "关闭 HDR" : "Disable HDR") : (zh ? "开启 HDR" : "Enable HDR");
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
+    for (const meta of document.querySelectorAll('meta[name="theme-color"]'))
+      meta.setAttribute("content", theme === "dark" ? "#111111" : "#fafaf9");
+  }, [theme]);
+  useEffect(() => {
+    if (!themeChoice) return;
     try {
-      localStorage.setItem("glass-theme", theme);
+      localStorage.setItem("glass-theme", themeChoice);
     } catch {
       /* Theme still applies without persistence. */
     }
-    document
-      .querySelector('meta[name="theme-color"]')
-      ?.setAttribute("content", theme === "dark" ? "#111111" : "#fafaf9");
-  }, [theme]);
+  }, [themeChoice]);
   useEffect(() => {
+    if (zh) void loadChineseFont();
     document.documentElement.lang = zh ? "zh-CN" : "en";
     try {
       localStorage.setItem("glass-locale", locale);
@@ -165,6 +179,16 @@ export function App({ backend }: { backend?: GlassRendererBackend } = {}) {
           {zh ? "应用展示" : "Showcase"}
         </Link>
       </div>
+      <div className="sidebar-group">
+        <h2>{zh ? "指南" : "Guides"}</h2>
+        <div className="sidebar-links">
+          {guideList.map(guide => (
+            <Link key={guide.id} aria-current={path === `/docs/${guide.id}` ? "page" : undefined} href={`/docs/${guide.id}`}>
+              {zh ? guide.zh : guide.en}
+            </Link>
+          ))}
+        </div>
+      </div>
       {groups.map((group) => {
         const items = catalog.filter(item => item.group === group);
         return items.length ? (
@@ -200,7 +224,9 @@ export function App({ backend }: { backend?: GlassRendererBackend } = {}) {
     page = <ComponentPage key={componentId} id={componentId} {...pageProps} />;
   else if (path === "/playground") page = <Playground {...pageProps} material={material} setMaterial={setMaterial} />;
   else if (path === "/docs/installation")
-    page = <Installation {...pageProps} />;
+    page = <><Installation {...pageProps} /><DocsPagination id="installation" locale={locale} /></>;
+  else if (guideList.some(guide => path === `/docs/${guide.id}`))
+    page = <GuidePage key={path} id={path.slice(6)} {...pageProps} />;
   else if (path === "/showcase")
     page = (
       <>
@@ -267,6 +293,18 @@ export function App({ backend }: { backend?: GlassRendererBackend } = {}) {
         </Link>
       </div>
     );
+  const component = catalog.find(item => path === `/components/${item.id}`);
+  const scene = scenes.find(item => path === `/showcase/${item.id}`);
+  const doc = docsPages.find(item => path === `/docs/${item.id}`);
+  const title = isHome ? ""
+    : path === "/components" ? (zh ? "组件" : "Components")
+    : component ? (zh ? component.zh : component.name)
+    : path === "/playground" ? "Playground"
+    : path === "/showcase" ? (zh ? "应用展示" : "Showcase")
+    : scene ? (zh ? scene.zh : scene.name)
+    : doc ? (zh ? doc.zh : doc.en)
+    : (zh ? "未找到" : "Not found");
+  useEffect(() => { document.title = title ? `${title} · React Liquid Glass` : "React Liquid Glass"; }, [title]);
   return (
     <LiquidGlassProvider material={displayMaterial} backend={backend}>
       <div className="site-shell">
@@ -313,7 +351,7 @@ export function App({ backend }: { backend?: GlassRendererBackend } = {}) {
             </span>
             <button type="button"
               className="icon-button"
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              onClick={() => setThemeChoice(theme === "dark" ? "light" : "dark")}
               aria-label={
                 theme === "dark"
                   ? zh
@@ -343,10 +381,15 @@ export function App({ backend }: { backend?: GlassRendererBackend } = {}) {
             >
               GitHub <ArrowUpRight size={12} />
             </Link>
+            {/* A plain header button like its neighbours. The sheet morphs from the
+                focused opener, so focus it on press where browsers skip click focus. */}
+            <button type="button" className="icon-button mobile-menu-button" aria-label={zh ? "导航菜单" : "Navigation menu"}
+              aria-expanded={mobileOpen} aria-haspopup="dialog"
+              onPointerDown={event => event.currentTarget.focus({ preventScroll: true })}
+              onClick={() => setMobileOpen(true)}>
+              <Menu size={18} />
+            </button>
             <GlassSheet
-              trigger={<button type="button" className="icon-button mobile-menu-button" aria-label={zh ? "导航菜单" : "Navigation menu"}>
-                {mobileOpen ? <X size={18} /> : <Menu size={18} />}
-              </button>}
               open={mobileOpen} onOpenChange={setMobileOpen}
               title={zh ? "导航" : "Navigation"} closeLabel={zh ? "关闭导航" : "Close navigation"}
             >
@@ -383,7 +426,7 @@ export function App({ backend }: { backend?: GlassRendererBackend } = {}) {
           tabIndex={-1}
           className={isHome ? "home-main" : "docs-main"}
         >
-          {page}
+          <Suspense fallback={<div className="page-loading" aria-busy="true" />}>{page}</Suspense>
         </main>
       </div>
       <footer className="site-footer">
