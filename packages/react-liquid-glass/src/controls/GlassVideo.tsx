@@ -221,10 +221,11 @@ export function GlassVideo({ src, sources, poster, caption, autoPlay = false, lo
       });
       if (progressRef.current && Number.isFinite(video.duration) && video.duration > 0) {
         progressRef.current.style.width = `${(video.currentTime / video.duration) * 100}%`;
-        const bar = barRef.current, now = String(Math.round(video.currentTime));
-        if (bar && bar.getAttribute("aria-valuenow") !== now) {
+        const bar = barRef.current, now = String(Math.round(video.currentTime)), max = String(Math.round(video.duration));
+        // The markup starts at 0 of 0; a paused first frame still needs its duration.
+        if (bar && (bar.getAttribute("aria-valuenow") !== now || bar.getAttribute("aria-valuemax") !== max)) {
           bar.setAttribute("aria-valuenow", now);
-          bar.setAttribute("aria-valuemax", String(Math.round(video.duration)));
+          bar.setAttribute("aria-valuemax", max);
           bar.setAttribute("aria-valuetext", textRef.current.progressValue.replace("{current}", clock(video.currentTime)).replace("{duration}", clock(video.duration)));
         }
       }
