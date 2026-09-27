@@ -110,6 +110,7 @@ table { width: 100%; border-collapse: collapse; font-size: 11px; text-align: lef
 th { font-weight: 550; color: var(--muted); padding: 10px 14px; background: var(--surface); }
 td { padding: 13px 14px; border-bottom: 1px solid var(--border); }
 td code { font-size: 10px; }
+td.api-description { color: var(--muted); min-width: 200px; line-height: 1.6; }
 .doc-pagination { border-top: 1px solid var(--border); display: flex; justify-content: space-between; padding-top: 24px; margin-top: 50px; }
 .doc-pagination a { display: flex; gap: 9px; align-items: center; font-size: 12px; }
 .empty-state { padding: 70px 20px; text-align: center; }

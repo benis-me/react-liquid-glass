@@ -1,14 +1,12 @@
-import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
+import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentType, type ReactNode } from "react";
 import { animate, motion, useMotionValue, useReducedMotion } from "motion/react";
 import { LiquidGlass, LIQUID_LENS } from "../liquid-glass/LiquidGlass";
 import { GlassSurface } from "./GlassSurface";
 import type { LiquidLens } from "../liquid-glass/lens";
+import { liquidTheme, subscribeLiquidTheme } from "../liquid-glass/source";
 import { springTo, useGlassContact, usePointerReleaseFallback, waitForRest, useDerivedMotion, useDerivedMotion2, useVelocityDeformation, type SpringRun } from "../apple-motion/react";
 import { SEGMENTED_TRAVEL_SPRING, SEGMENTED_PRESS_SPRING, SEGMENTED_DRAG_CATCHUP_SPRING, SEGMENTED_RELEASE_SPRING, SEGMENTED_HEIGHT_RELEASE_SPRING, SEGMENTED_IMPACT_RETENTION, SEGMENTED_TRAIL_BIAS, SEGMENTED_HOLD_IMPACT_SCRIPT } from "../apple-motion/presets";
 
-function darkTheme() {
-  return typeof document !== "undefined" && document.documentElement.dataset.theme === "dark";
-}
 
 type IconProps = { className?: string };
 const IconFrame = ({ className, children }: IconProps & { children: ReactNode }) => <svg className={className} width="16" height="16" viewBox="0 0 16 16" fill="none">{children}</svg>;
@@ -25,11 +23,11 @@ const AssetsIcon = memo(({ className }: IconProps) => <IconFrame className={clas
 const ChainsIcon = memo(({ className }: IconProps) => <IconFrame className={className}><circle cx="12.5" cy="8" r="2.5" fill="var(--dg-icon-color-1)"/><circle cx="4.5" cy="3.5" r="2.5" fill="var(--dg-icon-color-1)"/><circle cx="4.5" cy="12.5" r="2.5" fill="var(--dg-icon-color-1)"/><circle cx="8.377" cy="10.293" r="1.273" fill="var(--dg-icon-color-2)"/><circle cx="4.301" cy="8" r="1.273" fill="var(--dg-icon-color-2)"/><circle cx="8.377" cy="5.707" r="1.273" fill="var(--dg-icon-color-2)"/></IconFrame>);
 
 const DEFAULT_SEGMENTS = [
-  { value: "hubs", label: "中心", Icon: HubsIcon, color1: "#00aeff", color2: "#008aff" },
-  { value: "spokes", label: "分支", Icon: SpokesIcon, color1: "#bdbbff", color2: "#9896ff" },
-  { value: "reserves", label: "储备", Icon: ReservesIcon, color1: "#39beb7", color2: "#00827b" },
-  { value: "assets", label: "资产", Icon: AssetsIcon, color1: "#ff8130", color2: "#f00" },
-  { value: "chains", label: "网络", Icon: ChainsIcon, color1: "#ffd400", color2: "#ffb400" },
+  { value: "hubs", label: "Hubs", Icon: HubsIcon, color1: "#00aeff", color2: "#008aff" },
+  { value: "spokes", label: "Spokes", Icon: SpokesIcon, color1: "#bdbbff", color2: "#9896ff" },
+  { value: "reserves", label: "Reserves", Icon: ReservesIcon, color1: "#39beb7", color2: "#00827b" },
+  { value: "assets", label: "Assets", Icon: AssetsIcon, color1: "#ff8130", color2: "#f00" },
+  { value: "chains", label: "Chains", Icon: ChainsIcon, color1: "#ffd400", color2: "#ffb400" },
 ] as const;
 
 const SEGMENTED_PAD_X = 80;
@@ -48,8 +46,10 @@ export interface GlassSegmentedProps {
   ariaLabel?: string;
 }
 
-export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, onNavigate, className, labels, items: suppliedItems, tablist = false, idPrefix, ariaLabel = "选项" }: GlassSegmentedProps) {
+export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, onNavigate, className, labels, items: suppliedItems, tablist = false, idPrefix, ariaLabel = "Options" }: GlassSegmentedProps) {
   const reduce = useReducedMotion();
+  // The lens brightens slightly on dark pages; follow theme changes, not just the first render.
+  const dark = useSyncExternalStore(subscribeLiquidTheme, liquidTheme, () => "light").startsWith("dark");
   const segments = useMemo<readonly GlassSegmentItem[]>(() => suppliedItems?.length ? suppliedItems.map(item => ({ color1: "currentColor", color2: "currentColor", ...item })) : DEFAULT_SEGMENTS, [suppliedItems]);
   const [local, setLocal] = useState(defaultValue);
   const current = value ?? local;
@@ -373,7 +373,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
   });
   const lens: LiquidLens = {
     ...LIQUID_LENS, lensW: 50, lensH: 20, borderRadius: 16, depth: 2.5, domeDepth: 8,
-    chromaAmount: .24, edgeWidth: .9, brightness: darkTheme() ? .035 : .015,
+    chromaAmount: .24, edgeWidth: .9, brightness: dark ? .035 : .015,
   };
 
   const items = (interactive: boolean, refracted = false) => segments.map((segment) => {
