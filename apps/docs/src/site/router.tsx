@@ -62,23 +62,26 @@ export function useScrollRestoration(path: string) {
     const target = pendingScroll;
     if (target === null) return;
     pendingScroll = null;
-    let frame = 0, attempts = 0;
-    // Lazy routes may grow after the first commit; retry briefly until they fit.
+    // A lazy route grows after its first commit, however long its chunk takes.
+    // Re-apply the target as the page grows until it fits, the reader takes
+    // over, or ten seconds pass.
+    const interventions = ["wheel", "touchstart", "keydown", "pointerdown"] as const;
+    const growth = new ResizeObserver(() => apply());
+    let done = false;
+    const stop = () => {
+      if (done) return;
+      done = true; growth.disconnect(); clearTimeout(timer);
+      for (const type of interventions) window.removeEventListener(type, stop);
+    };
     const apply = () => {
       window.scrollTo({ top: target, behavior: "instant" });
-      if (Math.abs(scrollY - target) > 1 && ++attempts < 30) frame = requestAnimationFrame(apply);
+      if (Math.abs(scrollY - target) <= 1) stop();
     };
+    const timer = setTimeout(stop, 10_000);
+    for (const type of interventions) window.addEventListener(type, stop, { passive: true });
+    growth.observe(document.body);
     apply();
-    const cancel = () => cancelAnimationFrame(frame);
-    window.addEventListener("wheel", cancel, { once: true, passive: true });
-    window.addEventListener("touchstart", cancel, { once: true, passive: true });
-    window.addEventListener("keydown", cancel, { once: true });
-    return () => {
-      cancel();
-      window.removeEventListener("wheel", cancel);
-      window.removeEventListener("touchstart", cancel);
-      window.removeEventListener("keydown", cancel);
-    };
+    return stop;
   }, [path]);
 }
 

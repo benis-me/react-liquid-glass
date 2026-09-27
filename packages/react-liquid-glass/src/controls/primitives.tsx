@@ -470,11 +470,13 @@ export function GlassToast({
   const reduce = useReducedMotion();
   const close = useRef(onClose);
   close.current = onClose;
-  // Hover or focus holds the message (WCAG 2.2.1); it resumes with the time left.
-  const [held, setHeld] = useState(false);
+  // Hover or focus holds the message (WCAG 2.2.1); it resumes with the time left
+  // once neither holds it. Tracked apart, so one ending cannot release the other.
+  const [hovered, setHovered] = useState(false), [focused, setFocused] = useState(false);
+  const held = hovered || focused;
   const remaining = useRef(duration);
   // A toast that closes under the pointer never sees pointerleave; start each showing fresh.
-  useEffect(() => { remaining.current = duration; setHeld(false); }, [open, duration]);
+  useEffect(() => { remaining.current = duration; setHovered(false); setFocused(false); }, [open, duration]);
   useEffect(() => {
     if (!open || duration <= 0 || held) return;
     const started = performance.now();
@@ -491,10 +493,10 @@ export function GlassToast({
       <AnimatePresence initial={false}>
       {open && (
         <motion.div key="toast" style={{ minHeight: 0 }}
-          onPointerEnter={event => { if (event.pointerType === "mouse") setHeld(true); }}
-          onPointerLeave={event => { if (event.pointerType === "mouse") setHeld(false); }}
-          onFocus={() => setHeld(true)}
-          onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setHeld(false); }}
+          onPointerEnter={event => { if (event.pointerType === "mouse") setHovered(true); }}
+          onPointerLeave={event => { if (event.pointerType === "mouse") setHovered(false); }}
+          onFocus={() => setFocused(true)}
+          onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false); }}
           initial={reduce ? false : { opacity: 0, transform: "translateY(16px) scale(.96)" }} animate={{ opacity: 1, transform: "translateY(0px) scale(1)" }} exit={{ opacity: 0, transform: "translateY(16px) scale(.96)" }} transition={{ duration: reduce ? 0 : .24, ease: [.23, 1, .32, 1] }}>
         <GlassSurface radius={20}>
           <div>
