@@ -63,6 +63,12 @@ HDR defaults to enabled on supported displays; SDR displays keep each component'
 
 Dialog and Sheet share Popover's stable trigger/body compositor, with longer opening travel (500ms open, up to 280ms close), stronger frost and no visible mask. Pass `trigger={<GlassButton>Open</GlassButton>}` to originate at the click; keyboard activation uses the button center. Controlled dialogs without this prop originate at the active element, or viewport center.
 
+## Switch, Slider and Spotlight
+
+A dragged `GlassSwitch` thumb picks its side from a short projection along its release velocity, so a quick flick toggles without crossing the middle, and carries that velocity into its settling spring; taps keep their calibrated tween. When a controlled owner keeps the previous state, the thumb settles back to it. `GlassSlider` calls `onValueChange` once per snapped value rather than on every pointer event. Their default accessible names are `"Switch"` and `"Value"`; pass `ariaLabel` in your UI language.
+
+`GlassSpotlight` follows the pointer as a damped mass and stops drawing at rest. Its ambient drift meanders smoothly, turning away from the edges instead of reversing, stretches with its velocity, and eases to rest after 30 seconds without page activity; any pointer, key, wheel, touch or scroll activity resumes it. `backgroundSrcSet` and `backgroundSizes` pass responsive candidates to the image, and a failed image shows the plain frame instead of a broken image.
+
 ## Lens profile, light and tone
 
 `material.refractionModel` selects the optical profile. `"dome"` (default) is the calibrated spherical-cap lens. `"bevel"` models a flat slab with a rounded rim twice `edgeDepth` wide: the top stays clear, the rim refracts by Snell's law at n = 1.5, and dispersion follows physical order with blue bending most. Both backends implement it with analytic per-body normals and no extra SDF evaluations.
