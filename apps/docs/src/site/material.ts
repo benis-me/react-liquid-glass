@@ -202,6 +202,9 @@ export function sanitizeMaterial(value: unknown): GlassMaterial {
   }
   if (typeof (value as Record<string, unknown>).debug === "boolean")
     result.debug = (value as { debug: boolean }).debug;
+  const { refractionModel, lightSource } = value as Record<string, unknown>;
+  if (refractionModel === "dome" || refractionModel === "bevel") result.refractionModel = refractionModel;
+  if (lightSource === "fixed" || lightSource === "pointer" || lightSource === "device") result.lightSource = lightSource;
   // HDR is a site-wide display preference; old presets and links cannot override it.
   return result;
 }

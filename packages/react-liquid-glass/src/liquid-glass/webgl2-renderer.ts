@@ -65,6 +65,7 @@ uniform bool uTransparentOutside;
 uniform bool uDebug;
 uniform vec4 uBounds[8];
 uniform vec2 uOutputSize;
+uniform bool uBevel;
 
 float smoothMin(float a, float b, float radius) {
   float k = max(radius, .001);
@@ -149,23 +150,39 @@ float erfApprox(float value) {
   return tanh(1.7724538509 * value);
 }
 
+// Outward normal of one body's deformed rounded rectangle, mapped back to source
+// pixels through its squash/stretch and contact transform; no extra SDF work.
+vec2 blobNormal(vec2 local, int index) {
+  float radius = clamp(uCornerRadius[index], 0., min(uHalfSize[index].x, uHalfSize[index].y));
+  vec2 q = abs(local) - max(uHalfSize[index] - vec2(radius), vec2(0.));
+  vec2 n = q.x > q.y ? vec2(sign(local.x), 0.) : vec2(0., sign(local.y));
+  if (q.x > 0. && q.y > 0.) n = normalize(q) * sign(local);
+  float speed = clamp(length(uVelocity[index]) / 1100., 0., 1.);
+  vec2 direction = speed > .001 ? normalize(uVelocity[index]) : vec2(1., 0.);
+  vec2 tangent = vec2(-direction.y, direction.x);
+  float stretch = 1. + speed * .52;
+  vec2 deformed = direction * (dot(n, direction) / stretch) + tangent * (dot(n, tangent) * sqrt(stretch));
+  vec2 world = transpose(mat2(uContactInverse[index])) * deformed;
+  return world / max(length(world), .0001);
+}
+
+// The dome keeps its calibrated red-outermost fringe; the bevel model follows
+// physical dispersion, where blue bends most.
 vec3 sampleChroma(sampler2D source, vec2 uv, vec2 displacement) {
-  return vec3(
-    texture(source, uv - displacement * (1. + .2 * uChroma)).r,
-    texture(source, uv - displacement * (1. + .1 * uChroma)).g,
-    texture(source, uv - displacement).b
-  );
+  vec4 outer = texture(source, uv - displacement * (1. + .2 * uChroma));
+  float middle = texture(source, uv - displacement * (1. + .1 * uChroma)).g;
+  vec4 inner = texture(source, uv - displacement);
+  return uBevel ? vec3(inner.r, middle, outer.b) : vec3(outer.r, middle, inner.b);
 }
 
 vec2 frostUv(vec2 uv) {
   return clamp(uv * uFrostUv.xy, uFrostUv.zw, uFrostUv.xy - uFrostUv.zw);
 }
 vec3 sampleFrost(vec2 uv, vec2 displacement) {
-  return vec3(
-    texture(uFrostSource, frostUv(uv - displacement * (1. + .2 * uChroma))).r,
-    texture(uFrostSource, frostUv(uv - displacement * (1. + .1 * uChroma))).g,
-    texture(uFrostSource, frostUv(uv - displacement)).b
-  );
+  vec4 outer = texture(uFrostSource, frostUv(uv - displacement * (1. + .2 * uChroma)));
+  float middle = texture(uFrostSource, frostUv(uv - displacement * (1. + .1 * uChroma))).g;
+  vec4 inner = texture(uFrostSource, frostUv(uv - displacement));
+  return uBevel ? vec3(inner.r, middle, outer.b) : vec3(outer.r, middle, inner.b);
 }
 
 vec3 sampleGlass(vec2 uv, vec2 displacement) {
@@ -244,6 +261,8 @@ void main() {
   float materialWeight = 0.;
   float blendRadius = max(uMergeDistance * .35, 1.);
   float contactLight = 0.;
+  vec2 bevelNormal = vec2(0.);
+  vec2 bevelRatio = vec2(0.);
   for (int index = 0; index < 8; index++) {
     if (index >= uBlobCount) break;
     if (min(uHalfSize[index].x, uHalfSize[index].y) <= .001) continue;
@@ -275,6 +294,10 @@ void main() {
       gradient = sign(local) * capped / denominator * dome.zw;
     }
     glassGradient += gradient * uBlobRefractionRatio[index] * weight;
+    if (uBevel) {
+      bevelNormal += blobNormal(local, index) * weight;
+      bevelRatio += uBlobRefractionRatio[index] * weight;
+    }
     materialUv += normalizedLocal * weight;
     materialWeight += weight;
   }
@@ -283,6 +306,15 @@ void main() {
   contactLight /= max(materialWeight, .001);
   // Core Glass uses objectBoundingBox primitive units: channel delta is half the scale.
   vec2 displacement = glassGradient * (uRefraction * .5 * falloff);
+  if (uBevel) {
+    // Opt-in bevel: a flat slab whose quarter-circle rim (twice the edge depth)
+    // refracts by Snell's law at n = 1.5. The top stays clear; the rim lenses inward.
+    float rise = 1. - clamp(inside / max(uDepth * 2., 1.), 0., 1.);
+    float tilt = atan(rise / max(sqrt(1. - rise * rise), .05));
+    float deviation = tilt - asin(sin(tilt) / 1.5);
+    vec2 normal = bevelNormal / max(length(bevelNormal), .0001);
+    displacement = normal * (tan(deviation) * 2.5) * (bevelRatio / max(materialWeight, .001)) * (uRefraction * .5);
+  }
   displacement *= coverage * uZoom * uRefractionRatio;
   if (uDebug) {
     outputColor = vec4(mix(vec3(.5), vec3(.5 + displacement * 4., coverage), coverage), 1.);
@@ -417,7 +449,7 @@ const uniformNames = [
   "uSpecularRotation", "uGlowStrength", "uGlowSpread", "uGlowExponent",
   "uEdgeStrength", "uEdgeWidth", "uEdgeExponent", "uTintColor", "uTint", "uZoom",
   "uShadow", "uShadowOffset", "uShadowBlur", "uOpacity", "uTransparentOutside", "uDebug",
-  "uBounds[0]", "uOutputSize",
+  "uBounds[0]", "uOutputSize", "uBevel",
 ] as const;
 const scalarUniforms = {
   mergeDistance: "uMergeDistance", refractionStrength: "uRefraction",
@@ -717,6 +749,7 @@ export function createWebGL2GlassRenderer(
     gl.uniform1f(u.uContentBlur, readMotion(p.contentBlur ?? 0));
     gl.uniform1i(u.uTransparentOutside, p.transparentOutside ? 1 : 0);
     gl.uniform1i(u.uDebug, p.debug ? 1 : 0);
+    gl.uniform1i(u.uBevel, p.refractionModel === "bevel" ? 1 : 0);
     if (clipped) {
       const x0 = Math.max(0, Math.min(width, Math.floor(left * width / p.width))), y0 = Math.max(0, Math.min(height, Math.floor(top * height / p.height)));
       const x1 = Math.max(x0, Math.min(width, Math.ceil(right * width / p.width))), y1 = Math.max(y0, Math.min(height, Math.ceil(bottom * height / p.height)));

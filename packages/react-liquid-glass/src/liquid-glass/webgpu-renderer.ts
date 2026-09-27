@@ -228,7 +228,7 @@ export async function createWebGPUGlassRenderer(canvas: HTMLCanvasElement, onFai
       params.set([...(p.tintColor ?? defaults.tintColor), number(p, "magnification")], 24);
       params.set([number(p, "shadowStrength"), number(p, "shadowOffset"), number(p, "shadowBlur"), number(p, "opacity")], 28);
       params.set([p.content ? readMotion(p.contentOpacity ?? 0) : 0, readMotion(p.contentRefraction ?? 0), readMotion(p.contentBlur ?? 0), 0], 32);
-      params.set([prepared.count, Number(!!p.transparentOutside), Number(!!p.debug), 0], 36);
+      params.set([prepared.count, Number(!!p.transparentOutside), Number(!!p.debug), Number(p.refractionModel === "bevel")], 36);
       params.set([...(p.refractionRatio ?? defaults.refractionRatio), 0, 0], 40);
       const g = geometry;
       for (let i = 0; i < prepared.count; i++) {

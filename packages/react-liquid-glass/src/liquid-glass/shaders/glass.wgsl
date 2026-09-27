@@ -87,20 +87,39 @@ fn quadNearGlass(position: vec2f) -> bool {
   return false;
 }
 fn erfApprox(value: f32) -> f32 { return tanh(1.7724538509 * value); }
+// Outward normal of one body's deformed rounded rectangle, mapped back to source
+// pixels through its squash/stretch and contact transform; no extra SDF work.
+fn blobNormal(local: vec2f, index: u32) -> vec2f {
+  let b = p.blobs[index];
+  let radius = clamp(b.shape.w, 0.0, min(b.sizeVelocity.x, b.sizeVelocity.y));
+  let q = abs(local) - max(b.sizeVelocity.xy - vec2f(radius), vec2f(0.0));
+  var n = select(vec2f(0.0, sign(local.y)), vec2f(sign(local.x), 0.0), q.x > q.y);
+  if (q.x > 0.0 && q.y > 0.0) { n = normalize(q) * sign(local); }
+  let speed = clamp(length(b.sizeVelocity.zw) / 1100.0, 0.0, 1.0);
+  var direction = vec2f(1.0, 0.0);
+  if (speed > 0.001) { direction = normalize(b.sizeVelocity.zw); }
+  let tangent = vec2f(-direction.y, direction.x);
+  let stretch = 1.0 + speed * 0.52;
+  let deformed = direction * (dot(n, direction) / stretch) + tangent * (dot(n, tangent) * sqrt(stretch));
+  let world = transpose(mat2x2f(b.inverse.xy, b.inverse.zw)) * deformed;
+  return world / max(length(world), 0.0001);
+}
+// The dome keeps its calibrated red-outermost fringe; the bevel model follows
+// physical dispersion, where blue bends most.
 fn sampleChroma(uv: vec2f, displacement: vec2f) -> vec3f {
-  return vec3f(
-    textureSample(source, linearSampler, uv - displacement * (1.0 + 0.2 * p.refraction.z)).r,
-    textureSample(source, linearSampler, uv - displacement * (1.0 + 0.1 * p.refraction.z)).g,
-    textureSample(source, linearSampler, uv - displacement).b
-  );
+  let outer = textureSample(source, linearSampler, uv - displacement * (1.0 + 0.2 * p.refraction.z));
+  let middle = textureSample(source, linearSampler, uv - displacement * (1.0 + 0.1 * p.refraction.z)).g;
+  let inner = textureSample(source, linearSampler, uv - displacement);
+  if (p.flags.w > 0.5) { return vec3f(inner.r, middle, outer.b); }
+  return vec3f(outer.r, middle, inner.b);
 }
 fn frostUv(uv: vec2f) -> vec2f { return clamp(uv * p.frostUv.xy, p.frostUv.zw, p.frostUv.xy - p.frostUv.zw); }
 fn sampleFrost(uv: vec2f, displacement: vec2f) -> vec3f {
-  return vec3f(
-    textureSample(frostSource, linearSampler, frostUv(uv - displacement * (1.0 + 0.2 * p.refraction.z))).r,
-    textureSample(frostSource, linearSampler, frostUv(uv - displacement * (1.0 + 0.1 * p.refraction.z))).g,
-    textureSample(frostSource, linearSampler, frostUv(uv - displacement)).b
-  );
+  let outer = textureSample(frostSource, linearSampler, frostUv(uv - displacement * (1.0 + 0.2 * p.refraction.z)));
+  let middle = textureSample(frostSource, linearSampler, frostUv(uv - displacement * (1.0 + 0.1 * p.refraction.z))).g;
+  let inner = textureSample(frostSource, linearSampler, frostUv(uv - displacement));
+  if (p.flags.w > 0.5) { return vec3f(inner.r, middle, outer.b); }
+  return vec3f(outer.r, middle, inner.b);
 }
 fn sampleGlass(uv: vec2f, displacement: vec2f) -> vec3f {
   let blur = p.frost.x;
@@ -171,6 +190,8 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
   var materialWeight = 0.0;
   let blendRadius = max(p.refraction.x * 0.35, 1.0);
   var contactLight = 0.0;
+  var bevelNormal = vec2f(0.0);
+  var bevelRatio = vec2f(0.0);
   for (var index = 0u; index < 8u; index++) {
     if (index >= u32(p.flags.x)) { break; }
     let b = p.blobs[index];
@@ -194,6 +215,10 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
       gradient = sign(local) * capped / denominator * b.dome.zw;
     }
     glassGradient += gradient * b.ratio.xy * weight;
+    if (p.flags.w > 0.5) {
+      bevelNormal += blobNormal(local, index) * weight;
+      bevelRatio += b.ratio.xy * weight;
+    }
     materialUv += normalizedLocal * weight;
     materialWeight += weight;
   }
@@ -201,6 +226,15 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
   materialUv /= max(materialWeight, 0.001);
   contactLight /= max(materialWeight, 0.001);
   var displacement = glassGradient * (p.refraction.y * 0.5 * falloff);
+  if (p.flags.w > 0.5) {
+    // Opt-in bevel: a flat slab whose quarter-circle rim (twice the edge depth)
+    // refracts by Snell's law at n = 1.5. The top stays clear; the rim lenses inward.
+    let rise = 1.0 - clamp(inside / max(p.frost.y * 2.0, 1.0), 0.0, 1.0);
+    let tilt = atan(rise / max(sqrt(1.0 - rise * rise), 0.05));
+    let deviation = tilt - asin(sin(tilt) / 1.5);
+    let normal = bevelNormal / max(length(bevelNormal), 0.0001);
+    displacement = normal * (tan(deviation) * 2.5) * (bevelRatio / max(materialWeight, 0.001)) * (p.refraction.y * 0.5);
+  }
   displacement *= coverage * p.tint.w * p.ratio.xy;
   if (debug) { return vec4f(mix(vec3f(0.5), vec3f(vec2f(0.5) + displacement * 4.0, coverage), coverage), 1.0); }
   let theta = radians(p.glow.x);

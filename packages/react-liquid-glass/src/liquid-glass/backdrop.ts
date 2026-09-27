@@ -230,3 +230,51 @@ export function createLiquidBackdrop(owner: HTMLElement, bounds: () => Bounds, c
     viewport?.removeEventListener("resize", update); viewport?.removeEventListener("scroll", update);
   } };
 }
+
+export type LiquidTone = "light" | "dark";
+let toneContext: CanvasRenderingContext2D | null | undefined;
+const toLinear = (value: number) => { const c = value / 255; return c <= .04045 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4; };
+/**
+ * Mean relative luminance of a normalized region of a backdrop canvas, with
+ * hysteresis around mid-gray. Returns `previous` when the region is empty or
+ * too close to call, so ink never flickers between tones.
+ */
+export function readLiquidTone(canvas: HTMLCanvasElement, region: Bounds, previous?: LiquidTone): LiquidTone | undefined {
+  if (!canvas.width || !canvas.height) return previous;
+  toneContext ??= Object.assign(document.createElement("canvas"), { width: 8, height: 8 }).getContext("2d", { willReadFrequently: true });
+  if (!toneContext) return previous;
+  toneContext.clearRect(0, 0, 8, 8);
+  toneContext.drawImage(canvas, region.left * canvas.width, region.top * canvas.height, Math.max(1, region.width * canvas.width), Math.max(1, region.height * canvas.height), 0, 0, 8, 8);
+  const data = toneContext.getImageData(0, 0, 8, 8).data;
+  let luminance = 0, weight = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    const alpha = data[i + 3] / 255;
+    luminance += alpha * (.2126 * toLinear(data[i]) + .7152 * toLinear(data[i + 1]) + .0722 * toLinear(data[i + 2]));
+    weight += alpha;
+  }
+  if (weight < .5) return previous;
+  const mean = luminance / weight;
+  return mean > .23 ? "light" : mean < .14 ? "dark" : previous ?? (mean >= .18 ? "light" : "dark");
+}
+
+/**
+ * Publishes `data-dg-tone` on a surface from its latest backdrop. Reads are
+ * debounced off the scroll and animation path; styling ink with the attribute
+ * is left to the application.
+ */
+export function createLiquidToneTracker(element: HTMLElement) {
+  let timer: ReturnType<typeof setTimeout> | undefined, latest: [HTMLCanvasElement, Bounds] | undefined;
+  const apply = () => {
+    timer = undefined;
+    if (!latest || !element.isConnected) return;
+    const tone = readLiquidTone(latest[0], latest[1], element.dataset.dgTone as LiquidTone | undefined);
+    if (tone && element.dataset.dgTone !== tone) element.dataset.dgTone = tone;
+  };
+  return {
+    update(canvas: HTMLCanvasElement, region: Bounds = { left: 0, top: 0, width: 1, height: 1 }) {
+      latest = [canvas, region];
+      timer ??= setTimeout(apply, element.dataset.dgTone ? 120 : 0);
+    },
+    dispose() { if (timer) clearTimeout(timer); timer = undefined; latest = undefined; },
+  };
+}

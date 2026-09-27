@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Bookmark, Check, Copy, SlidersHorizontal, Minus, Plus, AlignLeft, AlignCenter, AlignRight } from "lucide-react";
+import { Bookmark, Check, Copy, SlidersHorizontal, Minus, Plus, AlignLeft, AlignCenter, AlignRight, Bold, Italic, Underline } from "lucide-react";
 import {
   GlassAccordion,
   GlassAlert,
@@ -11,6 +11,7 @@ import {
   GlassCheckbox,
   GlassDialog,
   GlassDropdownMenu,
+  GlassGroup,
   GlassInput,
   GlassPopover,
   GlassProgress,
@@ -85,6 +86,18 @@ export function ComponentExample({
         {!compact && <GlassButtonGroup label={t("Alignment", "对齐")} orientation="vertical">
           {([["left", AlignLeft, t("Align left", "左对齐")], ["center", AlignCenter, t("Align center", "居中")], ["right", AlignRight, t("Align right", "右对齐")]] as const).map(([value, Icon, label]) => <GlassButton key={value as string} size="small" aria-pressed={alignment === value} onClick={() => setAlignment(value as string)}><Icon size={14} />{label as string}</GlassButton>)}
         </GlassButtonGroup>}
+      </div>;
+    case "glass-group":
+      return <div className="example-stack">
+        <GlassGroup spacing={24} className={enabled ? "example-glass-group is-merged" : "example-glass-group"} role="group" aria-label={t("Text style", "文字样式")}>
+          <GlassButton aria-label={t("Bold", "粗体")}><Bold size={16} /></GlassButton>
+          <GlassButton aria-label={t("Italic", "斜体")}><Italic size={16} /></GlassButton>
+          <GlassButton aria-label={t("Underline", "下划线")}><Underline size={16} /></GlassButton>
+        </GlassGroup>
+        <label className="example-between">
+          {t("Merge", "融合")}
+          <GlassSwitch size="small" checked={enabled} onCheckedChange={setEnabled} ariaLabel={t("Merge the shapes", "融合形状")} />
+        </label>
       </div>;
     case "switch":
       return (

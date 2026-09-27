@@ -33,6 +33,21 @@ export const catalog = [
     code: '<GlassButtonGroup label="Zoom">\n        <GlassButton onClick={() => setZoom(value => Math.max(25, value - 25))} disabled={zoom <= 25}>−</GlassButton>\n        <GlassButton onClick={() => setZoom(100)} aria-label="Reset zoom">{zoom}%</GlassButton>\n        <GlassButton onClick={() => setZoom(value => Math.min(200, value + 25))} disabled={zoom >= 200}>+</GlassButton>\n      </GlassButtonGroup>',
   },
   {
+    id: "glass-group",
+    name: "Glass Group",
+    zh: "玻璃组",
+    group: "Actions",
+    description: "Separate shapes that fuse like liquid when they meet.",
+    summary: "彼此靠近时，像液体一样融合的独立玻璃。",
+    api: "GlassGroup",
+    props: [
+      ["spacing", "number", "20 (CSS px fusion distance)"],
+      ["children", "ReactNode", "up to 8 direct children"],
+      ["…props", "HTMLAttributes<HTMLDivElement>", "—"],
+    ],
+    code: '<GlassGroup spacing={24} className={merged ? "tools merged" : "tools"} role="group" aria-label="Text style">\n        <GlassButton aria-label="Bold">B</GlassButton>\n        <GlassButton aria-label="Italic">I</GlassButton>\n        <GlassButton aria-label="Underline">U</GlassButton>\n      </GlassGroup>\n      <GlassSwitch checked={merged} onCheckedChange={setMerged} ariaLabel="Merge" />',
+  },
+  {
     id: "switch",
     name: "Switch",
     zh: "开关",
@@ -439,6 +454,7 @@ export const groupZh: Record<string, string> = {
 const setup: Partial<Record<ComponentId, string>> = {
   button: "const [count, setCount] = useState(0);",
   "button-group": "const [zoom, setZoom] = useState(100);",
+  "glass-group": "const [merged, setMerged] = useState(false);",
   switch: "const [enabled, setEnabled] = useState(false);",
   slider: "const [volume, setVolume] = useState(50);",
   input: 'const [name, setName] = useState("");',
