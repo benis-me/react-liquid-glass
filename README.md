@@ -63,13 +63,14 @@ See the [package README](packages/react-liquid-glass/README.md) for entry points
 
 - `/components` — live catalog with category filters and a shared-material inspector.
 - `/components/:component` — individual previews, complete copyable examples and API reference.
-- `/playground` — 21 numeric renderer parameters and the live optical field; presets, per-component/all-component views, local persistence, reset, copied code and shareable URLs.
+- `/playground` — 21 numeric renderer parameters, lens profile and light source, and the live optical field; presets, per-component/all-component views, grid, lines, photo and text substrates, a side-by-side comparison with the defaults, a frame-rate readout, local persistence, reset, copied code and shareable URLs.
 - `/showcase/focus` — a deadline-based focus timer with local notes.
 - `/showcase/sequencer` — an eight-step, four-note Web Audio instrument.
-- `/showcase/orbit` — direct manipulation, velocity-preserving springs and shared-SDF fusion.
+- `/showcase/orbit` — direct manipulation with momentum, edge resistance, surface tension and shared-SDF fusion.
 - `/docs/installation` — package setup, core boundaries and usage.
+- `/docs/:guide` — theming, material and HDR, motion, renderer, performance, accessibility, browser support and server rendering.
 
-The site supports persisted English/Chinese and light/dark preferences. The header's HDR toggle is shared across pages, independent of material presets, and available on supported displays. All showcase interactions run locally; the sequencer only starts audio after a user action.
+The site supports persisted English/Chinese and light/dark preferences; without a saved choice the theme follows the system. The header's HDR toggle is shared across pages, independent of material presets, and available on supported displays. All showcase interactions run locally; the sequencer only starts audio after a user action.
 
 ## Deployment
 

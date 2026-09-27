@@ -21,8 +21,8 @@ import type { MaterialState } from "./material";
 type Substrate = GlassBackground | "photo" | "text";
 const DEFAULT_MATERIAL = {};
 const SUBSTRATE_TEXT = {
-  en: "Glass bends what lies beneath it. Letters stretch along the rim, lines curve toward the edge, and colors split where the surface turns. Move a control across this paragraph to see the optics follow.",
-  zh: "玻璃会弯折其下的一切。文字沿着边缘拉伸，线条向轮廓弯曲，颜色在表面转折处分离。把控件移到这段文字上，看光学效果如何跟随。",
+  en: "Glass bends what lies beneath it. Letters stretch along the rim, lines curve toward the edge, and colors part where the surface turns away from the light.",
+  zh: "玻璃会弯折其下的一切。文字沿着边缘拉伸，线条向轮廓弯曲，颜色在表面背光转折处分离。",
 };
 
 /** Real DOM behind the component, so the glass refracts an actual photo or text. */
