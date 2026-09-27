@@ -99,6 +99,7 @@ export function GlassVideo({ src, sources, poster, caption, autoPlay = false, lo
   const frameRef = useRef(0);
   const videoFrameRef = useRef(0);
   const ensureDrawRef = useRef<() => void>(() => undefined);
+  const visibleRef = useRef(true);
   const readyRef = useRef(false);
   const draggingRef = useRef(false);
   const seekPointerRef = useRef<number | null>(null);
@@ -107,11 +108,13 @@ export function GlassVideo({ src, sources, poster, caption, autoPlay = false, lo
   // Starts false on the server and client alike; the play event reports playback.
   const [playing, setPlaying] = useState(false);
   // Autoplay starts on the client once the reduced-motion preference is known, never
-  // from server markup, and stops again if the preference turns on mid-playback.
-  // Playback the reader started stays theirs. The play control always works. Autoplay
-  // that reduced motion stopped is not resumed when the player scrolls back into view.
+  // from server markup. While pauseWhenHidden holds the player offscreen it is "waiting"
+  // and starts on becoming visible, unless autoPlay or the preference changes first.
+  // Reduced motion "stopped" autoplay's playback, and nothing resumes it afterwards,
+  // neither a seek nor scrolling back into view. Playback the reader started with the
+  // play control is "done": it stays theirs, and the play control always works.
   const reducePreference = useReducedMotionPreference();
-  const autoplay = useRef({ key: "", state: "pending" as "pending" | "playing" | "stopped" | "done" });
+  const autoplay = useRef({ key: "", state: "pending" as "pending" | "waiting" | "playing" | "stopped" | "done" });
   const [controlsVisible, setControlsVisible] = useState(true);
   const text = { ...defaultLabels, ...labels };
   const textRef = useRef(text); textRef.current = text;
@@ -132,20 +135,6 @@ export function GlassVideo({ src, sources, poster, caption, autoPlay = false, lo
     if (loadedSources.current !== sourceKey && sources?.length) videoRef.current?.load();
     loadedSources.current = sourceKey;
   }, [sourceKey, sources?.length]);
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !autoPlay) return;
-    if (autoplay.current.key !== sourceKey) autoplay.current = { key: sourceKey, state: "pending" };
-    // Read the live query: a hydrating render still carries the server's snapshot.
-    if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      if (autoplay.current.state === "playing") { autoplay.current.state = "stopped"; video.pause(); }
-      return;
-    }
-    if (autoplay.current.state !== "pending") return;
-    autoplay.current.state = "playing";
-    // A rejection here is a blocked or interrupted start; it stays autoplay's playback.
-    void video.play().catch(() => undefined);
-  }, [autoPlay, reducePreference, sourceKey]);
 
   useEffect(() => {
     strengthTargetRef.current = controlsVisible ? 1 : 0;
@@ -165,6 +154,7 @@ export function GlassVideo({ src, sources, poster, caption, autoPlay = false, lo
     const requestVideoFrame = videoFrameApi.requestVideoFrameCallback?.bind(video);
     const cancelVideoFrame = videoFrameApi.cancelVideoFrameCallback?.bind(video);
     let visible = true;
+    visibleRef.current = true;
     let inViewport = true;
     let resumeWhenVisible = false;
     let textureReady = false;
@@ -328,6 +318,7 @@ export function GlassVideo({ src, sources, poster, caption, autoPlay = false, lo
       const next = inViewport && !document.hidden;
       if (visible === next) return;
       visible = next;
+      visibleRef.current = next;
       if (!visible) {
         renderer.suspend();
         resumeWhenVisible = pauseWhenHiddenRef.current && !video.paused;
@@ -335,7 +326,10 @@ export function GlassVideo({ src, sources, poster, caption, autoPlay = false, lo
         if (resumeWhenVisible) video.pause();
         return;
       }
-      const resume = resumeWhenVisible && autoplay.current.state !== "stopped";
+      // Resume what hiding paused, unless reduced motion stopped it, and start waiting autoplay.
+      const waiting = autoplay.current.state === "waiting";
+      if (waiting) autoplay.current.state = "playing";
+      const resume = waiting || (resumeWhenVisible && autoplay.current.state !== "stopped");
       resumeWhenVisible = false;
       if (resume) void video.play().catch(() => ensureDraw());
       else ensureDraw();
@@ -362,6 +356,26 @@ export function GlassVideo({ src, sources, poster, caption, autoPlay = false, lo
       renderer.dispose();
     };
   }, [sourceKey, backend, onFallback]);
+  // Declared after the renderer effect, which sets the visibility this effect reads.
+  useEffect(() => {
+    // A new source is a new autoplay attempt; turning autoPlay on keeps the reader's control.
+    if (autoplay.current.key !== sourceKey) autoplay.current = { key: sourceKey, state: "pending" };
+    const video = videoRef.current;
+    if (!video) return;
+    // Read the live query: a hydrating render still carries the server's snapshot.
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (autoplay.current.state === "waiting" && (reduce || !autoPlay)) autoplay.current.state = "pending";
+    if (reduce) {
+      // Autoplay's playback stops even if autoPlay has been turned off since it started.
+      if (autoplay.current.state === "playing") { autoplay.current.state = "stopped"; video.pause(); }
+      return;
+    }
+    if (!autoPlay || autoplay.current.state !== "pending") return;
+    if (!visibleRef.current && pauseWhenHiddenRef.current) { autoplay.current.state = "waiting"; return; }
+    autoplay.current.state = "playing";
+    // A rejection here is a blocked or interrupted start; it stays autoplay's playback.
+    void video.play().catch(() => undefined);
+  }, [autoPlay, reducePreference, sourceKey]);
 
   const togglePlayback = useCallback(() => {
     const video = videoRef.current;
@@ -370,6 +384,15 @@ export function GlassVideo({ src, sources, poster, caption, autoPlay = false, lo
     if (video.paused) void video.play().catch(() => setPlaying(false));
     else video.pause();
   }, []);
+
+  // load() resets playback, so autoplay that was waiting on the failed source starts again.
+  const retryLoad = () => {
+    const video = videoRef.current;
+    setLoadError(false);
+    if (!video) return;
+    video.load();
+    if (autoPlay && autoplay.current.state === "playing") void video.play().catch(() => undefined);
+  };
 
   const skip = useCallback((seconds: number) => {
     const video = videoRef.current;
@@ -406,7 +429,7 @@ export function GlassVideo({ src, sources, poster, caption, autoPlay = false, lo
     }
     barStretchTargetRef.current = 0;
     ensureDrawRef.current();
-    if (resumeAfterSeekRef.current) void videoRef.current?.play().catch(() => setPlaying(false));
+    if (resumeAfterSeekRef.current && autoplay.current.state !== "stopped") void videoRef.current?.play().catch(() => setPlaying(false));
     resumeAfterSeekRef.current = false;
   }, []);
   const { arm: armSeekFallback, disarm: disarmSeekFallback } = usePointerReleaseFallback(finishSeek);
@@ -492,7 +515,7 @@ export function GlassVideo({ src, sources, poster, caption, autoPlay = false, lo
       {loadError && (
         <figcaption className="dg-video-demo__error">
           <span role="alert">{text.error}</span>
-          <button type="button" className="dg-video-demo__retry" onClick={() => { setLoadError(false); videoRef.current?.load(); }}>{text.retry}</button>
+          <button type="button" className="dg-video-demo__retry" onClick={retryLoad}>{text.retry}</button>
         </figcaption>
       )}
       {caption && <figcaption>{caption}</figcaption>}
