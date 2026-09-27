@@ -108,9 +108,10 @@ export function GlassVideo({ src, sources, poster, caption, autoPlay = false, lo
   const [playing, setPlaying] = useState(false);
   // Autoplay starts on the client once the reduced-motion preference is known, never
   // from server markup, and stops again if the preference turns on mid-playback.
-  // Playback the reader started stays theirs. The play control always works.
+  // Playback the reader started stays theirs. The play control always works. Autoplay
+  // that reduced motion stopped is not resumed when the player scrolls back into view.
   const reducePreference = useReducedMotionPreference();
-  const autoplay = useRef({ key: "", state: "pending" as "pending" | "playing" | "done" });
+  const autoplay = useRef({ key: "", state: "pending" as "pending" | "playing" | "stopped" | "done" });
   const [controlsVisible, setControlsVisible] = useState(true);
   const text = { ...defaultLabels, ...labels };
   const textRef = useRef(text); textRef.current = text;
@@ -137,12 +138,13 @@ export function GlassVideo({ src, sources, poster, caption, autoPlay = false, lo
     if (autoplay.current.key !== sourceKey) autoplay.current = { key: sourceKey, state: "pending" };
     // Read the live query: a hydrating render still carries the server's snapshot.
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      if (autoplay.current.state === "playing") { autoplay.current.state = "done"; video.pause(); }
+      if (autoplay.current.state === "playing") { autoplay.current.state = "stopped"; video.pause(); }
       return;
     }
     if (autoplay.current.state !== "pending") return;
     autoplay.current.state = "playing";
-    void video.play().catch(() => { autoplay.current.state = "done"; });
+    // A rejection here is a blocked or interrupted start; it stays autoplay's playback.
+    void video.play().catch(() => undefined);
   }, [autoPlay, reducePreference, sourceKey]);
 
   useEffect(() => {
@@ -333,12 +335,10 @@ export function GlassVideo({ src, sources, poster, caption, autoPlay = false, lo
         if (resumeWhenVisible) video.pause();
         return;
       }
-      if (resumeWhenVisible) {
-        resumeWhenVisible = false;
-        void video.play().catch(() => ensureDraw());
-      } else {
-        ensureDraw();
-      }
+      const resume = resumeWhenVisible && autoplay.current.state !== "stopped";
+      resumeWhenVisible = false;
+      if (resume) void video.play().catch(() => ensureDraw());
+      else ensureDraw();
     };
     const visibilityObserver = new IntersectionObserver(([entry]) => {
       inViewport = entry.isIntersecting;
