@@ -1,12 +1,12 @@
 import { registerLiquidCanvas, readLiquidSource, transparentLiquidSource } from "./canvas-sources";
 import { readMotion } from "../shared/values";
-import { createFrameGeometry } from "./frame-geometry";
+import { createFrameGeometry, frostPyramid } from "./frame-geometry";
 import { notifyLiquidFrame } from "./frame-events";
 import { MAX_BLOBS, LIQUID_GLASS_MATERIAL as defaults, type LiquidGlassFrame, type LiquidGlassSource, type LiquidFrameRegion } from "./render-frame";
 import { getGlassGPUDevice, type GPUWork } from "./webgpu-device";
 
-// WGSL Params has 11 vec4 blocks; each Blob has 7 vec4 blocks.
-const MATERIAL_FLOATS = 11 * 4, BLOB_FLOATS = 7 * 4;
+// WGSL Params has 11 vec4 blocks; each Blob has 8 vec4 blocks.
+const MATERIAL_FLOATS = 11 * 4, BLOB_FLOATS = 8 * 4;
 const FLOATS = MATERIAL_FLOATS + MAX_BLOBS * BLOB_FLOATS;
 const usage = () => GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT;
 
@@ -33,14 +33,18 @@ export async function createWebGPUGlassRenderer(canvas: HTMLCanvasElement, onFai
   const params = new Float32Array(FLOATS), lastLight = new Float32Array(FLOATS).fill(NaN);
   const uniform = device.createBuffer({ label: "Liquid material values", size: params.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   const frostParams = new Float32Array(40);
-  const frostUniforms = Array.from({ length: 3 }, () => device.createBuffer({ size: frostParams.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST }));
+  // Queue writes land before the submitted passes, so every frost pass owns its uniforms.
+  const frostUniforms: GPUBuffer[] = [];
+  const frostUniform = (index: number) => frostUniforms[index] ??= device.createBuffer({ size: frostParams.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   const views = new WeakMap<GPUTexture, GPUTextureView>();
   const view = (texture: GPUTexture) => {
     let cached = views.get(texture);
     if (!cached) { cached = texture.createView(); views.set(texture, cached); }
     return cached;
   };
-  const frostBindings: Array<{ input: GPUTexture; group: GPUBindGroup } | undefined> = [];
+  const frostBindings: Array<{ input: GPUTextureView; group: GPUBindGroup } | undefined> = [];
+  let pyramid: GPUTexture | undefined, pyramidViews: GPUTextureView[] = [], pyramidSizes: Array<[number, number]> = [];
+  let pyramidWidth = 0, pyramidHeight = 0, pyramidReady = 0;
   let mipViews: GPUTextureView[] = [], mipGroups: GPUBindGroup[] = [];
   const makeTexture = (width: number, height: number, levels = 1) => device.createTexture({ size: [width, height], format: "rgba8unorm", mipLevelCount: levels, usage: usage() });
   let source = makeTexture(1, 1), content = makeTexture(1, 1), frost = makeTexture(1, 1), scratch = makeTexture(1, 1);
@@ -56,6 +60,12 @@ export async function createWebGPUGlassRenderer(canvas: HTMLCanvasElement, onFai
   let previousRegions: readonly LiquidFrameRegion[] = [{ left: 0, top: 0, width: 1, height: 1 }];
   let previousWidth = 0, previousHeight = 0;
   let retained: GPUTexture | undefined, retainedWidth = 0, retainedHeight = 0, revision = 0, snapshotRevision = -1;
+  let retainedScissor: readonly number[] | null = null;
+  let overlayObserver: ResizeObserver | undefined;
+  // Follow the canvas box from ResizeObserver instead of reading layout per draw.
+  const placeOverlay = () => {
+    if (hdr) Object.assign(hdr.canvas.style, { left: `${canvas.offsetLeft}px`, top: `${canvas.offsetTop}px`, width: `${canvas.clientWidth}px`, height: `${canvas.clientHeight}px` });
+  };
   let relay: HTMLCanvasElement | undefined, relayContext: GPUCanvasContext | undefined, snapshot: HTMLCanvasElement | undefined;
   const unregister = registerLiquidCanvas(canvas, () => {
     if (!retained || disposed) return transparentLiquidSource();
@@ -138,7 +148,7 @@ export async function createWebGPUGlassRenderer(canvas: HTMLCanvasElement, onFai
         }
         uploadImage(commands, upload, source, sw, sh, false);
         lastSource = p.source; sourceWidth = sw; sourceHeight = sh; sourceRevision = p.sourceRevision ?? 0;
-        lastBlur = NaN; stats.sourceUploads++;
+        lastBlur = NaN; pyramidReady = 0; stats.sourceUploads++;
       }
       const blur = Math.max(0, number(p, "blurStrength"));
       const frostScale = Math.min(1, 4 / Math.max(blur, 0.5));
@@ -157,15 +167,40 @@ export async function createWebGPUGlassRenderer(canvas: HTMLCanvasElement, onFai
         }
         for (let i = 0; i <= pairs; i++) frostParams[9 + i * 4] /= total;
         frostParams[4] = pairs + 1;
-        const frostPass = (input: GPUTexture, output: GPUTexture, index: number, sx: number, sy: number, dx: number, dy: number, copy: boolean) => {
+        let index = 0;
+        const frostPass = (input: GPUTextureView, output: GPUTextureView, sx: number, sy: number, dx: number, dy: number, copy: boolean, width: number, height: number) => {
           frostParams.set([sx, sy, dx, dy], 0); frostParams[5] = Number(copy);
-          device.queue.writeBuffer(frostUniforms[index], 0, frostParams);
-          if (frostBindings[index]?.input !== input) frostBindings[index] = { input, group: device.createBindGroup({ layout: runtime.frostLayout, entries: [{ binding: 0, resource: { buffer: frostUniforms[index] } }, { binding: 1, resource: view(input) }, { binding: 2, resource: runtime.sampler }] }) };
-          pass(commands, view(output), runtime.frost, frostBindings[index]!.group, fw, fh);
+          const buffer = frostUniform(index);
+          device.queue.writeBuffer(buffer, 0, frostParams);
+          if (frostBindings[index]?.input !== input) frostBindings[index] = { input, group: device.createBindGroup({ layout: runtime.frostLayout, entries: [{ binding: 0, resource: { buffer } }, { binding: 1, resource: input }, { binding: 2, resource: runtime.sampler }] }) };
+          pass(commands, output, runtime.frost, frostBindings[index++]!.group, width, height);
         };
-        if (sw !== fw || sh !== fh) frostPass(source, frost, 0, 1, 1, 0, 0, true);
-        frostPass(sw !== fw || sh !== fh ? frost : source, scratch, 1, sw !== fw || sh !== fh ? fw / frostWidth : 1, sw !== fw || sh !== fh ? fh / frostHeight : 1, 1 / fw, 0, false);
-        frostPass(scratch, frost, 2, fw / frostWidth, fh / frostHeight, 0, 1 / fh, false);
+        // Exact 2x box levels are retained per source revision: a morph that only
+        // changes blur resamples the nearest level instead of refiltering the source.
+        let level = 0, lw = sw, lh = sh;
+        if (sw > fw || sh > fh) {
+          if (!pyramid || pyramidWidth !== sw || pyramidHeight !== sh) {
+            pyramid?.destroy(); pyramidWidth = sw; pyramidHeight = sh; pyramidReady = 0;
+            pyramidSizes = frostPyramid(sw, sh);
+            pyramid = makeTexture(pyramidSizes[0][0], pyramidSizes[0][1], pyramidSizes.length);
+            pyramidViews = pyramidSizes.map((_, mip) => pyramid!.createView({ baseMipLevel: mip, mipLevelCount: 1 }));
+          }
+          for (; (lw > fw * 2 || lh > fh * 2) && level < pyramidSizes.length; level++) {
+            [lw, lh] = pyramidSizes[level];
+            if (level >= pyramidReady) {
+              frostPass(level ? pyramidViews[level - 1] : view(source), pyramidViews[level], 1, 1, .25 / lw, .25 / lh, true, lw, lh);
+              pyramidReady = level + 1;
+            }
+          }
+        }
+        let input = level ? pyramidViews[level - 1] : view(source), scaleX = 1, scaleY = 1;
+        if (lw !== fw || lh !== fh) {
+          // Quadrant taps cover the whole output texel, including a final 1-2x step.
+          frostPass(input, view(frost), scaleX, scaleY, .25 / fw, .25 / fh, true, fw, fh);
+          input = view(frost); scaleX = fw / frostWidth; scaleY = fh / frostHeight;
+        }
+        frostPass(input, view(scratch), scaleX, scaleY, 1 / fw, 0, false, fw, fh);
+        frostPass(view(scratch), view(frost), fw / frostWidth, fh / frostHeight, 0, 1 / fh, false, fw, fh);
         lastBlur = blur; lastFrostWidth = fw; lastFrostHeight = fh;
       }
       if (p.content && readMotion(p.contentOpacity ?? 0) > .001 && (p.content !== lastContent || (p.contentRevision ?? 0) !== contentRevision || p.content.width !== contentWidth || p.content.height !== contentHeight)) {
@@ -205,6 +240,7 @@ export async function createWebGPUGlassRenderer(canvas: HTMLCanvasElement, onFai
         params.set([g.contactOffsets[i * 2], g.contactOffsets[i * 2 + 1], 0, 0], o + 16);
         params.set(g.domes.subarray(i * 4, i * 4 + 4), o + 20);
         params.set([g.refractionRatios[i * 2], g.refractionRatios[i * 2 + 1], 0, 0], o + 24);
+        params.set(g.bounds.subarray(i * 4, i * 4 + 4), o + 28);
       }
       device.queue.writeBuffer(uniform, 0, params);
       const group = updateBinding();
@@ -228,15 +264,16 @@ export async function createWebGPUGlassRenderer(canvas: HTMLCanvasElement, onFai
             overlay.dataset.dgHighlightHdr = ""; overlay.setAttribute("aria-hidden", "true");
             Object.assign(overlay.style, { position: "absolute", pointerEvents: "none", opacity: "0" }); canvas.after(overlay);
             hdr = { canvas: overlay, context: ctx, pipeline }; if (latest) { pending = latest; runtime.enqueue(work); }
+            overlayObserver = new ResizeObserver(placeOverlay); overlayObserver.observe(canvas);
           } catch { ctx.unconfigure(); }
         }).catch(() => { /* SDR material remains available. */ });
       }
       if (hdr) {
-        hdr.canvas.style.opacity = highRange ? "1" : "0";
+        const opacity = highRange ? "1" : "0";
+        if (hdr.canvas.style.opacity !== opacity) hdr.canvas.style.opacity = opacity;
         if (highRange) {
           if (hdr.canvas.width !== width) hdr.canvas.width = width;
           if (hdr.canvas.height !== height) hdr.canvas.height = height;
-          Object.assign(hdr.canvas.style, { left: `${canvas.offsetLeft}px`, top: `${canvas.offsetTop}px`, width: `${canvas.clientWidth}px`, height: `${canvas.clientHeight}px` });
           const changed = lightContent !== p.content || lightRevision !== p.contentRevision || params.some((value, i) => value !== lastLight[i]);
           if (changed) {
             pass(commands, hdr.context.getCurrentTexture().createView(), hdr.pipeline, group, width, height, scissor);
@@ -246,9 +283,17 @@ export async function createWebGPUGlassRenderer(canvas: HTMLCanvasElement, onFai
       }
       const output = context.getCurrentTexture();
       pass(commands, output.createView(), runtime.glass, group, width, height, scissor);
-      const retentionTarget = retained && retainedWidth === width && retainedHeight === height ? retained
-        : device.createTexture({ size: [width, height], format: "rgba8unorm", usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST });
-      commands.copyTextureToTexture({ texture: output }, { texture: retentionTarget }, [width, height]);
+      const reuse = !!retained && retainedWidth === width && retainedHeight === height;
+      const retentionTarget = reuse ? retained! : device.createTexture({ size: [width, height], format: "rgba8unorm", usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST });
+      // Outside its scissor the output is cleared, so only the union with the
+      // previous frame's scissor can differ from the retained texture.
+      let copy: readonly number[] = [0, 0, width, height];
+      if (reuse && scissor && retainedScissor) {
+        const rects = [scissor, retainedScissor].filter(rect => rect[2] > 0 && rect[3] > 0);
+        const x = Math.min(...rects.map(rect => rect[0])), y = Math.min(...rects.map(rect => rect[1]));
+        copy = rects.length ? [x, y, Math.max(...rects.map(rect => rect[0] + rect[2])) - x, Math.max(...rects.map(rect => rect[1] + rect[3])) - y] : [0, 0, 0, 0];
+      }
+      if (copy[2] > 0 && copy[3] > 0) commands.copyTextureToTexture({ texture: output, origin: [copy[0], copy[1]] }, { texture: retentionTarget, origin: [copy[0], copy[1]] }, [copy[2], copy[3]]);
       stats.draws++;
       const regions = prepared.clipped ? prepared.regions : [{ left: 0, top: 0, width: 1, height: 1 }];
       if (previousWidth !== width || previousHeight !== height) previousRegions = [{ left: 0, top: 0, width: 1, height: 1 }];
@@ -256,7 +301,7 @@ export async function createWebGPUGlassRenderer(canvas: HTMLCanvasElement, onFai
       return () => {
         if (disposed) { retentionTarget.destroy(); return; }
         if (retained !== retentionTarget) retained?.destroy();
-        retained = retentionTarget; retainedWidth = width; retainedHeight = height; revision++;
+        retained = retentionTarget; retainedWidth = width; retainedHeight = height; retainedScissor = scissor ?? null; revision++;
         notifyLiquidFrame(canvas, changed);
       };
     },
@@ -267,14 +312,14 @@ export async function createWebGPUGlassRenderer(canvas: HTMLCanvasElement, onFai
       if (disposed || !Number.isFinite(frame.width) || !Number.isFinite(frame.height) || frame.width <= 0 || frame.height <= 0) return false;
       suspended = false; latest = pending = frame; runtime.enqueue(work); return true;
     },
-    suspend() { suspended = true; latest = pending = undefined; runtime.cancel(work); if (hdr) hdr.canvas.style.opacity = "0"; },
+    suspend() { suspended = true; latest = pending = undefined; runtime.cancel(work); if (hdr && hdr.canvas.style.opacity !== "0") hdr.canvas.style.opacity = "0"; },
     dispose() {
       if (disposed) return;
       disposed = true; pending = undefined; runtime.cancel(work);
       unregister(); retained?.destroy(); relayContext?.unconfigure();
-      hdr?.context.unconfigure(); hdr?.canvas.remove(); context.unconfigure();
-      uniform.destroy(); frostUniforms.forEach(buffer => buffer.destroy());
-      source.destroy(); content.destroy(); frost.destroy(); scratch.destroy(); release();
+      overlayObserver?.disconnect(); hdr?.context.unconfigure(); hdr?.canvas.remove(); context.unconfigure();
+      uniform.destroy(); frostUniforms.forEach(buffer => buffer?.destroy());
+      source.destroy(); content.destroy(); frost.destroy(); scratch.destroy(); pyramid?.destroy(); release();
     },
   };
 }

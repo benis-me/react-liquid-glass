@@ -3,6 +3,17 @@ import { contactTransform } from "../shared/contact";
 import { readMotion } from "../shared/values";
 import { MAX_BLOBS, LIQUID_GLASS_MATERIAL, type LiquidGlassFrame, type LiquidFrameRegion } from "./render-frame";
 
+/**
+ * Mip-style 2x box levels below a source (floor halving, like GPU mip chains).
+ * Frost resamples the coarsest level within 2x of its grid, so coarse blur never
+ * skips source texels when text, grids or hatching move underneath the glass.
+ */
+export function frostPyramid(width: number, height: number) {
+  const baseWidth = Math.max(1, Math.ceil(width / 2)), baseHeight = Math.max(1, Math.ceil(height / 2));
+  const levels = Math.floor(Math.log2(Math.max(baseWidth, baseHeight))) + 1;
+  return Array.from({ length: levels }, (_, level) => [Math.max(1, baseWidth >> level), Math.max(1, baseHeight >> level)] as [number, number]);
+}
+
 export function createFrameGeometry() {
   const blobs = new Float32Array(MAX_BLOBS * 3);
   const sizes = new Float32Array(MAX_BLOBS * 2);
@@ -13,8 +24,11 @@ export function createFrameGeometry() {
   const contactOffsets = new Float32Array(MAX_BLOBS * 2);
   const domes = new Float32Array(MAX_BLOBS * 4);
   const refractionRatios = new Float32Array(MAX_BLOBS * 2);
+  /** Conservative CSS-pixel boxes (x0, y0, x1, y1) outside which the shader's far test always passes. */
+  const bounds = new Float32Array(MAX_BLOBS * 4);
+  const domeInputs = new Float32Array(MAX_BLOBS * 3).fill(NaN);
   return {
-    blobs, sizes, corners, velocities, contacts, contactInverses, contactOffsets, domes, refractionRatios,
+    blobs, sizes, corners, velocities, contacts, contactInverses, contactOffsets, domes, refractionRatios, bounds,
     prepare(p: LiquidGlassFrame, ratio: number) {
     const count = Math.min(MAX_BLOBS, p.blobs.length);
     const clipped = p.transparentOutside && !p.debug;
@@ -51,7 +65,9 @@ export function createFrameGeometry() {
       const determinant = m00 * m11 - m01 * m10;
       contactInverses.set([m11 / determinant, -m10 / determinant, -m01 / determinant, m00 / determinant], i * 4);
       contactOffsets.set([tx, ty], i * 2);
-      if (clipped && (i === 0 || Math.min(sizes[i*2], sizes[i*2+1]) > .001)) {
+      // Blobs the shader skips never extend the bounds.
+      let x0 = 1e30, y0 = 1e30, x1 = -1e30, y1 = -1e30;
+      if (i === 0 || Math.min(sizes[i*2], sizes[i*2+1]) > .001) {
         const speed = Math.hypot(velocities[i*2], velocities[i*2+1]);
         const dx = speed > 1.1 ? velocities[i*2] / speed : 1, dy = speed > 1.1 ? velocities[i*2+1] / speed : 0;
         const stretch = 1 + Math.min(1, speed / 1100) * .52, squash = 1 / Math.sqrt(stretch);
@@ -61,16 +77,22 @@ export function createFrameGeometry() {
         const corner = Math.min(corners[i], sizes[i*2], sizes[i*2+1]), ix = sizes[i*2] - corner, iy = sizes[i*2+1] - corner;
         const ex = Math.abs(a) * ix + Math.abs(c) * iy + Math.hypot(a, c) * (corner + padding);
         const ey = Math.abs(b) * ix + Math.abs(d) * iy + Math.hypot(b, d) * (corner + padding);
-        left = Math.min(left, blobs[i*3] + tx - ex); right = Math.max(right, blobs[i*3] + tx + ex);
-        top = Math.min(top, blobs[i*3+1] + ty - ey + Math.min(0, shadowOffset));
-        bottom = Math.max(bottom, blobs[i*3+1] + ty + ey + Math.max(0, shadowOffset));
-        const x0 = Math.max(0, blobs[i*3] + tx - ex), y0 = Math.max(0, blobs[i*3+1] + ty - ey + Math.min(0, shadowOffset));
-        const x1 = Math.min(p.width, blobs[i*3] + tx + ex), y1 = Math.min(p.height, blobs[i*3+1] + ty + ey + Math.max(0, shadowOffset));
-        if (x1 > x0 && y1 > y0) regions.push({ left: x0 / p.width, top: y0 / p.height, width: (x1 - x0) / p.width, height: (y1 - y0) / p.height });
+        x0 = blobs[i*3] + tx - ex; y0 = blobs[i*3+1] + ty - ey + Math.min(0, shadowOffset);
+        x1 = blobs[i*3] + tx + ex; y1 = blobs[i*3+1] + ty + ey + Math.max(0, shadowOffset);
       }
-      const dome = computeDomeConstants(p.domeDepth ?? LIQUID_GLASS_MATERIAL.domeDepth, sizes[i*2], sizes[i*2+1]);
-      domes[i*4] = dome.Rx; domes[i*4+1] = dome.Ry;
-      domes[i*4+2] = dome.scaleX; domes[i*4+3] = dome.scaleY;
+      bounds.set([x0, y0, x1, y1], i * 4);
+      if (clipped && (i === 0 || Math.min(sizes[i*2], sizes[i*2+1]) > .001)) {
+        left = Math.min(left, x0); right = Math.max(right, x1); top = Math.min(top, y0); bottom = Math.max(bottom, y1);
+        const cx0 = Math.max(0, x0), cy0 = Math.max(0, y0), cx1 = Math.min(p.width, x1), cy1 = Math.min(p.height, y1);
+        if (cx1 > cx0 && cy1 > cy0) regions.push({ left: cx0 / p.width, top: cy0 / p.height, width: (cx1 - cx0) / p.width, height: (cy1 - cy0) / p.height });
+      }
+      const domeDepth = p.domeDepth ?? LIQUID_GLASS_MATERIAL.domeDepth;
+      if (domeInputs[i*3] !== domeDepth || domeInputs[i*3+1] !== sizes[i*2] || domeInputs[i*3+2] !== sizes[i*2+1]) {
+        const dome = computeDomeConstants(domeDepth, sizes[i*2], sizes[i*2+1]);
+        domes[i*4] = dome.Rx; domes[i*4+1] = dome.Ry;
+        domes[i*4+2] = dome.scaleX; domes[i*4+3] = dome.scaleY;
+        domeInputs.set([domeDepth, sizes[i*2], sizes[i*2+1]], i * 3);
+      }
     }
       return { count, clipped, regions, left, top, right, bottom };
     },

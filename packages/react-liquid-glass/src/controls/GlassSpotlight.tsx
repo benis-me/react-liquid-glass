@@ -9,7 +9,7 @@ import {
 } from "react";
 import { motionValue } from "../shared/values";
 import type { LiquidLens } from "../liquid-glass/lens";
-import { LiquidGlass, LIQUID_LENS } from "../liquid-glass/LiquidGlass";
+import { LiquidGlass } from "../liquid-glass/LiquidGlass";
 
 export interface GlassSpotlightProps {
   variant?: "primary" | "secondary";
@@ -37,7 +37,8 @@ export function GlassSpotlight({
 }: GlassSpotlightProps) {
   const scale = useMobileScale();
   const reduce = useReducedMotion();
-  const sourceLens = { lensW: 80, lensH: 80, borderRadius: 80, tint: 0, ...LIQUID_LENS, ...lensOverrides };
+  // Only calibrated values are passed on; LiquidGlass fills the shared defaults.
+  const sourceLens = { lensW: 80, lensH: 80, borderRadius: 80, tint: 0, ...lensOverrides };
   const targetW = sourceLens.lensW * scale;
   const targetH = sourceLens.lensH * scale;
   const targetRadius = sourceLens.borderRadius * scale;
@@ -165,7 +166,7 @@ export function GlassSpotlight({
     lensW: targetW,
     lensH: targetH,
     borderRadius: targetRadius,
-    domeDepth: (sourceLens.domeDepth / Math.max(1, sourceLens.lensW)) * Math.min(targetW, targetH),
+    ...(sourceLens.domeDepth === undefined ? {} : { domeDepth: (sourceLens.domeDepth / Math.max(1, sourceLens.lensW)) * Math.min(targetW, targetH) }),
   };
 
   return (

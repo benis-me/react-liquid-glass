@@ -77,6 +77,11 @@ test("Liquid shares a device, retains textures, recovers loss and disposes per o
       second.draw({ ...frostFrame, width: 60, height: 40, blurStrength });
     }
     assert.equal(allocations(), warmAllocations, "continuous popup frost and alternating small controls reuse texture storage");
+    before = draws(); first.draw({ ...frostFrame, sourceRevision: 3, blurStrength: 12 });
+    assert.equal(draws() - before, 6, "coarse frost resolves a 2x source through box reductions before the Gaussian");
+    before = draws(); first.draw({ ...frostFrame, sourceRevision: 3, blurStrength: 11 });
+    assert.equal(draws() - before, 4, "a morph that only changes blur resamples the cached box levels");
+    assert.equal(allocations(), warmAllocations, "coarse frost reductions reuse retained storage");
     first.draw({ ...frame, width: 300, height: 500, pixelRatio: 2 });
     const buffer = first.context.canvas;
     second.draw({ ...frame, pixelRatio: 2, blobs: [{ x: .5, y: .5, radius: 20, refractionRatio: [.4, .6] }] });

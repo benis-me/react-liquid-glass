@@ -110,6 +110,47 @@ export function paintLiquidBackdrop(root: HTMLElement, canvas: HTMLCanvasElement
   return true;
 }
 
+type Invalidation = (element: Element, regions?: readonly Bounds[]) => void;
+const WATCHED_EVENTS = ["input", "change", "load", "seeked"] as const;
+// One MutationObserver and one set of listeners per root, shared by every glass
+// surface. Records are deduplicated by element before each subscriber filters them.
+const hubs = new Map<HTMLElement, { subscribers: Set<{ invalidate: Invalidation; update: () => void }>; stop: () => void }>();
+function joinHub(root: HTMLElement, subscriber: { invalidate: Invalidation; update: () => void }) {
+  let hub = hubs.get(root);
+  if (!hub) {
+    const subscribers = new Set<{ invalidate: Invalidation; update: () => void }>();
+    const dispatch = (node: Node, regions?: readonly Bounds[]) => {
+      if (document.hidden) return;
+      const element = node instanceof Element ? node : node.parentElement;
+      if (!element || !root.contains(element) || element.closest("[popover], [data-dg-highlight-hdr]")) return;
+      for (const item of subscribers) item.invalidate(element, regions);
+    };
+    const observer = new MutationObserver(records => {
+      const targets = new Set<Node>();
+      for (const record of records) targets.add(record.target);
+      for (const target of targets) dispatch(target);
+    });
+    observer.observe(root, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ["style", "class", "src", "width", "height", "hidden", "value", "checked", "data-theme"] });
+    const stopFrames = subscribeLiquidFrames(dispatch);
+    const event = (event: Event) => { if (event.target instanceof Node) dispatch(event.target); };
+    const update = () => { for (const item of subscribers) item.update(); };
+    for (const type of WATCHED_EVENTS) root.addEventListener(type, event, true);
+    document.fonts.addEventListener("loadingdone", update);
+    document.addEventListener("visibilitychange", update);
+    hub = { subscribers, stop: () => {
+      observer.disconnect(); stopFrames();
+      for (const type of WATCHED_EVENTS) root.removeEventListener(type, event, true);
+      document.fonts.removeEventListener("loadingdone", update); document.removeEventListener("visibilitychange", update);
+    } };
+    hubs.set(root, hub);
+  }
+  hub.subscribers.add(subscriber);
+  return () => {
+    hub.subscribers.delete(subscriber);
+    if (!hub.subscribers.size) { hub.stop(); hubs.delete(root); }
+  };
+}
+
 /** Coalesce visible source changes; no polling or work while the page is hidden. */
 export function observeLiquidBackdrop(root: HTMLElement, bounds: () => Bounds, exclude: readonly Element[], refresh: () => void, before?: () => Element | undefined) {
   const changes = new Map<Element, readonly Bounds[] | undefined>();
@@ -128,27 +169,24 @@ export function observeLiquidBackdrop(root: HTMLElement, bounds: () => Bounds, e
   };
   // Collect notifications without forcing layout in mutation/renderer callbacks.
   // All observers share the same fresh layout snapshot in the next pre-render batch.
-  const invalidate = (node: Node, regions?: readonly Bounds[]) => {
-    if (document.hidden) return;
-    const element = node instanceof Element ? node : node.parentElement;
-    if (!element || !root.contains(element) || !behind(element, before?.()) || element.closest("[popover], [data-dg-highlight-hdr]") || exclude.some(item => item.contains(element))) return;
+  const invalidate: Invalidation = (element, regions) => {
+    if (!behind(element, before?.()) || exclude.some(item => item.contains(element))) return;
     const previous = changes.get(element);
     changes.set(element, changes.has(element) ? previous && regions ? [...previous, ...regions] : undefined : regions);
     scheduleLiquidBackdrop(check);
   };
-  const update = () => { force = true; scheduleLiquidBackdrop(check); };
-  const observer = new MutationObserver(records => { for (const record of records) invalidate(record.target); });
-  observer.observe(root, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ["style", "class", "src", "width", "height", "hidden", "value", "checked", "data-theme"] });
-  const sourceFrame = subscribeLiquidFrames(invalidate);
-  const event = (event: Event) => { if (event.target instanceof Node) invalidate(event.target); };
-  for (const type of ["input", "change", "load", "seeked"]) root.addEventListener(type, event, true);
-  document.fonts.addEventListener("loadingdone", update);
-  document.addEventListener("visibilitychange", update);
-  return () => {
-    observer.disconnect(); sourceFrame(); changes.clear(); cancelLiquidBackdrop(check); cancelLiquidBackdrop(refresh);
-    for (const type of ["input", "change", "load", "seeked"]) root.removeEventListener(type, event, true);
-    document.fonts.removeEventListener("loadingdone", update); document.removeEventListener("visibilitychange", update);
-  };
+  const leave = joinHub(root, { invalidate, update: () => { force = true; scheduleLiquidBackdrop(check); } });
+  return () => { leave(); changes.clear(); cancelLiquidBackdrop(check); cancelLiquidBackdrop(refresh); };
+}
+
+// Scroll and viewport listeners are shared too; each surface checks itself in the
+// next batched frame, against the same layout snapshot as every other surface.
+const scrollers = new Set<() => void>();
+const onScroll = () => { for (const scroll of scrollers) scroll(); };
+function watchScroll(scroll: () => void) {
+  if (!scrollers.size) window.addEventListener("scroll", onScroll, { capture: true, passive: true });
+  scrollers.add(scroll);
+  return () => { scrollers.delete(scroll); if (!scrollers.size) window.removeEventListener("scroll", onScroll, { capture: true }); };
 }
 
 /** Retain the same bounded DOM backdrop for inline controls and explicit lenses. */
@@ -165,28 +203,30 @@ export function createLiquidBackdrop(owner: HTMLElement, bounds: () => Bounds, c
     if (paintLiquidBackdrop(sourceRoot, canvas, rect, [owner], rect, owner)) changed(canvas);
   };
   const update = () => scheduleLiquidBackdrop(refresh);
-  const scroll = () => {
+  const scrolled = () => {
     if (!visible()) return;
     const rect = bounds();
     // Offscreen source changes are intentionally skipped; repaint on return.
     if (!intersects(rect, { left: 0, top: 0, width: innerWidth, height: innerHeight })) { sourceRoot = undefined; return; }
     if (sourceRoot) {
-      const parent = sourceRoot.getBoundingClientRect();
+      const parent = layout(sourceRoot).rect;
       // A page-flow scene and its lens move together during page scrolling.
       // DOM changes and canvas frames still invalidate the retained pixels.
       if (Math.abs(rect.left - parent.left - offsetX) < .01 && Math.abs(rect.top - parent.top - offsetY) < .01) return;
     }
-    update();
+    refresh();
   };
+  const scroll = () => scheduleLiquidBackdrop(scrolled);
   const stop = observeLiquidBackdrop(document.documentElement, bounds, [owner], refresh, () => owner);
   const resize = new ResizeObserver(update); resize.observe(owner);
-  window.addEventListener("resize", update); window.addEventListener("scroll", scroll, true);
+  const stopScroll = watchScroll(scroll);
+  window.addEventListener("resize", update);
   const viewport = window.visualViewport;
   viewport?.addEventListener("resize", update); viewport?.addEventListener("scroll", update);
   update();
   return { refresh: update, dispose() {
-    stop(); resize.disconnect(); cancelLiquidBackdrop(refresh);
-    window.removeEventListener("resize", update); window.removeEventListener("scroll", scroll, true);
+    stop(); stopScroll(); resize.disconnect(); cancelLiquidBackdrop(refresh); cancelLiquidBackdrop(scrolled);
+    window.removeEventListener("resize", update);
     viewport?.removeEventListener("resize", update); viewport?.removeEventListener("scroll", update);
   } };
 }

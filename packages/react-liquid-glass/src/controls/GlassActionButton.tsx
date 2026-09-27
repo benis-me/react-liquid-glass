@@ -3,11 +3,11 @@ import { usePointerReleaseFallback, springTo, useGlassContact } from "../apple-m
 import { contactTransform } from "../apple-motion/contact";
 import { ACTION_PRESS_SPRING, ACTION_RELEASE_SPRING } from "../apple-motion/presets";
 import { animate, motion, useMotionValue, useReducedMotion, useTransform } from "motion/react";
-import { LiquidGlass, LIQUID_LENS } from "../liquid-glass/LiquidGlass";
+import { LiquidGlass } from "../liquid-glass/LiquidGlass";
 import type { LiquidLens } from "../liquid-glass/lens";
 
+// Geometry only: the shared ordinary-glass defaults supply its optics.
 const ACTION_LENS: LiquidLens = {
-  ...LIQUID_LENS,
   lensW: 88,
   lensH: 26,
   borderRadius: 26,
