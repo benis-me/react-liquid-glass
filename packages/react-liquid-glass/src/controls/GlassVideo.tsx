@@ -48,13 +48,15 @@ type VideoFrameApi = {
   cancelVideoFrameCallback?: (handle: number) => void;
 };
 
-const defaultLabels = { poster: "Video poster", canvas: "Video refracted through glass controls", rewind: "Rewind 15 seconds", pause: "Pause", play: "Play", forward: "Forward 15 seconds", progress: "Playback progress", progressValue: "{current} of {duration}", error: "This video could not be loaded." };
+const defaultLabels = { poster: "Video poster", canvas: "Video refracted through glass controls", rewind: "Rewind 15 seconds", pause: "Pause", play: "Play", forward: "Forward 15 seconds", progress: "Playback progress", progressValue: "{current} of {duration}", error: "Unable to load this video. Check your connection and try again.", retry: "Try again" };
 export interface GlassVideoProps {
   /** Fallback source, used last when `sources` are given. */
   src: string;
   /** Preferred encodings in order, such as WebM before MP4. */
   sources?: ReadonlyArray<{ src: string; type?: string }>;
-  poster?: string; caption?: string; autoPlay?: boolean; loop?: boolean; muted?: boolean;
+  poster?: string; caption?: string;
+  /** Start playing muted when loaded. Ignored while the reader prefers reduced motion. */
+  autoPlay?: boolean; loop?: boolean; muted?: boolean;
   /** Pause playback while the player is offscreen or the page is hidden. Rendering always pauses. Default: true. */
   pauseWhenHidden?: boolean;
   labels?: Partial<typeof defaultLabels>;
@@ -101,7 +103,9 @@ export function GlassVideo({ src, sources, poster, caption, autoPlay = false, lo
   const seekPointerRef = useRef<number | null>(null);
   const resumeAfterSeekRef = useRef(false);
   const [ready, setReady] = useState(false);
-  const [playing, setPlaying] = useState(autoPlay);
+  // Reduced motion turns autoplay off; the play control still starts the video.
+  const autoPlaying = autoPlay && !reduce;
+  const [playing, setPlaying] = useState(autoPlaying);
   const [controlsVisible, setControlsVisible] = useState(true);
   const text = { ...defaultLabels, ...labels };
   const textRef = useRef(text); textRef.current = text;
@@ -436,7 +440,7 @@ export function GlassVideo({ src, sources, poster, caption, autoPlay = false, lo
             src={sources?.length ? undefined : src}
             crossOrigin="anonymous"
             onError={() => setLoadError(true)}
-            autoPlay={autoPlay}
+            autoPlay={autoPlaying}
             muted={muted}
             loop={loop}
             playsInline
@@ -466,7 +470,13 @@ export function GlassVideo({ src, sources, poster, caption, autoPlay = false, lo
           </div>
         </div>
       </div>
-      {loadError && <figcaption role="alert">{text.error}</figcaption>}
+      {/* The alert carries only the message; the recovery action stays a separate control. */}
+      {loadError && (
+        <figcaption className="dg-video-demo__error">
+          <span role="alert">{text.error}</span>
+          <button type="button" className="dg-video-demo__retry" onClick={() => { setLoadError(false); videoRef.current?.load(); }}>{text.retry}</button>
+        </figcaption>
+      )}
       {caption && <figcaption>{caption}</figcaption>}
     </figure>
   );

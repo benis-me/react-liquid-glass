@@ -5,7 +5,8 @@
   --dg-control-border: var(--border-1, light-dark(#11111114, #ffffff16));
   --dg-control-text: var(--fg-1, light-dark(#111, #f5f5f3));
   --dg-control-text-hover: var(--fg-2, light-dark(#4d4d4d, #c7c7c5));
-  --dg-control-text-muted: var(--fg-3, light-dark(#707070, #9b9b99));
+  /* Meets WCAG AA on the controls' own glass, not only on the page. */
+  --dg-control-text-muted: var(--fg-3, light-dark(#6b6b6b, #9b9b99));
   --dg-control-duration: var(--duration-snappy, .22s);
   --dg-control-ease: var(--ease-snappy, cubic-bezier(.175, .885, .32, 1.1));
 }
@@ -369,7 +370,10 @@ html[data-theme="dark"] .dg-tabs__item:not([data-selected]):hover { background: 
 
 .dg-video-demo { display: flex; flex-direction: column; gap: 14px; margin: 0; padding: 0 28px 28px; }
 .dg-video-demo__stage { display: flex; align-items: center; justify-content: center; min-height: 0; padding: 0; background: transparent; border-radius: 0; overflow: visible; }
-.dg-video-demo figcaption { padding: 0; color: var(--fg-4); text-align: center; font-size: 12px; line-height: 20px; }
+.dg-video-demo figcaption { padding: 0; color: var(--fg-3, light-dark(#6b6b6b, #9b9b99)); text-align: center; font-size: 12px; line-height: 20px; }
+.dg-video-demo__error { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 2px 10px; }
+.dg-video-demo__retry { min-height: 24px; padding: 0; color: var(--fg-1, light-dark(#111, #f5f5f3)); background: transparent; border: 0; font: inherit; font-weight: 650; cursor: pointer; }
+.dg-video-demo__retry:is(:hover, :focus-visible) { outline: none; text-decoration: underline; text-underline-offset: 3px; }
 .dg-video-player { isolation: isolate; width: 100%; max-width: 100%; aspect-ratio: 16 / 9; border-radius: 16px; position: relative; overflow: hidden; }
 .dg-video-player__placeholder, .dg-video-player__video, .dg-video-player__canvas { object-fit: cover; width: 100%; height: 100%; border-radius: inherit; position: absolute; inset: 0; }
 .dg-video-player__placeholder { z-index: 0; filter: blur(4px); }
@@ -439,8 +443,9 @@ html[data-theme="dark"] .dg-tabs__item:not([data-selected]):hover { background: 
 }
 .dg-card { margin: 0; min-width: 0; }
 .dg-card > .dg-surface > .dg-surface__content { padding: 26px; }
-.dg-card h3 { margin: 0 0 10px; font: inherit; font-weight: 650; }
-.dg-card p { margin: 0; line-height: 1.65; opacity: .65; }
+.dg-card :is(h2, h3, h4) { margin: 0 0 10px; font: inherit; font-weight: 650; }
+/* A secondary color rather than opacity, which compounds with inherited muted text. */
+.dg-card p { margin: 0; line-height: 1.65; color: var(--fg-3, light-dark(#6b6b6b, #9b9b99)); }
 .dg-badge { display: inline-block; font-size: 11px; font-weight: 550; }
 .dg-badge > .dg-surface > .dg-surface__content { padding: 7px 12px; white-space: nowrap; }
 .dg-field { display: grid; gap: 10px; min-width: 0; border-radius: 12px; }
@@ -601,10 +606,28 @@ html[data-theme="dark"] .dg-action { --action-glass-tint: #4a4a46; }
 :is(.dg-switch, .dg-slider, .dg-choice):has(:focus-visible) { background-color: light-dark(#00000008, #ffffff0c); }
 .dg-tabs__item:focus-visible { outline: none; box-shadow: none; }
 .dg-tabs__item:focus-visible > span { text-decoration: underline; text-underline-offset: 4px; }
+/* Icon-only controls have no text to underline; a short underline marks the icon instead. */
+.dg-dismiss, .dg-video-player__button { position: relative; }
+.dg-button[aria-label]:focus-visible > .dg-surface > .dg-surface__content::after,
+:is(.dg-dismiss, .dg-video-player__button, .dg-liquid-menu__trigger):focus-visible::after {
+  content: "";
+  position: absolute;
+  top: calc(50% + 12px);
+  left: 50%;
+  width: 14px;
+  height: 2px;
+  border-radius: 1px;
+  background: currentColor;
+  translate: -50% 0;
+  pointer-events: none;
+}
+.dg-dismiss:focus-visible::after { top: calc(50% + 10px); }
+.dg-liquid-menu__trigger:focus-visible::after { top: calc(50% + 17px); }
+.dg-video-player__button:focus-visible::after { top: 80%; width: 18px; }
 @media (forced-colors: active) {
   :is(.dg-button, .dg-tabs__item, .dg-dismiss, .dg-video-player__bar, .dg-video-player__button,
     .dg-liquid-menu__trigger, .dg-liquid-menu__sort-row, .dg-liquid-menu__filter-row,
-    .dg-accordion__heading button, .dg-dropdown button, .dg-select-options button):focus-visible,
+    .dg-accordion__heading button, .dg-dropdown button, .dg-select-options button, .dg-video-demo__retry):focus-visible,
   :is(.dg-switch, .dg-slider, .dg-choice):has(:focus-visible), .dg-field:focus-within > .dg-surface {
     outline: 2px solid Highlight; outline-offset: 3px; box-shadow: none;
   }

@@ -431,21 +431,24 @@ export function GlassAlert({
     </motion.div>
   );
 }
-export function GlassAccordion({ items, multiple = false, lazy = false }: {
+export function GlassAccordion({ items, multiple = false, lazy = false, headingLevel = 3 }: {
   items: { title: string; content: ReactNode }[];
   multiple?: boolean;
   /** Mount expensive content on opening and release it after the closing animation. */
   lazy?: boolean;
+  /** Level of each section's heading, so the accordion fits the page outline. Default 3. */
+  headingLevel?: 2 | 3 | 4 | 5 | 6;
 }) {
   const [expanded, setExpanded] = useState<number[]>([]);
-  return <div className="dg-accordion">{items.map((item, i) => <AccordionItem key={i} {...item} lazy={lazy} open={expanded.includes(i)} toggle={() => setExpanded(current => current.includes(i) ? current.filter(value => value !== i) : multiple ? [...current, i] : [i])} />)}</div>;
+  return <div className="dg-accordion">{items.map((item, i) => <AccordionItem key={i} {...item} lazy={lazy} headingLevel={headingLevel} open={expanded.includes(i)} toggle={() => setExpanded(current => current.includes(i) ? current.filter(value => value !== i) : multiple ? [...current, i] : [i])} />)}</div>;
 }
-function AccordionItem({ title, content, open, toggle, lazy }: { title: string; content: ReactNode; open: boolean; toggle: () => void; lazy: boolean }) {
+function AccordionItem({ title, content, open, toggle, lazy, headingLevel }: { title: string; content: ReactNode; open: boolean; toggle: () => void; lazy: boolean; headingLevel: 2 | 3 | 4 | 5 | 6 }) {
   const id = useId(), reduce = useReducedMotion();
+  const Heading = `h${headingLevel}` as const;
   const [retained, setRetained] = useState(open);
   useEffect(() => { if (lazy && open) setRetained(true); }, [lazy, open]);
   return <GlassSurface radius={18}>
-    <h3 className="dg-accordion__heading"><button type="button" id={`${id}-trigger`} aria-expanded={open} aria-controls={id} onClick={toggle}>{title}<motion.span className="dg-accordion__mark" aria-hidden="true" animate={{ rotate: open ? 45 : 0 }} transition={{ duration: reduce ? 0 : .18 }}>+</motion.span></button></h3>
+    <Heading className="dg-accordion__heading"><button type="button" id={`${id}-trigger`} aria-expanded={open} aria-controls={id} onClick={toggle}>{title}<motion.span className="dg-accordion__mark" aria-hidden="true" animate={{ rotate: open ? 45 : 0 }} transition={{ duration: reduce ? 0 : .18 }}>+</motion.span></button></Heading>
     {/* Fractional rows avoid auto-height measurement temporarily resizing and scrolling the page. */}
     <motion.div id={id} role="region" aria-labelledby={`${id}-trigger`} inert={!open} aria-hidden={!open} initial={false} animate={{ gridTemplateRows: open ? "1fr" : "0fr", opacity: open ? 1 : 0 }} transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 320, damping: 32 }} style={{ display: "grid" }} onAnimationComplete={() => { if (lazy && !open) setRetained(false); }}>
       <div style={{ overflow: "hidden" }}><div className="dg-accordion__body">{(!lazy || open || retained) && content}</div></div>
