@@ -26,7 +26,7 @@ import {
 } from "./catalog";
 import { MaterialControls } from "./MaterialControls";
 import type { MaterialState } from "./material";
-import { ComponentExample, PHOTO } from "./ComponentExample";
+import { ComponentExample, PHOTO, PHOTO_SIZES, PHOTO_SRCSET } from "./ComponentExample";
 import { propNote } from "./prop-notes";
 import { Link } from "./router";
 import type { Locale } from "../i18n";
@@ -118,6 +118,8 @@ export function Home({ locale, theme }: PageProps) {
       <div className="home-hero">
         <GlassSpotlight
           backgroundImage={PHOTO}
+          backgroundSrcSet={PHOTO_SRCSET}
+          backgroundSizes={PHOTO_SIZES}
           lens={{
             lensW: 118,
             lensH: 118,

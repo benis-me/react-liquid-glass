@@ -1,14 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { animate, motion, useMotionValue, useTransform } from "motion/react";
 import { LiquidGlass, LIQUID_LENS } from "../liquid-glass/LiquidGlass";
-import { liquidTrackSource } from "../liquid-glass/source";
+import { liquidTheme, liquidTrackSource, subscribeLiquidTheme } from "../liquid-glass/source";
 import type { LiquidLens } from "../liquid-glass/lens";
-import { usePointerReleaseFallback, useGlassContact, rubberBand } from "../apple-motion/react";
+import { usePointerReleaseFallback, useGlassContact, rubberBand, springTo } from "../apple-motion/react";
+import { SWITCH_FLICK_PROJECTION, SWITCH_RELEASE_SPRING } from "../apple-motion/presets";
 import { useThumbMotion } from "./use-thumb-motion";
-
-function darkTheme() {
-  return typeof document !== "undefined" && document.documentElement.dataset.theme === "dark";
-}
 
 export interface GlassSwitchProps {
   checked?: boolean;
@@ -28,13 +25,16 @@ export function GlassSwitch({
   disabled,
   name,
   value,
-  ariaLabel = "开关",
+  ariaLabel = "Switch",
   onCheckedChange,
   className,
   size = "default",
 }: GlassSwitchProps) {
   const [local, setLocal] = useState(defaultChecked);
   const current = checked ?? local;
+  const currentRef = useRef(current); currentRef.current = current;
+  // The thumb brightens slightly on dark pages; follow theme changes, not just the first render.
+  const dark = useSyncExternalStore(subscribeLiquidTheme, liquidTheme, () => "light").startsWith("dark");
   const compact = size === "small";
   const width = compact ? 52 : 74;
   const height = compact ? 20 : 28;
@@ -68,10 +68,10 @@ export function GlassSwitch({
   const offsetStart = useRef(0);
   const dragged = useRef(false);
   const suppressNative = useRef(false);
-  const mode = useRef<"idle" | "pending" | "hold" | "tap">("idle");
+  const mode = useRef<"idle" | "pending" | "hold" | "tap" | "release">("idle");
   const holdTimer = useRef<number | null>(null);
   const restoreTimer = useRef<number | null>(null);
-  const travelAnimation = useRef<ReturnType<typeof animate> | null>(null);
+  const travelAnimation = useRef<{ stop: () => void } | null>(null);
   const alive = useRef(true);
 
   const emit = (next: boolean) => {
@@ -112,7 +112,7 @@ export function GlassSwitch({
   const { arm: armPointerFallback, disarm: disarmPointerFallback } = usePointerReleaseFallback(cancelPointerInteraction);
 
   useEffect(() => {
-    if (pointerId.current === null && mode.current !== "tap") {
+    if (pointerId.current === null && mode.current !== "tap" && mode.current !== "release") {
       travelAnimation.current?.stop();
       travelAnimation.current = animate(offset, current ? travel : 0, travelTransition);
     }
@@ -139,7 +139,7 @@ export function GlassSwitch({
   const lens: LiquidLens = {
     ...LIQUID_LENS, depth: thumbHeight / 11, domeDepth: thumbHeight * (6 / 22),
     chromaAmount: .24, edgeWidth: .9,
-    brightness: darkTheme() ? .035 : .015,
+    brightness: dark ? .035 : .015,
   };
 
   return (
@@ -233,11 +233,22 @@ export function GlassSwitch({
                 pointerId.current = null;
                 if (holdTimer.current !== null) clearTimeout(holdTimer.current);
                 if (dragged.current) {
-                  mode.current = "idle";
                   collapse();
                   setDeformationBoost(0);
-                  const next = Math.max(0, Math.min(travel, offset.get())) > travel / 2;
-                  travelAnimation.current = animate(offset, next ? travel : 0, travelTransition);
+                  // A flick chooses its side like a thrown thumb: project briefly along the
+                  // release velocity. A thumb held still before release has no velocity.
+                  const velocity = offset.getVelocity();
+                  const next = Math.max(0, Math.min(travel, offset.get() + velocity * SWITCH_FLICK_PROJECTION)) > travel / 2;
+                  mode.current = "release";
+                  const run = springTo(offset, next ? travel : 0, SWITCH_RELEASE_SPRING);
+                  travelAnimation.current = run;
+                  void run.finished.then(() => {
+                    if (!alive.current || mode.current !== "release") return;
+                    mode.current = "idle";
+                    // A controlled owner may have kept the previous state; settle where it is.
+                    const rest = currentRef.current ? travel : 0;
+                    if (offset.get() !== rest) travelAnimation.current = animate(offset, rest, travelTransition);
+                  });
                   if (next !== current) emit(next);
                   requestAnimationFrame(() => { suppressNative.current = false; });
                 } else if (mode.current === "pending" || mode.current === "tap") {

@@ -1,5 +1,9 @@
 /** Project calibrations; these are not measured native Apple parameters. */
 export const SLIDER_CLICK_SPRING = { mass: 0.8, stiffness: 300, damping: 24 };
+/** A dragged Switch thumb carries its release velocity into this spring; taps keep their tween. */
+export const SWITCH_RELEASE_SPRING = { mass: 1, stiffness: 240, damping: 23 };
+/** Seconds of travel projected along the release velocity when choosing a flicked Switch's side. */
+export const SWITCH_FLICK_PROJECTION = 0.08;
 export const SEGMENTED_TRAVEL_SPRING = { mass: 1, stiffness: 260, damping: 28 };
 export const SEGMENTED_PRESS_SPRING = { mass: 0.9, stiffness: 320, damping: 28 };
 export const SEGMENTED_DRAG_CATCHUP_SPRING = { mass: 0.7, stiffness: 360, damping: 28 };
@@ -20,6 +24,13 @@ export const BUTTON_HOVER_SCALE = 1.045;
 
 
 export const SURFACE_PRESS_SPRING = { mass: 1, stiffness: 420, damping: 28 };
+
+/** The Spotlight lens follows the pointer as a lightly damped mass, not an exponential filter. */
+export const SPOTLIGHT_FOLLOW_SPRING = { mass: 1, stiffness: 200, damping: 24 };
+/** Ambient drift speed in CSS pixels per second. */
+export const SPOTLIGHT_DRIFT_SPEED = 90;
+/** Ambient drift eases to rest after this long without page activity, and resumes on activity. */
+export const SPOTLIGHT_IDLE_MS = 30_000;
 
 export const ACTION_PRESS_SPRING = { mass: 1, stiffness: 280, damping: 22 };
 export const ACTION_RELEASE_SPRING = { mass: 1, stiffness: 210, damping: 20 };

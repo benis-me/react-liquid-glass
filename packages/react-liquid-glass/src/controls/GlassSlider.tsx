@@ -1,15 +1,11 @@
 import { SLIDER_CLICK_SPRING } from "../apple-motion/presets";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { animate, motion, useMotionValue, useTransform } from "motion/react";
 import { LiquidGlass, LIQUID_LENS } from "../liquid-glass/LiquidGlass";
-import { liquidTrackSource } from "../liquid-glass/source";
+import { liquidTheme, liquidTrackSource, subscribeLiquidTheme } from "../liquid-glass/source";
 import type { LiquidLens } from "../liquid-glass/lens";
 import { usePointerReleaseFallback, useGlassContact, rubberBand, springTo, type SpringRun } from "../apple-motion/react";
 import { useThumbMotion } from "./use-thumb-motion";
-
-function darkTheme() {
-  return typeof document !== "undefined" && document.documentElement.dataset.theme === "dark";
-}
 
 export interface GlassSliderProps {
   value?: number;
@@ -33,7 +29,7 @@ export function GlassSlider({
   step = 1,
   disabled,
   name,
-  ariaLabel = "数值",
+  ariaLabel = "Value",
   onValueChange,
   className,
   size = "default",
@@ -41,6 +37,11 @@ export function GlassSlider({
   const [local, setLocal] = useState(defaultValue);
   const controlled = value !== undefined;
   const current = controlled ? value : local;
+  // The thumb brightens slightly on dark pages; follow theme changes, not just the first render.
+  const dark = useSyncExternalStore(subscribeLiquidTheme, liquidTheme, () => "light").startsWith("dark");
+  // Report each snapped value once: dragging across one step emits one change, not one per pointer event.
+  const reported = useRef(current);
+  useEffect(() => { reported.current = current; }, [current]);
   const compact = size === "small";
   const width = compact ? 120 : 240;
   const thumbHeight = compact ? 16 : 22;
@@ -65,6 +66,8 @@ export function GlassSlider({
   const emit = (next: number) => {
     const snapped = step > 0 ? Math.round((next - min) / step) * step + min : next;
     const clamped = Math.max(min, Math.min(max, snapped));
+    if (clamped === reported.current) return;
+    reported.current = clamped;
     if (!controlled) setLocal(clamped);
     onValueChange?.(clamped);
   };
@@ -129,7 +132,7 @@ export function GlassSlider({
   const lens: LiquidLens = {
     ...LIQUID_LENS, depth: thumbHeight / 11, domeDepth: thumbHeight * (5 / 22),
     chromaAmount: .24, edgeWidth: .9,
-    brightness: darkTheme() ? .035 : .015,
+    brightness: dark ? .035 : .015,
   };
 
   return (
