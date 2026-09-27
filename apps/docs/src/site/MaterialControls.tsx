@@ -51,14 +51,9 @@ const MaterialField = memo(function MaterialField({ field, value, initial, zh, s
       <span>
         {zh ? field.zh : field.en}
         <output>
-          {value === undefined ? (
-            <small>{zh ? "默认" : "auto"}</small>
-          ) : (
-            Number(value!.toFixed(2))
-          )}
-          {field.key === "specularRotation" && value !== undefined
-            ? "°"
-            : ""}
+          {Number((value ?? initial).toFixed(2))}
+          {field.key === "specularRotation" ? "°" : ""}
+          {value === undefined && <small> {zh ? "默认" : "auto"}</small>}
         </output>
       </span>
       <GlassSlider
@@ -91,6 +86,18 @@ export function MaterialControls({ locale, material, setMaterial, children }: {
         Object.entries(preset.material).every(([key, value]) => material[key as keyof typeof material] === value),
     )?.id ?? "";
   const tabs = useMemo(() => presets.map(preset => ({ value: preset.id, label: zh ? preset.zh : preset.en })), [zh]);
+  const lenses = useMemo(() => [
+    { value: "dome", label: zh ? "弧面" : "Dome" },
+    { value: "bevel", label: zh ? "倒角" : "Bevel" },
+  ], [zh]);
+  const lights = useMemo(() => [
+    { value: "fixed", label: zh ? "固定" : "Fixed" },
+    { value: "pointer", label: zh ? "指针" : "Pointer" },
+    { value: "device", label: zh ? "倾斜" : "Tilt" },
+  ], [zh]);
+  // Defaults stay implicit, so an untouched material remains empty.
+  const choose = <K extends "refractionModel" | "lightSource">(key: K, fallback: string) => (value: string) =>
+    setMaterial(({ [key]: _previous, ...current }) => value === fallback ? current : { ...current, [key]: value });
   const fieldControl = (field: (typeof materialFields)[number]) => (
     <MaterialField key={field.key} field={field} value={material[field.key]} initial={defaults[field.key] ?? field.initial} zh={zh} setMaterial={setMaterial} />
   );
@@ -119,6 +126,16 @@ export function MaterialControls({ locale, material, setMaterial, children }: {
             <summary><ChevronDown size={14} aria-hidden="true" />{zh ? "其他参数" : "More parameters"}</summary>
             {advanced && (
               <div className="material-fields">
+                <div className="material-choice">
+                  <span>{zh ? "透镜轮廓" : "Lens profile"}</span>
+                  <GlassTabs label={zh ? "透镜轮廓" : "Lens profile"} value={material.refractionModel ?? "dome"} items={lenses}
+                    onValueChange={choose("refractionModel", "dome")} />
+                </div>
+                <div className="material-choice">
+                  <span>{zh ? "光源" : "Light"}</span>
+                  <GlassTabs label={zh ? "光源" : "Light"} value={material.lightSource ?? "fixed"} items={lights}
+                    onValueChange={choose("lightSource", "fixed")} />
+                </div>
                 {materialFields.slice(11).map(fieldControl)}
                 <div className="debug-field">
                   <span>{zh ? "实时光学场" : "Live optical field"}</span>

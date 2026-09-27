@@ -419,6 +419,13 @@ html[data-theme="dark"] .dg-tabs__item:not([data-selected]):hover { background: 
 .dg-toggle svg { transition: fill-opacity 180ms ease; }
 @media (prefers-reduced-motion: reduce) { .dg-toggle > .dg-surface > .dg-surface__content, .dg-toggle svg { transition: none; } }
 .dg-button svg { width: 16px; height: 16px; flex-shrink: 0; }
+.dg-glass-group { position: relative; display: inline-block; max-width: 100%; vertical-align: middle; isolation: isolate; }
+.dg-glass-group__optics { position: absolute; pointer-events: none; z-index: -1; }
+.dg-glass-group__items { display: flex; align-items: center; gap: 24px; }
+.dg-glass-group__items > * { position: relative; }
+.dg-glass-group__items > .dg-button > .dg-surface > .dg-surface__content { transition: background-color .15s ease, transform .18s ease; }
+.dg-glass-group__items > .dg-button:hover:not(:disabled) > .dg-surface > .dg-surface__content { background-color: color-mix(in srgb, currentColor 6%, transparent); }
+.dg-glass-group__items > .dg-button[data-pressed] > .dg-surface > .dg-surface__content { transform: scale(.96); }
 .dg-button-group { display: inline-block; max-width: 100%; vertical-align: middle; }
 .dg-button-group__items { display: flex; align-items: stretch; padding: 4px; gap: 1px; }
 .dg-button-group[data-orientation="vertical"] > .dg-surface > .dg-surface__content > .dg-button-group__items { flex-direction: column; }

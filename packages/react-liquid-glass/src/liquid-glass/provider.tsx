@@ -1,4 +1,5 @@
 import type { GlassRendererBackend } from "./renderer";
+import type { LiquidLightSource } from "./light";
 import { createContext, useContext, useMemo, useSyncExternalStore, type ReactNode } from "react";
 
 export type GlassMaterial = Partial<
@@ -26,7 +27,7 @@ export type GlassMaterial = Partial<
     | "mergeDistance",
     number
   >
-> & { debug?: boolean; hdr?: boolean };
+> & { debug?: boolean; hdr?: boolean; refractionModel?: "dome" | "bevel"; lightSource?: LiquidLightSource };
 
 /** Clear, chromatic UI glass. Large surfaces supply their own frost. */
 export const PRISM_MATERIAL = {

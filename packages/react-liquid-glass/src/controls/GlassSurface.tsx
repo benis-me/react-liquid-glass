@@ -19,7 +19,7 @@ import { springTo, useGlassContact } from "../apple-motion/react";
 import { contactTransform } from "../apple-motion/contact";
 import { SURFACE_PRESS_SPRING } from "../apple-motion/presets";
 import { LiquidGlassCanvas } from "../liquid-glass/LiquidGlassCanvas";
-import { createLiquidBackdrop } from "../liquid-glass/backdrop";
+import { createLiquidBackdrop, createLiquidToneTracker } from "../liquid-glass/backdrop";
 import { PRISM_MATERIAL } from "../liquid-glass/provider";
 import { paintLiquidGrid } from "../liquid-glass/source";
 
@@ -155,7 +155,8 @@ function OpticalSurface({
   useLayoutEffect(() => {
     const element = root.current;
     if (!element) return;
-    return createLiquidBackdrop(element, () => {
+    const tone = createLiquidToneTracker(element);
+    const backdrop = createLiquidBackdrop(element, () => {
       const rect = element.getBoundingClientRect();
       return { left: rect.left - 40, top: rect.top - 40, width: element.offsetWidth + 80, height: element.offsetHeight + 80 };
     }, canvas => {
@@ -169,7 +170,9 @@ function OpticalSurface({
       heightValue.set(height);
       source.current = canvas;
       revision.set(revision.get() + 1);
-    }).dispose;
+      tone.update(canvas, { left: 40 / (width + 80), top: 40 / (height + 80), width: width / (width + 80), height: height / (height + 80) });
+    });
+    return () => { backdrop.dispose(); tone.dispose(); };
   }, [revision, widthValue, heightValue]);
   return (
     <span

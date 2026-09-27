@@ -7,4 +7,5 @@ export type { LiquidSourceFactory, LiquidSourcePainter } from "./source";
 export { paintLiquidGrid } from "./source";
 export { liquidContentPose, liquidContentOptics, liquidSurfaceBlur } from "./geometry";
 export { LiquidGlassProvider, useGlassMaterial, useGlassMaterialOverrides, useDisplayHDR, DEFAULT_MATERIAL, PRISM_MATERIAL, HDR_SPECULAR_STRENGTH, type GlassMaterial } from "./provider";
-export { paintLiquidBackdrop } from "./backdrop";
+export { paintLiquidBackdrop, readLiquidTone, type LiquidTone } from "./backdrop";
+export type { LiquidLightSource } from "./light";

@@ -81,6 +81,12 @@ export interface LiquidGlassFrame {
   shadowBlur?: number;
   opacity?: MotionInput;
   transparentOutside?: boolean;
+  /**
+   * `dome` (default) is the calibrated spherical-cap lens. `bevel` models a flat
+   * slab with a rounded rim: Snell refraction at the rim, a clear top, and
+   * physical dispersion order. Rim width is twice `edgeDepth`.
+   */
+  refractionModel?: "dome" | "bevel";
   /** Visualize this exact shader's live displacement and coverage, without CPU maps. */
   debug?: boolean;
   pixelRatio?: number;

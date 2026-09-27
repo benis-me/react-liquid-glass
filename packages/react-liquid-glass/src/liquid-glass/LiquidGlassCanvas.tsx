@@ -4,6 +4,7 @@ import { isMotionValue, readMotion, type MotionInput } from "../shared/values";
 import { createLiquidGlassRenderer, type GlassRendererBackend, type LiquidGlassFrame, type LiquidGlassSource } from "./renderer";
 import { useGlassMaterial } from "./provider";
 import { useRendererBackend } from "./use-renderer-backend";
+import { readLiquidLightAngle, subscribeLiquidLight, type LiquidLightSource } from "./light";
 
 export type { LiquidGlassBlob } from "./renderer";
 export interface LiquidGlassCanvasProps extends Omit<LiquidGlassFrame, "source" | "content" | "sourceRevision" | "contentRevision"> {
@@ -18,6 +19,12 @@ export interface LiquidGlassCanvasProps extends Omit<LiquidGlassFrame, "source" 
   inheritMaterial?: boolean;
   /** Enable extended highlights on supported HDR displays. Default: true. */
   hdr?: boolean;
+  /**
+   * Highlight direction: `fixed` uses `specularRotation` (default); `pointer`
+   * follows a mouse or pen; `device` follows orientation events where the
+   * platform grants them. Reduced motion keeps the fixed light.
+   */
+  lightSource?: LiquidLightSource;
   className?: string;
   style?: CSSProperties;
   ariaLabel?: string;
@@ -31,6 +38,7 @@ export function LiquidGlassCanvas(props: LiquidGlassCanvasProps) {
   const config = useRef(props);
   config.current = props;
   const drawRef = useRef<() => void>(() => undefined);
+  const lightAngle = useRef<number | undefined>(undefined);
   const drawFrame = useCallback(() => drawRef.current(), []);
   const scheduleDraw = useCallback(() => frame.render(drawFrame), [drawFrame]);
 
@@ -48,6 +56,7 @@ export function LiquidGlassCanvas(props: LiquidGlassCanvasProps) {
       if (!visible || document.hidden || !source) return;
       renderer.draw({
         ...p, source, content: p.contentRef?.current,
+        specularRotation: lightAngle.current ?? p.specularRotation,
         sourceRevision: readMotion(p.sourceRevision ?? 0),
         contentRevision: readMotion(p.contentRevision ?? 0),
         pixelRatio: Math.min(2, p.pixelRatio ?? window.devicePixelRatio ?? 1),
@@ -72,6 +81,20 @@ export function LiquidGlassCanvas(props: LiquidGlassCanvasProps) {
       renderer.dispose();
     };
   }, [backend, props.shared, drawFrame, scheduleDraw, onFallback]);
+
+  const lightSource = props.lightSource ?? "fixed";
+  useEffect(() => {
+    lightAngle.current = undefined;
+    const canvas = canvasRef.current;
+    if (lightSource === "fixed" || !canvas || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const stop = subscribeLiquidLight(lightSource, () => {
+      const angle = readLiquidLightAngle(lightSource, canvas.getBoundingClientRect());
+      if (angle === undefined || Math.abs(angle - (lightAngle.current ?? Infinity)) < .5) return;
+      lightAngle.current = angle;
+      scheduleDraw();
+    });
+    return () => { stop(); lightAngle.current = undefined; scheduleDraw(); };
+  }, [lightSource, scheduleDraw, backend]);
 
   useEffect(() => {
     const values = new Set<unknown>([

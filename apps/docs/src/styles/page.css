@@ -172,6 +172,8 @@ td code { font-size: 10px; }
 .material-advanced { margin-top: 22px; font-size: 10px; color: var(--muted); }
 .material-advanced .material-fields { margin-top: 20px; color: var(--text); }
 .debug-field { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 10px; }
+.material-choice { display: grid; gap: 8px; font-size: 10px; }
+.material-choice .dg-tabs { max-width: none; }
 
 
 @media (max-width: 640px) {
