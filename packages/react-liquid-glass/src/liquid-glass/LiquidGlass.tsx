@@ -48,6 +48,8 @@ export interface LiquidGlassProps {
   hdr?: boolean;
   material?: Partial<LiquidGlassFrame> & { hdr?: boolean };
   contact?: Pick<LiquidGlassBlob, "contactX" | "contactY" | "anchorX" | "anchorY" | "contactStrength" | "pullX" | "pullY">;
+  /** Lens velocity in CSS pixels per second; drives volume-preserving squash and stretch. */
+  velocity?: { x: MotionInput; y: MotionInput };
   className?: string; style?: CSSProperties;
 }
 
@@ -236,7 +238,7 @@ export function LiquidGlass(props: LiquidGlassProps) {
       style={{ position: "absolute", inset: 0, opacity: 0, pointerEvents: "none" }}>{props.refractionTarget}</div> : null}
     {size.width > 0 && size.height > 0 ? <LiquidGlassCanvas shared inheritMaterial={false}
       sourceRef={sourceRef} sourceRevision={sourceRevision} width={size.width} height={size.height}
-      blobs={[{ x: props.x ?? .5, y: props.y ?? .5, radius, halfWidth: width, halfHeight: height, ...props.contact }]}
+      blobs={[{ x: props.x ?? .5, y: props.y ?? .5, radius, halfWidth: width, halfHeight: height, velocityX: props.velocity?.x, velocityY: props.velocity?.y, ...props.contact }]}
       mergeDistance={0}
       refractionRatio={props.refractionPixels !== undefined ? [1 / size.width, 1 / size.height]
         : scale ? [(lens.scaleX ?? scale) / scale, (lens.scaleY ?? scale) / scale] : [1, 1]}

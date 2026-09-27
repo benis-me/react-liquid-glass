@@ -33,6 +33,8 @@ import type { Locale } from "../i18n";
 import type { ComponentId } from "./catalog";
 // Self-hosted copy of an Unsplash photograph: same-origin pixels, no third-party request.
 export const PHOTO = "/assets/building.avif";
+export const PHOTO_SRCSET = "/assets/building-1000.avif 1000w, /assets/building.avif 1800w";
+export const PHOTO_SIZES = "(max-width: 767px) 100vw, 1200px";
 export function ComponentExample({
   id,
   locale = "en",
@@ -433,6 +435,8 @@ export function ComponentExample({
       return (
         <GlassSpotlight
           backgroundImage={PHOTO}
+          backgroundSrcSet={PHOTO_SRCSET}
+          backgroundSizes={PHOTO_SIZES}
           lens={{
             lensW: compact ? 52 : 95,
             lensH: compact ? 52 : 95,
