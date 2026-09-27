@@ -425,11 +425,13 @@ export const catalog = [
     api: "GlassVideo",
     props: [
       ["src", "string (same origin or CORS)", "required"],
+      ["sources", "{ src, type? }[] (preferred first)", "—"],
       ["poster", "string", "—"],
       ["autoPlay / muted / loop", "boolean", "false / true / true"],
+      ["pauseWhenHidden", "boolean", "true"],
       ["labels", "localized labels", "English"],
     ],
-    code: '<GlassVideo src="/film.mp4" poster="/poster.webp" />',
+    code: '<GlassVideo src="/film.mp4" sources={[{ src: "/film.webm", type: "video/webm" }]} poster="/poster.webp" />',
   },
 ] as const;
 export const groups = [

@@ -3,9 +3,27 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#f5f5f3" />
-    <link rel="preconnect" href="https://images.unsplash.com" />
+    <script>
+      // Apply the saved or system theme and locale before first paint; the app keeps them in sync.
+      try {
+        var theme = localStorage.getItem("glass-theme");
+        if (theme !== "light" && theme !== "dark") theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        document.documentElement.dataset.theme = theme;
+        if (localStorage.getItem("glass-locale") === "zh") document.documentElement.lang = "zh-CN";
+      } catch (error) {}
+    </script>
+    <meta name="theme-color" content="#fafaf9" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#111111" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <meta name="description" content="Real-time liquid-glass refraction components for React, DOM, Canvas, and video." />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="React Liquid Glass" />
+    <meta property="og:title" content="React Liquid Glass" />
+    <meta property="og:description" content="Real-time liquid-glass refraction components for React, DOM, Canvas, and video." />
+    <meta property="og:image" content="https://react-liquid-glass-alpha.vercel.app/og.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
     <title>React Liquid Glass</title>
   </head>
   <body>

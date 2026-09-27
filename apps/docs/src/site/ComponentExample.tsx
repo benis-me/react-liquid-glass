@@ -31,8 +31,8 @@ import {
 import { MorphMenuDemo } from "../demos/MorphMenuDemo";
 import type { Locale } from "../i18n";
 import type { ComponentId } from "./catalog";
-export const PHOTO =
-  "https://images.unsplash.com/photo-1683318854587-3722ba210558?auto=format&fit=crop&w=1800&q=85";
+// Self-hosted copy of an Unsplash photograph: same-origin pixels, no third-party request.
+export const PHOTO = "/assets/building.avif";
 export function ComponentExample({
   id,
   locale = "en",
@@ -422,6 +422,7 @@ export function ComponentExample({
       return (
         <GlassVideo
           src="/assets/flowers.mp4"
+          sources={[{ src: "/assets/flowers.webm", type: 'video/webm; codecs="vp9"' }]}
           poster="/assets/flowers-placeholder.webp"
           labels={
             locale === "zh"
@@ -434,6 +435,7 @@ export function ComponentExample({
                   rewind: "后退 15 秒",
                   forward: "前进 15 秒",
                   progress: "播放进度",
+                  progressValue: "{current} / {duration}",
                 }
               : undefined
           }
