@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Bookmark, Check, Copy, SlidersHorizontal, Minus, Plus, AlignLeft, AlignCenter, AlignRight, Bold, Italic, Underline } from "lucide-react";
 import {
   GlassAccordion,
@@ -38,11 +38,14 @@ export function ComponentExample({
   locale = "en",
   theme = "light",
   compact = false,
+  pulse = false,
 }: {
   id: ComponentId;
   locale?: Locale;
   theme?: "light" | "dark";
   compact?: boolean;
+  /** Toggle the Switch once, the first time it is seen, to show its glass travel. */
+  pulse?: boolean;
 }) {
   const [enabled, setEnabled] = useState(false),
     [amount, setAmount] = useState(50),
@@ -51,6 +54,25 @@ export function ComponentExample({
     [open, setOpen] = useState(false),
     [count, setCount] = useState(0);
   const [zoom, setZoom] = useState(100), [alignment, setAlignment] = useState("left");
+  const pulseRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const element = pulseRef.current;
+    if (!pulse || id !== "switch" || !element || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    try { if (sessionStorage.getItem("glass-switch-pulse")) return; } catch { /* Show it once per mount instead. */ }
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    let touched = false;
+    const touch = () => { touched = true; timers.forEach(clearTimeout); };
+    element.addEventListener("pointerdown", touch);
+    element.addEventListener("keydown", touch);
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting || touched) return;
+      observer.disconnect();
+      try { sessionStorage.setItem("glass-switch-pulse", "1"); } catch { /* Best effort. */ }
+      timers.push(setTimeout(() => setEnabled(true), 500), setTimeout(() => setEnabled(false), 1900));
+    }, { threshold: .75 });
+    observer.observe(element);
+    return () => { observer.disconnect(); timers.forEach(clearTimeout); element.removeEventListener("pointerdown", touch); element.removeEventListener("keydown", touch); };
+  }, [pulse, id]);
   const t = (en: string, zh: string) => (locale === "zh" ? zh : en);
   const options = [
     { value: "design", label: t("Design", "设计") },
@@ -101,7 +123,7 @@ export function ComponentExample({
       </div>;
     case "switch":
       return (
-        <div className="example-stack">
+        <div className="example-stack" ref={pulseRef}>
           <GlassSwitch
             checked={enabled}
             onCheckedChange={setEnabled}
