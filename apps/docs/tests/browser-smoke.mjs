@@ -428,7 +428,8 @@ export async function checkSiteControls() {
     if (document.querySelector(selector).offsetParent) await until(()=>document.querySelector(`${selector} .dg-tabs__container canvas`)?.width>0, `${selector} has no glass renderer`);
   }
   click('.filter-scroll [data-value="Actions"]'); await paint();
-  assert(document.querySelectorAll('.component-tile').length === 3, 'Category tabs did not filter actions');
+  // Button, Button Group, Glass Group and Toggle.
+  assert(document.querySelectorAll('.component-tile').length === 4, 'Category tabs did not filter actions');
   const links = document.querySelectorAll('.top-nav .dg-tabs__group > a');
   assert(links.length === 4 && links[1].getAttribute('href') === '/playground', 'Header lost native route links');
   if (links[0].offsetParent) {
