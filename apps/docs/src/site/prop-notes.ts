@@ -89,6 +89,7 @@ const specific: Record<string, Note> = {
   "tooltip:label": ["Tooltip text, also the element's accessible description.", "提示文字，同时作为元素的可访问描述。"],
   "tooltip:children": ["The focusable element the tooltip describes.", "提示所描述的可聚焦元素。"],
   "accordion:items": ["Sections with a title and content.", "包含标题与内容的分段。"],
+  "accordion:headingLevel": ["Heading level of each section title, to fit the page outline.", "各分段标题的标题级别，使其符合页面大纲。"],
   "spotlight:interactive": ["Pointer follow and ambient drift; drift eases to rest after 30 s without page activity.", "指针跟随与环境漂移；页面 30 秒无操作后漂移逐渐停止。"],
   "morph-menu:trigger": ["Icon inside the round trigger.", "圆形触发按钮中的图标。"],
   "morph-menu:children": ["Menu content, rendered with the current open state.", "菜单内容，按当前打开状态渲染。"],

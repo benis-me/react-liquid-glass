@@ -417,7 +417,7 @@ export function Orbit({ locale, theme }: PageProps) {
           </button>
         ))}
         <span className="orbit-board__label">
-          LIQUID / {zh ? "动量实验" : "A STUDY IN MOMENTUM"}
+          Liquid / {zh ? "动量实验" : "a study in momentum"}
         </span>
       </div>
       <div className="orbit-toolbar">

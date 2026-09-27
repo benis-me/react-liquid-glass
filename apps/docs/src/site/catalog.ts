@@ -371,6 +371,7 @@ export const catalog = [
       ["items", "{ title, content }[]", "required"],
       ["multiple", "boolean", "false"],
       ["lazy", "boolean", "false"],
+      ["headingLevel", "2 | 3 | 4 | 5 | 6", "3"],
     ],
     code: '<GlassAccordion items={[{ title: "How does it work?", content: "WebGPU optics with a WebGL2 fallback." }]} />',
   },

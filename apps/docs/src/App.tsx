@@ -115,9 +115,17 @@ export function App({ backend }: { backend?: GlassRendererBackend } = {}) {
     ? (zh ? "当前显示器不支持 HDR" : "This display does not support HDR")
     : hdr ? (zh ? "关闭 HDR" : "Disable HDR") : (zh ? "开启 HDR" : "Enable HDR");
   useEffect(() => {
+    // Swap every color at once: without this, controls with color transitions
+    // fade across the switch while the glass has already changed.
+    const still = document.createElement("style");
+    still.textContent = "*,*::before,*::after{transition:none!important}";
+    document.head.append(still);
     document.documentElement.dataset.theme = theme;
     for (const meta of document.querySelectorAll('meta[name="theme-color"]'))
       meta.setAttribute("content", theme === "dark" ? "#111111" : "#fafaf9");
+    void document.documentElement.offsetHeight;
+    const restore = requestAnimationFrame(() => still.remove());
+    return () => { cancelAnimationFrame(restore); still.remove(); };
   }, [theme]);
   useEffect(() => {
     if (!themeChoice) return;
@@ -231,7 +239,7 @@ export function App({ backend }: { backend?: GlassRendererBackend } = {}) {
     page = (
       <>
         <PageHeading
-          kicker="SHOWCASE"
+          kicker="Showcase"
           title={zh ? "应用展示" : "Showcase"}
           description={
             zh
@@ -239,7 +247,7 @@ export function App({ backend }: { backend?: GlassRendererBackend } = {}) {
               : "Small apps built with glass components."
           }
         />
-        <ShowcaseCards locale={locale} />
+        <ShowcaseCards locale={locale} headingLevel={2} />
       </>
     );
   else if (
@@ -254,7 +262,7 @@ export function App({ backend }: { backend?: GlassRendererBackend } = {}) {
           {zh ? "所有展示" : "All experiments"}
         </Link>
         <PageHeading
-          kicker={`EXPERIMENT ${scene.number}`}
+          kicker={`Experiment ${scene.number}`}
           title={zh ? scene.zh : scene.name}
           description={zh ? scene.summary : scene.description}
         />
@@ -287,7 +295,8 @@ export function App({ backend }: { backend?: GlassRendererBackend } = {}) {
     page = (
       <div className="empty-state">
         <span className="eyebrow">404</span>
-        <h1>{zh ? "这里还没有玻璃。" : "Nothing through this lens."}</h1>
+        <h1>{zh ? "页面不存在" : "Page not found"}</h1>
+        <p>{zh ? "这里还没有玻璃。" : "Nothing through this lens."}</p>
         <Link className="link-button" href="/components">
           {zh ? "返回组件库" : "Back to components"}
         </Link>

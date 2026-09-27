@@ -455,7 +455,8 @@ export function ComponentExample({
               ? {
                   poster: "视频封面",
                   canvas: "实时折射视频的玻璃控件",
-                  error: "无法加载此视频。",
+                  error: "无法加载此视频。请检查网络连接后重试。",
+                  retry: "重试",
                   play: "播放",
                   pause: "暂停",
                   rewind: "后退 15 秒",

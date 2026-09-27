@@ -8,8 +8,8 @@
   --surface-strong: #dfdfdc;
   --text: #111;
   --muted: #626262;
-  /* Secondary text meets WCAG AA (4.5:1) on the page background. */
-  --soft: #707070;
+  /* Secondary text meets WCAG AA (4.5:1) on the page, raised surfaces and glass. */
+  --soft: #6b6b6b;
   --border: #11111114;
   --primary: #262626;
   --primary-soft: #e7e7e4;
@@ -27,7 +27,7 @@
   --bg-6: #bdbdb8;
   --fg-1: var(--text);
   --fg-2: #4d4d4d;
-  --fg-3: #707070;
+  --fg-3: #6b6b6b;
   --fg-4: #999;
   --border-0: #11111108;
   --border-1: #11111114;
@@ -51,7 +51,7 @@
   --surface-strong: #292929;
   --text: #f5f5f3;
   --muted: #aaa;
-  --soft: #868686;
+  --soft: #8c8c8c;
   --border: #ffffff14;
   --primary: #dededb;
   --primary-soft: #30302e;
@@ -85,6 +85,7 @@ body {
   color: var(--text);
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   transition: color .2s ease, background-color .2s ease;
 }
 button, input { font: inherit; }

@@ -94,7 +94,7 @@ export function Playground({ locale, theme, material, setMaterial }: PageProps &
       <div className="playground-layout">
         <div className="playground-main">
       <PageHeading
-        kicker="PLAYGROUND"
+        kicker="Playground"
         title={"Playground"}
         description={
           zh
@@ -188,7 +188,7 @@ export function Playground({ locale, theme, material, setMaterial }: PageProps &
               })}
             </div>
           <div className="playground-code">
-            <GlassAccordion items={[{ title: zh ? "材质配置" : "Material configuration", content: (
+            <GlassAccordion headingLevel={2} items={[{ title: zh ? "材质配置" : "Material configuration", content: (
             <CodeBlock
               locale={locale}
               code={`import { LiquidGlassProvider } from "rglass/liquid-glass";\n\n<LiquidGlassProvider material={${JSON.stringify(material, null, 2)}}>\n  {/* Your glass components */}\n</LiquidGlassProvider>`}

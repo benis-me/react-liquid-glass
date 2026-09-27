@@ -163,7 +163,7 @@ export function Sequencer({ locale }: PageProps) {
       <div className="sequencer-header">
         <div>
           <span className="eyebrow">
-            {zh ? "八个节拍 / 四个音符" : "EIGHT STEPS / FOUR NOTES"}
+            {zh ? "八个节拍 / 四个音符" : "Eight steps / four notes"}
           </span>
           <h2>{zh ? "轻轻敲出一点节奏。" : "A little rhythm, in glass."}</h2>
         </div>

@@ -135,7 +135,7 @@ export function Home({ locale, theme }: PageProps) {
       <section className="home-section">
         <div className="section-heading">
           <div>
-            <span className="eyebrow">{zh ? "组件" : "THE COLLECTION"}</span>
+            <span className="eyebrow">{zh ? "组件" : "The collection"}</span>
             <h2>{zh ? "组件" : "Components"}</h2>
           </div>
           <Link className="text-link" href="/components">
@@ -162,7 +162,7 @@ export function Home({ locale, theme }: PageProps) {
       </section>
       <section className="home-section home-playground">
         <div>
-          <span className="eyebrow">PLAYGROUND</span>
+          <span className="eyebrow">Playground</span>
           <h2>{zh ? "调节材质" : "Tune the material"}</h2>
           <p>
             {zh
@@ -184,7 +184,7 @@ export function Home({ locale, theme }: PageProps) {
         <div className="section-heading">
           <div>
             <span className="eyebrow">
-              {zh ? "小小的实验" : "SMALL EXPERIMENTS"}
+              {zh ? "小小的实验" : "Small experiments"}
             </span>
             <h2>
               {zh
@@ -234,7 +234,9 @@ export const scenes = [
     tags: "Physics · SDF fusion",
   },
 ] as const;
-export function ShowcaseCards({ locale }: { locale: Locale }) {
+/** Showcase cards; their heading level follows the page they sit on. */
+export function ShowcaseCards({ locale, headingLevel = 3 }: { locale: Locale; headingLevel?: 2 | 3 }) {
+  const Heading = `h${headingLevel}` as const;
   return (
     <div className="showcase-cards">
       {scenes.map((scene) => (
@@ -248,7 +250,7 @@ export function ShowcaseCards({ locale }: { locale: Locale }) {
             <small>{scene.number}</small>
           </div>
           <div className="showcase-card__title">
-            <h3>{locale === "zh" ? scene.zh : scene.name}</h3>
+            <Heading>{locale === "zh" ? scene.zh : scene.name}</Heading>
             <ArrowRight size={16} />
           </div>
           <p>{locale === "zh" ? scene.summary : scene.description}</p>
@@ -265,7 +267,7 @@ export function Catalog({ locale, theme, material, setMaterial }: PageProps & Ma
   return (
     <>
       <PageHeading
-        kicker={zh ? "组件库" : "COMPONENTS"}
+        kicker={zh ? "组件库" : "Components"}
         title={zh ? "组件库" : "Components"}
         description={
           zh
@@ -280,6 +282,8 @@ export function Catalog({ locale, theme, material, setMaterial }: PageProps & Ma
           />
         </ScrollArea>
       </div>
+      {/* Names the grid in the outline, so specimen headings nest beneath it. */}
+      <h2 className="visually-hidden">{group === "All" ? (zh ? "全部组件" : "All components") : zh ? groupZh[group] : group}</h2>
       <div className="component-grid">
         {entries.map((entry) => (
           <article className="component-tile" key={entry.id}>
@@ -382,7 +386,7 @@ export function ComponentPage({
       </PageHeading>
       <section className="doc-section">
         <div className="preview-bar">
-          <span>{zh ? "预览" : "Preview"}</span>
+          <h2>{zh ? "预览" : "Preview"}</h2>
         </div>
         <Preview key={id} id={id} locale={locale} theme={theme} />
       </section>
@@ -448,7 +452,7 @@ export function Installation({ locale }: PageProps) {
   return (
     <>
       <PageHeading
-        kicker={zh ? "文档" : "DOCUMENTATION"}
+        kicker={zh ? "文档" : "Documentation"}
         title={zh ? "开始使用" : "Get started"}
         description={
           zh
