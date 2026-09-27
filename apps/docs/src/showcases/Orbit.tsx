@@ -14,7 +14,57 @@ import {
   GlassSwitch,
 } from "rglass/controls";
 import type { PageProps } from "../site/Pages";
-const clamp = (value: number) => Math.max(0.18, Math.min(0.82, value));
+const MIN = 0.18, MAX = 0.82;
+const clamp = (value: number) => Math.max(MIN, Math.min(MAX, value));
+// Past the board margin a held body meets UIScrollView-style resistance,
+// approaching (never crossing) the board edge.
+const band = (offset: number) => (1 - 1 / ((offset * 0.55) / MIN + 1)) * MIN;
+const rubber = (value: number) =>
+  value < MIN ? MIN - band(MIN - value) : value > MAX ? MAX + band(value - MAX) : value;
+// A released body glides as far as a decelerating scroll view would (seconds of
+// travel at release speed); higher viscosity decelerates sooner.
+const projection = (viscosity: number) => {
+  const rate = 0.995 - viscosity * 0.0001;
+  return rate / (1 - rate) / 1000;
+};
+type Sample = { t: number; x: number; y: number };
+/** Least-squares velocity over the recent pointer window, in board units per second. */
+function trackVelocity(samples: Sample[]) {
+  const n = samples.length;
+  if (n < 2) return [0, 0];
+  const origin = samples[n - 1].t;
+  let st = 0, sx = 0, sy = 0, stt = 0, stx = 0, sty = 0;
+  for (const sample of samples) {
+    const t = (sample.t - origin) / 1000;
+    st += t; sx += sample.x; sy += sample.y;
+    stt += t * t; stx += t * sample.x; sty += t * sample.y;
+  }
+  const determinant = n * stt - st * st;
+  if (determinant < 1e-9) return [0, 0];
+  return [(n * stx - st * sx) / determinant, (n * sty - st * sy) / determinant];
+}
+/**
+ * Neighbouring droplets lean together. A bond formed near contact stretches
+ * farther before it lets go, so pulling two bodies apart ends in a small snap.
+ * Shifts derive from targets rather than live positions, so bodies still settle.
+ */
+function surfaceTension(points: number[][], radii: number[], merge: number, bonds: Set<string>) {
+  const shifts = points.map(() => [0, 0]);
+  for (let i = 0; i < points.length; i++) for (let j = i + 1; j < points.length; j++) {
+    const dx = points[j][0] - points[i][0], dy = points[j][1] - points[i][1], distance = Math.hypot(dx, dy);
+    const gap = distance - radii[i] - radii[j], key = `${i}-${j}`;
+    if (gap < merge * 0.25) bonds.add(key);
+    else if (gap > merge * 1.6) bonds.delete(key);
+    const range = bonds.has(key) ? merge * 1.6 : merge, overlap = Math.min(radii[i], radii[j]) * 0.35;
+    const weight = gap >= 0 ? Math.max(0, 1 - gap / range) : Math.max(0, 1 + gap / overlap);
+    if (!weight || distance < 1e-3) continue;
+    // Larger bodies pull harder, like the surface energy of a bigger droplet.
+    const pull = (merge * 0.45 * weight) / distance / (radii[i] + radii[j]);
+    shifts[i][0] += dx * pull * radii[j]; shifts[i][1] += dy * pull * radii[j];
+    shifts[j][0] -= dx * pull * radii[i]; shifts[j][1] -= dy * pull * radii[i];
+  }
+  return shifts;
+}
 export function Orbit({ locale, theme }: PageProps) {
   const zh = locale === "zh",
     reduce = useReducedMotion();
@@ -41,12 +91,14 @@ export function Orbit({ locale, theme }: PageProps) {
     dimensions = useRef(size),
     wake = useRef(() => {}),
     phase = useRef(0),
+    bonds = useRef(new Set<string>()),
     settings = useRef({ viscosity, orbiting, reduce });
   const dragging = useRef<{
     index: number;
     pointer: number;
     last: number;
     capture: HTMLButtonElement;
+    samples: Sample[];
   } | null>(null);
   dimensions.current = size;
   settings.current = { viscosity, orbiting, reduce };
@@ -111,6 +163,18 @@ export function Orbit({ locale, theme }: PageProps) {
       if (moving && !reduced) phase.current += dt * 0.55;
       let active = moving && !reduced;
       const config = { mass: 1, stiffness: 90, damping: 10 + damping * 0.28 };
+      if (moving && !reduced) bodies.forEach((body, index) => {
+        if (dragging.current?.index === index) return;
+        body.tx = 0.5 + Math.cos(phase.current + (index * Math.PI * 2) / 3) * 0.19;
+        body.ty = 0.5 + Math.sin(phase.current + (index * Math.PI * 2) / 3) * 0.24;
+      });
+      const { width, height } = dimensions.current, scale = Math.min(1, width / 600);
+      const shifts = surfaceTension(
+        bodies.map((body, index) => dragging.current?.index === index
+          ? [body.x.get() * width, body.y.get() * height]
+          : [body.tx * width, body.ty * height]),
+        bodies.map((body) => body.radius * scale), 38 * scale, bonds.current,
+      );
       bodies.forEach((body, index) => {
         if (dragging.current?.index === index) {
           if (timestamp - dragging.current.last > 32) {
@@ -123,28 +187,24 @@ export function Orbit({ locale, theme }: PageProps) {
           active ||= body.velocityX.get() !== 0 || body.velocityY.get() !== 0;
           return;
         }
-        if (moving && !reduced) {
-          body.tx =
-            0.5 + Math.cos(phase.current + (index * Math.PI * 2) / 3) * 0.19;
-          body.ty =
-            0.5 + Math.sin(phase.current + (index * Math.PI * 2) / 3) * 0.24;
-        }
+        const targetX = clamp(body.tx + shifts[index][0] / width),
+          targetY = clamp(body.ty + shifts[index][1] / height);
         let x: number, y: number;
         if (reduced) {
-          x = body.tx;
-          y = body.ty;
+          x = targetX;
+          y = targetY;
           body.vx = 0;
           body.vy = 0;
         } else {
-          [x, body.vx] = stepSpring(body.x.get(), body.vx, body.tx, config, dt);
-          [y, body.vy] = stepSpring(body.y.get(), body.vy, body.ty, config, dt);
+          [x, body.vx] = stepSpring(body.x.get(), body.vx, targetX, config, dt);
+          [y, body.vy] = stepSpring(body.y.get(), body.vy, targetY, config, dt);
         }
         body.x.set(x);
         body.y.set(y);
-        body.velocityX.set(body.vx * dimensions.current.width);
-        body.velocityY.set(body.vy * dimensions.current.height);
+        body.velocityX.set(body.vx * width);
+        body.velocityY.set(body.vy * height);
         active ||=
-          x !== body.tx || y !== body.ty || body.vx !== 0 || body.vy !== 0;
+          x !== targetX || y !== targetY || body.vx !== 0 || body.vy !== 0;
       });
       positionHandles();
       if (!active) {
@@ -191,12 +251,13 @@ export function Orbit({ locale, theme }: PageProps) {
     const drag = dragging.current;
     if (!drag) return;
     const body = bodies[drag.index];
-    if (performance.now() - drag.last > 80) {
-      body.vx = 0;
-      body.vy = 0;
-    }
-    body.tx = clamp(body.x.get() + body.vx * 0.12);
-    body.ty = clamp(body.y.get() + body.vy * 0.12);
+    // A pointer that paused before lifting releases without momentum.
+    const now = performance.now();
+    [body.vx, body.vy] = now - drag.last > 80 ? [0, 0]
+      : trackVelocity(drag.samples.filter((sample) => now - sample.t <= 100)).map((value) => Math.max(-4, Math.min(4, value)));
+    const glide = settings.current.reduce ? 0 : projection(settings.current.viscosity);
+    body.tx = clamp(body.x.get() + body.vx * glide);
+    body.ty = clamp(body.y.get() + body.vy * glide);
     dragging.current = null;
     const element = drag.capture;
     if (element?.hasPointerCapture(drag.pointer))
@@ -218,12 +279,12 @@ export function Orbit({ locale, theme }: PageProps) {
     if (!drag || event.pointerId !== drag.pointer) return;
     const rect = root.current!.getBoundingClientRect(),
       body = bodies[drag.index],
-      now = performance.now(),
-      dt = Math.max(0.008, (now - drag.last) / 1000);
-    const x = clamp((event.clientX - rect.left) / rect.width),
-      y = clamp((event.clientY - rect.top) / rect.height);
-    body.vx = Math.max(-2, Math.min(2, (x - body.x.get()) / dt));
-    body.vy = Math.max(-2, Math.min(2, (y - body.y.get()) / dt));
+      now = event.timeStamp || performance.now();
+    const x = rubber((event.clientX - rect.left) / rect.width),
+      y = rubber((event.clientY - rect.top) / rect.height);
+    drag.samples.push({ t: now, x, y });
+    while (drag.samples.length > 8 || now - drag.samples[0].t > 100) drag.samples.shift();
+    [body.vx, body.vy] = trackVelocity(drag.samples).map((value) => Math.max(-4, Math.min(4, value)));
     body.x.set(x);
     body.y.set(y);
     body.tx = x;
@@ -309,11 +370,13 @@ export function Orbit({ locale, theme }: PageProps) {
               handles.current[nearest]?.focus();
               event.currentTarget.setPointerCapture(event.pointerId);
               setOrbiting(false);
+              const start = event.timeStamp || performance.now();
               dragging.current = {
                 index: nearest,
                 pointer: event.pointerId,
-                last: performance.now(),
+                last: start,
                 capture: event.currentTarget,
+                samples: [{ t: start, x: bodies[nearest].x.get(), y: bodies[nearest].y.get() }],
               };
               bodies[nearest].vx = bodies[nearest].vy = 0;
               wake.current();
