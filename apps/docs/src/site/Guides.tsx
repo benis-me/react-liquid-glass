@@ -120,7 +120,7 @@ const guides: Guide[] = [
       {
         en: "Drawing on demand",
         zh: "按需绘制",
-        body: [["A canvas draws only when one of its inputs changes. Offscreen canvases and hidden pages suspend, small controls share one GPU context, and an idle GPU device is released after thirty seconds without surfaces.", "画布只在输入发生变化时绘制。离屏画布与隐藏页面会暂停，小型控件共享同一个 GPU 上下文，没有玻璃表面三十秒后释放空闲的 GPU 设备。"]],
+        body: [["A canvas draws only when one of its inputs changes. Offscreen canvases and hidden pages suspend, small controls share one GPU context, and the shared GPU device is released as soon as no surface uses it.", "画布只在输入发生变化时绘制。离屏画布与隐藏页面会暂停，小型控件共享同一个 GPU 上下文，当不再有玻璃表面使用时立即释放共享的 GPU 设备。"]],
       },
       {
         en: "What glass can see",

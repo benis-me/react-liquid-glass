@@ -691,7 +691,8 @@ export async function checkViewportAlignment() {
   const layer=document.querySelector('.catalog-material .dg-popover-layer');
   trigger.click(); await until(()=>layer.matches(':popover-open'),'Material did not open');
   await new Promise(resolve=>setTimeout(resolve,500));
-  const canvas=layer.querySelector('span > canvas[data-dg-renderer]');
+  // The popover's own glass host sits directly in its layer; inner surfaces still move with the opening morph.
+  const canvas=layer.querySelector(':scope > span > canvas[data-dg-renderer]');
   const before=canvas.getBoundingClientRect();
   try {
     // A nonzero fixed containing-block origin exercises the mobile viewport seam.
