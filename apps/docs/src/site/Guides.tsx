@@ -227,8 +227,8 @@ const guides: Guide[] = [
       {
         en: "Next.js App Router",
         zh: "Next.js App Router",
-        body: [["Components use effects and refs, so render them from client components. Import the stylesheet once in the root layout.", "组件依赖 effect 与 ref，请在客户端组件中渲染，并在根布局中导入一次样式表。"]],
-        code: '"use client";\nimport { GlassButton } from "rglass/controls";\n\nexport function Actions() {\n  return <GlassButton>Continue</GlassButton>;\n}\n\n// app/layout.tsx\nimport "rglass/controls.css";',
+        body: [["The component entries are marked \"use client\", so server components can render them directly with serializable props; pass callbacks from your own client components. Import the stylesheet once in the root layout.", "组件入口已标记 \"use client\"，服务端组件可以直接渲染它们（props 需可序列化）；回调函数请在你自己的客户端组件中传入。在根布局中导入一次样式表。"]],
+        code: '// app/page.tsx (a server component)\nimport { GlassSwitch } from "rglass/controls";\n\nexport default function Page() {\n  return <GlassSwitch ariaLabel="Notifications" defaultChecked />;\n}\n\n// app/layout.tsx\nimport "rglass/controls.css";',
       },
       {
         en: "Avoid a theme flash",
