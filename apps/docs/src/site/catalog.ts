@@ -409,7 +409,8 @@ export const catalog = [
     summary: "缓缓游走、响应指针的真实折射镜片。",
     api: "GlassSpotlight",
     props: [
-      ["backgroundImage", "string", "grid fallback"],
+      ["backgroundImage", "string (same origin or CORS)", "plain frame"],
+      ["backgroundSrcSet / backgroundSizes", "string", "—"],
       ["interactive", "boolean", "true"],
       ["lens", "LiquidLens", "calibrated preset"],
     ],
