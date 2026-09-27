@@ -19,8 +19,9 @@ import { springTo, useGlassContact } from "../apple-motion/react";
 import { contactTransform } from "../apple-motion/contact";
 import { SURFACE_PRESS_SPRING } from "../apple-motion/presets";
 import { LiquidGlassCanvas } from "../liquid-glass/LiquidGlassCanvas";
-import { createLiquidBackdrop, createLiquidToneTracker } from "../liquid-glass/backdrop";
-import { PRISM_MATERIAL } from "../liquid-glass/provider";
+import { createLiquidBackdrop } from "../liquid-glass/backdrop";
+import { PRISM_MATERIAL, useGlassTone } from "../liquid-glass/provider";
+import { useLiquidToneTracker } from "../liquid-glass/tone";
 import { paintLiquidGrid } from "../liquid-glass/source";
 
 export type GlassBackground = "grid" | "lines" | "plain";
@@ -129,6 +130,7 @@ function OpticalSurface({
   blurStrength,
 }: GlassSurfaceProps) {
   const root = useRef<HTMLSpanElement>(null);
+  const publishTone = useLiquidToneTracker(root, useGlassTone());
   const contact = useGlassContact(root, { enabled: interactive !== false, deform: interactive !== "light" });
   const source = useRef<HTMLCanvasElement | null>(null);
   const revision = useMotionValue(0);
@@ -155,7 +157,6 @@ function OpticalSurface({
   useLayoutEffect(() => {
     const element = root.current;
     if (!element) return;
-    const tone = createLiquidToneTracker(element);
     const backdrop = createLiquidBackdrop(element, () => {
       const rect = element.getBoundingClientRect();
       return { left: rect.left - 40, top: rect.top - 40, width: element.offsetWidth + 80, height: element.offsetHeight + 80 };
@@ -170,10 +171,10 @@ function OpticalSurface({
       heightValue.set(height);
       source.current = canvas;
       revision.set(revision.get() + 1);
-      tone.update(canvas, { left: 40 / (width + 80), top: 40 / (height + 80), width: width / (width + 80), height: height / (height + 80) });
+      publishTone(canvas, { left: 40 / (width + 80), top: 40 / (height + 80), width: width / (width + 80), height: height / (height + 80) });
     });
-    return () => { backdrop.dispose(); tone.dispose(); };
-  }, [revision, widthValue, heightValue]);
+    return () => backdrop.dispose();
+  }, [revision, widthValue, heightValue, publishTone]);
   return (
     <span
       ref={root}

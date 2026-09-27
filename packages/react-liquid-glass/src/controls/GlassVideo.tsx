@@ -106,7 +106,9 @@ export function GlassVideo({ src, sources, poster, caption, autoPlay = false, lo
   const text = { ...defaultLabels, ...labels };
   const textRef = useRef(text); textRef.current = text;
   const pauseWhenHiddenRef = useRef(pauseWhenHidden); pauseWhenHiddenRef.current = pauseWhenHidden;
-  const sourceKey = [...(sources ?? []).map(source => source.src), src].join("|");
+  // Preferred encodings, then the fallback; a URL listed twice is tried once.
+  const candidates = [...(sources ?? []), { src, type: undefined as string | undefined }].filter((candidate, index, all) => all.findIndex(other => other.src === candidate.src) === index);
+  const sourceKey = candidates.map(candidate => candidate.src).join("|");
   useEffect(() => { ensureDrawRef.current(); }, [material]);
   // Browsers only pick among <source> children again after an explicit load().
   const loadedSources = useRef(sourceKey);
@@ -436,8 +438,8 @@ export function GlassVideo({ src, sources, poster, caption, autoPlay = false, lo
             onPause={() => setPlaying(false)}
           >
             {/* A failure on the last candidate means no source could play. */}
-            {sources?.length ? [...sources, { src }].map((source, index, all) => <source key={source.src} src={source.src} type={"type" in source ? source.type : undefined}
-              onError={index === all.length - 1 ? () => setLoadError(true) : undefined} />) : null}
+            {sources?.length ? candidates.map((source, index) => <source key={`${index}:${source.src}`} src={source.src} type={source.type}
+              onError={index === candidates.length - 1 ? () => setLoadError(true) : undefined} />) : null}
           </video>
           <canvas key={`${requested}:${backend}:${sourceKey}`} ref={canvasRef} data-dg-renderer-fallback={fallback?.message} className="dg-video-player__canvas" style={{ opacity: ready ? 1 : 0 }} aria-label={text.canvas} role="img" />
           <div className="dg-video-player__controls" data-visible={controlsVisible && ready}>

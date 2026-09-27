@@ -2,7 +2,9 @@ import { useLayoutEffect, useMemo, useRef, useState, type HTMLAttributes } from 
 import { cancelFrame, frame } from "motion";
 import { motionValue } from "../shared/values";
 import { LiquidGlassCanvas } from "../liquid-glass/LiquidGlassCanvas";
-import { createLiquidBackdrop, createLiquidToneTracker } from "../liquid-glass/backdrop";
+import { createLiquidBackdrop } from "../liquid-glass/backdrop";
+import { useGlassTone } from "../liquid-glass/provider";
+import { useLiquidToneTracker } from "../liquid-glass/tone";
 import { MAX_BLOBS } from "../liquid-glass/render-frame";
 import { FusionTriggerContext, SURFACE_MATERIAL } from "./GlassSurface";
 
@@ -45,20 +47,24 @@ export function GlassGroup({ spacing = 20, children, className = "", ...props }:
   const shapes = useRef<Shape[]>([]);
   // Optics follow the smallest member, like a standalone surface of that height.
   const [smallest, setSmallest] = useState(42);
+  const publishTone = useLiquidToneTracker(root, useGlassTone());
 
   useLayoutEffect(() => {
     const element = root.current, list = items.current;
     if (!element || !list) return;
-    let moving = 0;
+    let following = false, quiet = 0, signature = "";
+    /** Measures every shape and returns a geometry signature for rest detection. */
     const measure = () => {
       const box = element.getBoundingClientRect();
       const width = element.offsetWidth, height = element.offsetHeight;
-      if (!width || !height) return;
+      if (!width || !height) return "";
+      let geometry = `${width}x${height}`;
       const children = [...list.children].filter(child => child.getClientRects().length).slice(0, MAX_BLOBS);
       while (shapes.current.length < children.length) shapes.current.push(createShape());
       let smallest = Infinity;
       children.forEach((child, index) => {
         const rect = child.getBoundingClientRect(), shape = shapes.current[index];
+        geometry += `|${(rect.left - box.left).toFixed(2)},${(rect.top - box.top).toFixed(2)},${rect.width.toFixed(2)},${rect.height.toFixed(2)}`;
         const half = [rect.width / 2, rect.height / 2], corner = Math.min(cornerOf(child), half[0], half[1]);
         shape.x.set((rect.left - box.left + PAD + half[0]) / (width + PAD * 2));
         shape.y.set((rect.top - box.top + PAD + half[1]) / (height + PAD * 2));
@@ -72,12 +78,23 @@ export function GlassGroup({ spacing = 20, children, className = "", ...props }:
       setCount(children.length);
       setSize(old => old.width === width && old.height === height ? old : { width, height });
       if (Number.isFinite(smallest)) setSmallest(Math.round(smallest));
+      return geometry;
     };
-    // Positions change without resizing during transitions; follow them per frame.
-    const follow = () => { measure(); if (moving > 0) frame.read(follow); };
-    const start = () => { if (moving++ === 0) frame.read(follow); };
-    const end = () => { moving = Math.max(0, moving - 1); if (!moving) frame.read(measure); };
-    const tone = createLiquidToneTracker(element);
+    // Positions change without resizing during transitions: follow them per frame
+    // until the geometry has held still for a few frames. Only the list and its
+    // direct children move shapes; descendant animations such as spinning icons,
+    // or an end event that never arrives, cannot keep this loop alive.
+    const follow = () => {
+      const next = measure();
+      quiet = next === signature ? quiet + 1 : 0;
+      signature = next;
+      if (quiet < 12) frame.read(follow); else following = false;
+    };
+    const wake = (event?: Event) => {
+      if (event && event.target !== list && (event.target as Element | null)?.parentElement !== list) return;
+      quiet = 0;
+      if (!following) { following = true; frame.read(follow); }
+    };
     const backdrop = createLiquidBackdrop(element, () => {
       const rect = element.getBoundingClientRect();
       return { left: rect.left - PAD, top: rect.top - PAD, width: element.offsetWidth + PAD * 2, height: element.offsetHeight + PAD * 2 };
@@ -85,34 +102,28 @@ export function GlassGroup({ spacing = 20, children, className = "", ...props }:
       source.current = canvas;
       revision.set(revision.get() + 1);
       const width = element.offsetWidth, height = element.offsetHeight;
-      if (width && height) tone.update(canvas, { left: PAD / (width + PAD * 2), top: PAD / (height + PAD * 2), width: width / (width + PAD * 2), height: height / (height + PAD * 2) });
+      if (width && height) publishTone(canvas, { left: PAD / (width + PAD * 2), top: PAD / (height + PAD * 2), width: width / (width + PAD * 2), height: height / (height + PAD * 2) });
     });
-    measure();
-    const resize = new ResizeObserver(() => frame.read(measure));
+    signature = measure();
+    const resize = new ResizeObserver(() => wake());
+    // Class and style changes on the group or a shape can move shapes instantly
+    // (for example without transitions under reduced motion).
+    const attributes = new MutationObserver(() => wake());
+    const filter = { attributes: true, attributeFilter: ["class", "style", "hidden"] };
+    const watch = () => { for (const child of list.children) { resize.observe(child); attributes.observe(child, filter); } };
     resize.observe(element); resize.observe(list);
-    const mutations = new MutationObserver(() => {
-      for (const child of list.children) resize.observe(child);
-      frame.read(measure);
-    });
-    for (const child of list.children) resize.observe(child);
-    mutations.observe(list, { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "style", "hidden"] });
-    list.addEventListener("transitionrun", start);
-    list.addEventListener("transitionend", end);
-    list.addEventListener("transitioncancel", end);
-    list.addEventListener("animationstart", start);
-    list.addEventListener("animationend", end);
-    list.addEventListener("animationcancel", end);
+    attributes.observe(element, filter); attributes.observe(list, filter);
+    const children = new MutationObserver(() => { watch(); wake(); });
+    children.observe(list, { childList: true });
+    watch();
+    const events = ["transitionrun", "transitionstart", "transitionend", "transitioncancel", "animationstart", "animationiteration", "animationend", "animationcancel"] as const;
+    for (const type of events) list.addEventListener(type, wake);
     return () => {
-      cancelFrame(follow); cancelFrame(measure);
-      backdrop.dispose(); tone.dispose(); resize.disconnect(); mutations.disconnect();
-      list.removeEventListener("transitionrun", start);
-      list.removeEventListener("transitionend", end);
-      list.removeEventListener("transitioncancel", end);
-      list.removeEventListener("animationstart", start);
-      list.removeEventListener("animationend", end);
-      list.removeEventListener("animationcancel", end);
+      cancelFrame(follow);
+      backdrop.dispose(); resize.disconnect(); attributes.disconnect(); children.disconnect();
+      for (const type of events) list.removeEventListener(type, wake);
     };
-  }, [revision]);
+  }, [revision, publishTone]);
 
   const blobs = useMemo(() => shapes.current.slice(0, count), [count]);
   return (

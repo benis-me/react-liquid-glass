@@ -5,7 +5,8 @@ import { LIQUID_GLASS_MATERIAL, type LiquidGlassFrame, type LiquidGlassBlob } fr
 import { captureLiquidSource, liquidRgb, liquidTheme, subscribeLiquidTheme, type LiquidSourceFactory, type LiquidSourcePainter } from "./source";
 import { isMotionValue, motionValue, readMotion, type MotionInput } from "../shared/values";
 import { DEFAULT_MATERIAL, useGlassMaterialOverrides } from "./provider";
-import { createLiquidBackdrop, createLiquidToneTracker } from "./backdrop";
+import { createLiquidBackdrop } from "./backdrop";
+import { useLiquidToneTracker } from "./tone";
 import type { LiquidLens } from "./lens";
 
 /** Shared Liquid material defaults for DOM-backed lenses. */
@@ -58,6 +59,7 @@ export function LiquidGlass(props: LiquidGlassProps) {
   // parameters that the lens does not calibrate (see `lens` below).
   const material = { ...props.material, ...useGlassMaterialOverrides() };
   const rootRef = useRef<HTMLDivElement>(null);
+  const publishTone = useLiquidToneTracker(rootRef, material.tone === true);
   const contentRef = useRef<HTMLDivElement>(null);
   const targetRef = useRef<HTMLDivElement>(null);
   const sourceRef = useRef<HTMLCanvasElement | null>(null);
@@ -184,13 +186,12 @@ export function LiquidGlass(props: LiquidGlassProps) {
     const owner = rootRef.current;
     if (!owner || !measured) return;
     const visible = () => readMotion(config.current.tintOpacity ?? 0) < 1;
-    const tone = createLiquidToneTracker(owner);
     const backdrop = createLiquidBackdrop(props.backdropRoot?.current ?? owner, () => {
       const rect = owner.getBoundingClientRect();
       return { left: rect.left, top: rect.top, width: sizeRef.current.width, height: sizeRef.current.height };
     }, canvas => {
       backdropRef.current = canvas;
-      tone.update(canvas);
+      publishTone(canvas);
       if (painterRef.current) scheduleSource(); else captureRef.current();
     }, visible);
     backdropHandle.current = backdrop;
@@ -200,8 +201,8 @@ export function LiquidGlass(props: LiquidGlassProps) {
       if (next && !wasVisible) backdrop.refresh();
       wasVisible = next;
     }) : undefined;
-    return () => { stop?.(); backdrop.dispose(); tone.dispose(); backdropHandle.current = null; };
-  }, [measured, props.backdropRoot, props.tintOpacity, scheduleSource]);
+    return () => { stop?.(); backdrop.dispose(); backdropHandle.current = null; };
+  }, [measured, props.backdropRoot, props.tintOpacity, scheduleSource, publishTone]);
 
   useEffect(() => {
     const stops: Array<() => void> = [];

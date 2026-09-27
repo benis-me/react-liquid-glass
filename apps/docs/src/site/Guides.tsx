@@ -29,11 +29,10 @@ const guides: Guide[] = [
         en: "Ink that adapts",
         zh: "自适应文字",
         body: [
-          ["Glass surfaces publish data-dg-tone=\"light\" or \"dark\" from the luminance behind them. The value changes with hysteresis and is read outside scrolling and animation, so it never flickers.", "玻璃表面会根据背后内容的亮度发布 data-dg-tone=\"light\" 或 \"dark\"。该值带有滞后区间，并在滚动与动画之外读取，因此不会闪烁。"],
+          ["With tone: true in a provider's material, glass surfaces publish data-dg-tone=\"light\" or \"dark\" from the luminance behind them. The value changes with hysteresis and is read outside scrolling and animation, so it never flickers. It is off by default and costs nothing until enabled.", "在 Provider 的 material 中设置 tone: true 后，玻璃表面会根据背后内容的亮度发布 data-dg-tone=\"light\" 或 \"dark\"。该值带有滞后区间，并在滚动与动画之外读取，因此不会闪烁。默认关闭，未启用时没有任何开销。"],
           ["The attribute is informational: the library never recolors your content. Style it where glass floats over photos or video.", "这个属性只提供信息，库不会自动改变内容颜色。在玻璃悬浮于照片或视频之上时自行设置样式即可。"],
         ],
-        label: "CSS",
-        code: '.dg-surface[data-dg-tone="dark"] { color: #fff; }\n.dg-surface[data-dg-tone="light"] { color: #111; }',
+        code: '<LiquidGlassProvider material={{ tone: true }}>\n  <App />\n</LiquidGlassProvider>\n\n/* CSS */\n.dg-surface[data-dg-tone="dark"] { color: #fff; }\n.dg-surface[data-dg-tone="light"] { color: #111; }',
       },
     ],
   },
@@ -187,7 +186,7 @@ const guides: Guide[] = [
       {
         en: "Contrast and motion",
         zh: "对比度与动态",
-        body: [["Glass floats over arbitrary content, so check contrast where it meets photos or video and use data-dg-tone to adapt ink. Reduced motion is respected throughout, and forced-colors mode keeps visible focus.", "玻璃会悬浮在任意内容之上，在照片或视频上请检查对比度，并用 data-dg-tone 调整文字颜色。全程遵循减少动态效果设置，强制颜色模式下保留可见焦点。"]],
+        body: [["Glass floats over arbitrary content, so check contrast where it meets photos or video and enable data-dg-tone to adapt ink. Reduced motion is respected throughout, and forced-colors mode keeps visible focus.", "玻璃会悬浮在任意内容之上，在照片或视频上请检查对比度，并启用 data-dg-tone 调整文字颜色。全程遵循减少动态效果设置，强制颜色模式下保留可见焦点。"]],
       },
     ],
   },

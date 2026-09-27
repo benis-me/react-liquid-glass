@@ -13,8 +13,11 @@ const layout = (element: Element) => {
   return value;
 };
 const style = (element: Element) => { const value = layout(element); return value.css ??= getComputedStyle(element); };
+// Each flush is one batch; a surface paints at most once per batch.
+let batch = 0;
 const flush = () => {
   const work = [...pending]; pending.clear();
+  batch++;
   batchLayout = new WeakMap();
   try { for (const refresh of work) refresh(); }
   finally { batchLayout = undefined; }
@@ -193,18 +196,21 @@ function watchScroll(scroll: () => void) {
 export function createLiquidBackdrop(owner: HTMLElement, bounds: () => Bounds, changed: (canvas: HTMLCanvasElement) => void, visible: () => boolean = () => true) {
   const canvas = document.createElement("canvas");
   canvas.getContext("2d");
-  let sourceRoot: HTMLElement | undefined, offsetX = 0, offsetY = 0;
+  let sourceRoot: HTMLElement | undefined, offsetX = 0, offsetY = 0, painted = -1;
   const refresh = () => {
+    // A scroll check and a resize in the same frame must not rasterize the DOM twice.
+    if (painted === batch) return;
     const rect = bounds();
     if (!visible() || document.hidden || !owner.isConnected || !owner.getClientRects().length || !intersects(rect, { left: 0, top: 0, width: innerWidth, height: innerHeight })) return;
     sourceRoot = backdropRoot(owner, rect);
     const sourceRect = layout(sourceRoot).rect;
     offsetX = rect.left - sourceRect.left; offsetY = rect.top - sourceRect.top;
+    painted = batch;
     if (paintLiquidBackdrop(sourceRoot, canvas, rect, [owner], rect, owner)) changed(canvas);
   };
   const update = () => scheduleLiquidBackdrop(refresh);
   const scrolled = () => {
-    if (!visible()) return;
+    if (!visible() || painted === batch) return;
     const rect = bounds();
     // Offscreen source changes are intentionally skipped; repaint on return.
     if (!intersects(rect, { left: 0, top: 0, width: innerWidth, height: innerHeight })) { sourceRoot = undefined; return; }
