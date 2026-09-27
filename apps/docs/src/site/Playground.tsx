@@ -6,15 +6,50 @@ import {
   GlassButton,
   GlassSelect,
   GlassSurface,
+  GlassSwitch,
   ScrollArea,
   type GlassBackground,
 } from "rglass/controls";
+import { LiquidGlassProvider } from "rglass/liquid-glass";
+import { subscribeLiquidFrames } from "rglass/liquid-glass/renderer";
 import { catalog, componentAliases, type ComponentId } from "./catalog";
-import { ComponentExample } from "./ComponentExample";
+import { ComponentExample, PHOTO } from "./ComponentExample";
 import { CodeBlock, PageHeading, type PageProps } from "./Pages";
 import { Link } from "./router";
 import { MaterialControls } from "./MaterialControls";
 import type { MaterialState } from "./material";
+type Substrate = GlassBackground | "photo" | "text";
+const DEFAULT_MATERIAL = {};
+const SUBSTRATE_TEXT = {
+  en: "Glass bends what lies beneath it. Letters stretch along the rim, lines curve toward the edge, and colors split where the surface turns. Move a control across this paragraph to see the optics follow.",
+  zh: "玻璃会弯折其下的一切。文字沿着边缘拉伸，线条向轮廓弯曲，颜色在表面转折处分离。把控件移到这段文字上，看光学效果如何跟随。",
+};
+
+/** Real DOM behind the component, so the glass refracts an actual photo or text. */
+function SubstrateLayer({ kind, zh }: { kind: Substrate; zh: boolean }) {
+  if (kind === "photo") return <img className="playground-substrate playground-substrate--photo" src={PHOTO} alt="" aria-hidden="true" />;
+  if (kind === "text") return <div className="playground-substrate playground-substrate--text" aria-hidden="true">{[0, 1, 2].map(index => <p key={index}>{zh ? SUBSTRATE_TEXT.zh : SUBSTRATE_TEXT.en}</p>)}</div>;
+  return null;
+}
+
+/** Frames presented by every glass canvas on the page; at rest this reads zero. */
+function FrameStats({ zh }: { zh: boolean }) {
+  const [stats, setStats] = useState({ fps: 0, backend: "" });
+  useEffect(() => {
+    let frames = 0, last = performance.now();
+    const stop = subscribeLiquidFrames(() => { frames++; });
+    const timer = setInterval(() => {
+      const now = performance.now();
+      const canvas = document.querySelector<HTMLCanvasElement>(".playground-main canvas[data-dg-renderer^='liquid-']");
+      setStats({ fps: Math.round(frames * 1000 / (now - last)), backend: canvas?.dataset.dgRenderer?.slice(7) ?? "" });
+      frames = 0; last = now;
+    }, 500);
+    return () => { stop(); clearInterval(timer); };
+  }, []);
+  const backend = stats.backend === "webgpu" ? "WebGPU" : stats.backend === "webgl2" ? "WebGL2" : "—";
+  return <output className="frame-stats">{stats.fps} {zh ? "帧/秒" : "frames/s"} · {backend}</output>;
+}
+
 function readComponent(): ComponentId | "all" {
   const requested = new URLSearchParams(location.search).get("component");
   const id = componentAliases[requested ?? ""] ?? requested;
@@ -30,7 +65,9 @@ export function Playground({ locale, theme, material, setMaterial }: PageProps &
     window.addEventListener("popstate", update);
     return () => window.removeEventListener("popstate", update);
   }, []);
-  const [background, setBackground] = useState<GlassBackground>("grid"),
+  const [background, setBackground] = useState<Substrate>("grid"),
+    [compare, setCompare] = useState(false),
+    [showStats, setShowStats] = useState(false),
     [shared, setShared] = useState({ key: "", message: "" });
   const shareKey = `${locale}:${component}:${JSON.stringify(material)}`;
   const shareMessage = shared.key === shareKey ? shared.message : "";
@@ -87,25 +124,39 @@ export function Playground({ locale, theme, material, setMaterial }: PageProps &
               <GlassSelect label={zh ? "底图" : "Substrate"}
                 value={background}
                 onChange={(event) =>
-                  setBackground(event.target.value as GlassBackground)
+                  setBackground(event.target.value as Substrate)
                 }
               >
                 <option value="grid">{zh ? "网格" : "Grid"}</option>
                 <option value="lines">{zh ? "条纹" : "Lines"}</option>
                 <option value="plain">{zh ? "纯色" : "Plain"}</option>
+                <option value="photo">{zh ? "照片" : "Photo"}</option>
+                <option value="text">{zh ? "文字" : "Text"}</option>
               </GlassSelect>
+          </div>
+          <div className="playground-options">
+            {component !== "all" && <label>
+              <GlassSwitch size="small" checked={compare} onCheckedChange={setCompare} ariaLabel={zh ? "与默认材质对比" : "Compare with the default material"} />
+              {zh ? "与默认对比" : "Compare with defaults"}
+            </label>}
+            <label>
+              <GlassSwitch size="small" checked={showStats} onCheckedChange={setShowStats} ariaLabel={zh ? "显示渲染帧率" : "Show rendered frames"} />
+              {zh ? "渲染帧率" : "Frame rate"}
+            </label>
+            {showStats && <FrameStats zh={zh} />}
           </div>
             <div
               className={
                 component === "all" ? "playground-all" : "playground-single"
               }
             >
-              {selected.map((item) => (
-                <div key={item.id}>
+              {selected.map((item) => {
+                const stage = (
                   <GlassStage
-                    background={background}
+                    background={background === "photo" || background === "text" ? "plain" : background}
                     className={`component-preview component-preview--${item.id} ${component === "all" ? "component-preview--compact" : ""}`}
                   >
+                    <SubstrateLayer kind={background} zh={zh} />
                     <ComponentExample
                       id={item.id}
                       locale={locale}
@@ -113,11 +164,28 @@ export function Playground({ locale, theme, material, setMaterial }: PageProps &
                       compact={component === "all"}
                     />
                   </GlassStage>
-                  <div className="playground-caption">
-                    <Link href={`/components/${item.id}`}>{item.name} ↗</Link>
+                );
+                return compare && component !== "all" ? (
+                  <div key={item.id} className="playground-compare">
+                    <figure>
+                      {/* A fresh provider shows each component's calibrated defaults beside the edited material. */}
+                      <LiquidGlassProvider material={DEFAULT_MATERIAL} inherit={false}>{stage}</LiquidGlassProvider>
+                      <figcaption>{zh ? "默认材质" : "Default material"}</figcaption>
+                    </figure>
+                    <figure>
+                      {stage}
+                      <figcaption>{zh ? "当前材质" : "Your material"}</figcaption>
+                    </figure>
                   </div>
-                </div>
-              ))}
+                ) : (
+                  <div key={item.id}>
+                    {stage}
+                    <div className="playground-caption">
+                      <Link href={`/components/${item.id}`}>{item.name} ↗</Link>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           <div className="playground-code">
             <GlassAccordion items={[{ title: zh ? "材质配置" : "Material configuration", content: (

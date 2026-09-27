@@ -76,7 +76,8 @@ export function Preview({
   locale,
   theme,
   compact = false,
-}: PageProps & { id: ComponentId; compact?: boolean }) {
+  pulse = false,
+}: PageProps & { id: ComponentId; compact?: boolean; pulse?: boolean }) {
   return (
     <GlassStage
       className={`component-preview component-preview--${id} ${compact ? "component-preview--compact" : ""}`}
@@ -86,6 +87,7 @@ export function Preview({
         locale={locale}
         theme={theme}
         compact={compact}
+        pulse={pulse}
       />
     </GlassStage>
   );
@@ -140,7 +142,7 @@ export function Home({ locale, theme }: PageProps) {
           </Link>
         </div>
         <div className="home-controls">
-          <Preview id="switch" locale={locale} theme={theme} />
+          <Preview id="switch" locale={locale} theme={theme} pulse />
           <Preview id="slider" locale={locale} theme={theme} />
           <Preview id="tabs" locale={locale} theme={theme} />
         </div>
@@ -170,7 +172,7 @@ export function Home({ locale, theme }: PageProps) {
             <ArrowRight size={15} />
           </Link>
         </div>
-        <GlassStage className="home-material">
+        <GlassStage className="home-material" background="lines">
           <ComponentExample id="button-group" locale={locale} theme={theme} compact />
           <GlassInput aria-label={zh ? "写点什么" : "Write something"} placeholder={zh ? "写点什么…" : "Write something…"} />
           <ComponentExample id="toggle" locale={locale} theme={theme} compact />
