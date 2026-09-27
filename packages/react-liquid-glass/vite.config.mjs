@@ -4,6 +4,7 @@ import { copyFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const libraryDir = resolve(import.meta.dirname, "dist");
+const clientEntries = new Set(["index", "liquid-glass", "apple-motion-react", "controls"]);
 
 export default defineConfig({
   plugins: [
@@ -34,6 +35,9 @@ export default defineConfig({
     },
     rollupOptions: {
       external: ["react", "react/jsx-runtime", "react-dom", "motion", "motion/react", "lucide-react", "@radix-ui/react-scroll-area"],
+      // React entries are client modules for React Server Components; the renderer
+      // and motion cores stay framework-agnostic.
+      output: { banner: chunk => chunk.isEntry && clientEntries.has(chunk.name) ? '"use client";' : "" },
     },
   },
 });

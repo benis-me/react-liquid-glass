@@ -11,6 +11,16 @@
         document.documentElement.dataset.theme = theme;
         if (localStorage.getItem("glass-locale") === "zh") document.documentElement.lang = "zh-CN";
       } catch (error) {}
+      // The home hero photo is the largest paint; fetch it alongside the app bundle.
+      // Candidates, sizes and CORS mode match the Spotlight image so the preload is reused.
+      if (location.pathname === "/") {
+        var hero = document.createElement("link");
+        hero.rel = "preload"; hero.as = "image"; hero.type = "image/avif";
+        hero.crossOrigin = "anonymous"; hero.fetchPriority = "high";
+        hero.imageSrcset = "/assets/building-1000.avif 1000w, /assets/building.avif 1800w";
+        hero.imageSizes = "(max-width: 767px) 100vw, 1200px";
+        document.head.appendChild(hero);
+      }
     </script>
     <meta name="theme-color" content="#fafaf9" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#111111" media="(prefers-color-scheme: dark)" />

@@ -22,7 +22,7 @@ npm install rglass react@^19 react-dom@^19 motion@^13
 | `rglass/controls.css` | Optional component styles, independent of the documentation site |
 | `rglass` | Convenience exports for the current Liquid renderer, controls and motion values |
 
-The core APIs do not import CSS. Import `controls.css` explicitly when using styled controls. The library does not bundle fonts. Lucide icons and Radix ScrollArea are installed as dependencies.
+The core APIs do not import CSS. Import `controls.css` explicitly when using styled controls. `rglass`, `rglass/controls`, `rglass/liquid-glass` and `rglass/apple-motion/react` are client modules (`"use client"`), so React Server Components can render them directly; the renderer and `rglass/apple-motion` stay framework-agnostic. The library does not bundle fonts. Lucide icons and Radix ScrollArea are installed as dependencies.
 
 ```tsx
 import { GlassStage, GlassButton, GlassSwitch } from "rglass/controls";
