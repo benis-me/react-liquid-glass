@@ -391,13 +391,13 @@ export const catalog = [
       ["size", '"small" | "default"', '"small"'],
     ],
     code: `<GlassMorphMenu theme="light" menuLabel="Sort and filter" openLabel="Open menu" trigger={<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.5" fill="currentColor" /><circle cx="12" cy="12" r="1.5" fill="currentColor" /><circle cx="19" cy="12" r="1.5" fill="currentColor" /></svg>}>
-        {open => (
+        {() => (
           <>
             <p className="dg-liquid-menu__heading">Sort</p>
-            {["Recently played", "Game name"].map(label => <button key={label} className="dg-liquid-menu__sort-row" role="menuitemradio" aria-checked={sort === label} tabIndex={open ? 0 : -1} onClick={() => setSort(label)}><span className="dg-liquid-menu__check">{sort === label && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg>}</span>{label}</button>)}
+            {["Recently played", "Game name"].map(label => <button key={label} className="dg-liquid-menu__sort-row" role="menuitemradio" aria-checked={sort === label} onClick={() => setSort(label)}><span className="dg-liquid-menu__check">{sort === label && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg>}</span>{label}</button>)}
             <div className="dg-liquid-menu__divider" />
             <p className="dg-liquid-menu__heading">Filter</p>
-            <button className="dg-liquid-menu__filter-row" role="menuitemcheckbox" aria-checked={local} tabIndex={open ? 0 : -1} onClick={() => setLocal(!local)}><span />On this device</button>
+            <button className="dg-liquid-menu__filter-row" role="menuitemcheckbox" aria-checked={local} onClick={() => setLocal(!local)}><span />On this device</button>
           </>
         )}
       </GlassMorphMenu>`,

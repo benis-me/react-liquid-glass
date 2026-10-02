@@ -82,7 +82,6 @@ type FilterId = (typeof FILTER_OPTIONS)[number]["id"];
 
 interface MenuContentsProps {
   text: MenuCopy;
-  open: boolean;
   sort: SortId;
   filters: Set<FilterId>;
   onSort?: (id: SortId) => void;
@@ -91,7 +90,6 @@ interface MenuContentsProps {
 
 function MenuContents({
   text,
-  open,
   sort,
   filters,
   onSort,
@@ -110,7 +108,6 @@ function MenuContents({
               type="button"
               role="menuitemradio"
               aria-checked={selected}
-              tabIndex={open ? 0 : -1}
               data-selected={selected ? "true" : "false"}
               onClick={() => onSort?.(id)}
             >
@@ -138,7 +135,6 @@ function MenuContents({
               type="button"
               role="menuitemcheckbox"
               aria-checked={active}
-              tabIndex={open ? 0 : -1}
               data-active={active ? "true" : "false"}
               onClick={() => onFilter?.(id)}
             >
@@ -169,6 +165,6 @@ export function MorphMenuDemo({ locale, theme }: { locale: Locale; theme: "light
   }, []);
 
   return <GlassMorphMenu theme={theme} menuLabel={text.menu} openLabel={text.open} trigger={<Ellipsis aria-hidden="true" />}>
-    {open => <MenuContents text={text} open={open} sort={sort} filters={filters} onSort={setSort} onFilter={toggleFilter} />}
+    {() => <MenuContents text={text} sort={sort} filters={filters} onSort={setSort} onFilter={toggleFilter} />}
   </GlassMorphMenu>;
 }

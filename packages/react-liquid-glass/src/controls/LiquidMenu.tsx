@@ -10,6 +10,7 @@ import { useMenuMotion, type MenuLayout } from "../apple-motion/use-menu-motion.
 import { TRIGGER_RADIUS } from "../apple-motion/menu.js";
 import { useMenuMaterial } from "./use-menu-material.js";
 import { ScrollArea } from "./ScrollArea.js";
+import { moveMenuFocus } from "./menu-keys.js";
 import { useGlassMaterialOverrides } from "../liquid-glass/provider.js";
 
 const BASE_MENU_LENS = LIQUID_LENS;
@@ -214,6 +215,13 @@ export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, cla
     }).dispose;
   }, [stageSize.height, stageSize.width, theme]);
 
+  // Opening moves focus into the menu, onto its checked item when there is one, as other popups do.
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!open || !panel || panel.contains(document.activeElement)) return;
+    (panel.querySelector<HTMLElement>('[aria-checked="true"]') ?? panel.querySelector<HTMLElement>("button:not([disabled])"))?.focus({ preventScroll: true });
+  }, [open]);
+
   const layout = renderLayout(stageSize.width, stageSize.height);
 
   return (
@@ -302,6 +310,8 @@ export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, cla
         role="menu"
         aria-label={menuLabel}
         aria-hidden={!open}
+        inert={!open}
+        onKeyDown={moveMenuFocus}
         data-open={open ? "true" : "false"}
         style={{
           left: layout.panelLeft,
