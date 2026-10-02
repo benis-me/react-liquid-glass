@@ -1,6 +1,6 @@
 import { useId, type ComponentProps, type ReactElement, type ReactNode } from "react";
-import { X } from "./icons";
-import { LiquidPopover } from "./LiquidPopover";
+import { X } from "./icons.js";
+import { LiquidPopover } from "./LiquidPopover.js";
 
 export interface GlassDialogProps {
   open: boolean;

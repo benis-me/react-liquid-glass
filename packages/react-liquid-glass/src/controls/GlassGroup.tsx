@@ -1,12 +1,12 @@
 import { useLayoutEffect, useMemo, useRef, useState, type HTMLAttributes } from "react";
 import { cancelFrame, frame } from "motion";
-import { motionValue } from "../shared/values";
-import { LiquidGlassCanvas } from "../liquid-glass/LiquidGlassCanvas";
-import { createLiquidBackdrop } from "../liquid-glass/backdrop";
-import { useGlassTone } from "../liquid-glass/provider";
-import { useLiquidToneTracker } from "../liquid-glass/tone";
-import { MAX_BLOBS } from "../liquid-glass/render-frame";
-import { FusionTriggerContext, SURFACE_MATERIAL } from "./GlassSurface";
+import { motionValue } from "../shared/values.js";
+import { LiquidGlassCanvas } from "../liquid-glass/LiquidGlassCanvas.js";
+import { createLiquidBackdrop } from "../liquid-glass/backdrop.js";
+import { useGlassTone } from "../liquid-glass/provider.js";
+import { useLiquidToneTracker } from "../liquid-glass/tone.js";
+import { MAX_BLOBS } from "../liquid-glass/render-frame.js";
+import { FusionTriggerContext, SURFACE_MATERIAL } from "./GlassSurface.js";
 
 export interface GlassGroupProps extends HTMLAttributes<HTMLDivElement> {
   /**

@@ -13,11 +13,11 @@ import {
   type TextareaHTMLAttributes,
 } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { Check, ChevronDown, Plus, X } from "./icons";
-import { LiquidPopover, useClosePopover } from "./LiquidPopover";
-import { usePointerReleaseFallback } from "../apple-motion/react";
-import { GlassSurface } from "./GlassSurface";
-import { ScrollArea } from "./ScrollArea";
+import { Check, ChevronDown, Plus, X } from "./icons.js";
+import { LiquidPopover, useClosePopover } from "./LiquidPopover.js";
+import { usePointerReleaseFallback } from "../apple-motion/react.js";
+import { GlassSurface } from "./GlassSurface.js";
+import { ScrollArea } from "./ScrollArea.js";
 
 export interface GlassButtonProps extends ComponentProps<"button"> {
   variant?: "default" | "solid" | "ghost";

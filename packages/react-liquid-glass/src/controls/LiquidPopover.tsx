@@ -2,15 +2,15 @@ import { cloneElement, createContext, useCallback, useContext, useEffect, useId,
 import { createPortal } from "react-dom";
 import { motion, useMotionValue, useTransform } from "motion/react";
 import { cancelFrame, frame as motionFrame } from "motion";
-import { usePopoverMotion, type PopoverLayout } from "../apple-motion/use-popover-motion";
-import { useGlassContact } from "../apple-motion/use-glass-contact";
-import { paintLiquidMenuContent } from "../liquid-glass/menu-content";
-import { liquidContentOptics, liquidSurfaceBlur } from "../liquid-glass/geometry";
-import { LiquidGlassCanvas } from "../liquid-glass/LiquidGlassCanvas";
-import { paintLiquidBackdrop, observeLiquidBackdrop, scheduleLiquidBackdrop, cancelLiquidBackdrop } from "../liquid-glass/backdrop";
-import { useGlassMaterial } from "../liquid-glass/provider";
-import { StageContext, FusionTriggerContext, SURFACE_MATERIAL } from "./GlassSurface";
-import { ScrollArea } from "./ScrollArea";
+import { usePopoverMotion, type PopoverLayout } from "../apple-motion/use-popover-motion.js";
+import { useGlassContact } from "../apple-motion/use-glass-contact.js";
+import { paintLiquidMenuContent } from "../liquid-glass/menu-content.js";
+import { liquidContentOptics, liquidSurfaceBlur } from "../liquid-glass/geometry.js";
+import { LiquidGlassCanvas } from "../liquid-glass/LiquidGlassCanvas.js";
+import { paintLiquidBackdrop, observeLiquidBackdrop, scheduleLiquidBackdrop, cancelLiquidBackdrop } from "../liquid-glass/backdrop.js";
+import { useGlassMaterial } from "../liquid-glass/provider.js";
+import { StageContext, FusionTriggerContext, SURFACE_MATERIAL } from "./GlassSurface.js";
+import { ScrollArea } from "./ScrollArea.js";
 
 const ClosePopoverContext = createContext<() => void>(() => undefined);
 export const useClosePopover = () => useContext(ClosePopoverContext);

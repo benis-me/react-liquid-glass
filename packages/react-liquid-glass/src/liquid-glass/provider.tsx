@@ -1,5 +1,5 @@
-import type { GlassRendererBackend } from "./renderer";
-import type { LiquidLightSource } from "./light";
+import type { GlassRendererBackend } from "./renderer.js";
+import type { LiquidLightSource } from "./light.js";
 import { createContext, useContext, useMemo, useSyncExternalStore, type ReactNode } from "react";
 
 export type GlassMaterial = Partial<

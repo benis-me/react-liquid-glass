@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, type CSSProperties, type RefObject } from "react";
 import { cancelFrame, frame } from "motion";
-import { isMotionValue, readMotion, type MotionInput } from "../shared/values";
-import { createLiquidGlassRenderer, type GlassRendererBackend, type LiquidGlassFrame, type LiquidGlassSource } from "./renderer";
-import { useGlassMaterial } from "./provider";
-import { useRendererBackend } from "./use-renderer-backend";
-import { readLiquidLightAngle, subscribeLiquidLight, useReducedMotionPreference, type LiquidLightSource } from "./light";
+import { isMotionValue, readMotion, type MotionInput } from "../shared/values.js";
+import { createLiquidGlassRenderer, type GlassRendererBackend, type LiquidGlassFrame, type LiquidGlassSource } from "./renderer.js";
+import { useGlassMaterial } from "./provider.js";
+import { useRendererBackend } from "./use-renderer-backend.js";
+import { readLiquidLightAngle, subscribeLiquidLight, useReducedMotionPreference, type LiquidLightSource } from "./light.js";
 
-export type { LiquidGlassBlob } from "./renderer";
+export type { LiquidGlassBlob } from "./renderer.js";
 export interface LiquidGlassCanvasProps extends Omit<LiquidGlassFrame, "source" | "content" | "sourceRevision" | "contentRevision"> {
   sourceRef: RefObject<LiquidGlassSource | null>;
   contentRef?: RefObject<HTMLCanvasElement | null>;

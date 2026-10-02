@@ -1,10 +1,10 @@
-import { SLIDER_CLICK_SPRING } from "../apple-motion/presets";
+import { SLIDER_CLICK_SPRING } from "../apple-motion/presets.js";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { animate, motion, useMotionValue, useTransform } from "motion/react";
-import { LiquidGlass } from "../liquid-glass/LiquidGlass";
-import { liquidTheme, liquidTrackSource, subscribeLiquidTheme } from "../liquid-glass/source";
-import { usePointerReleaseFallback, useGlassContact, rubberBand, springTo, type SpringRun } from "../apple-motion/react";
-import { thumbLens, useThumbMotion } from "./use-thumb-motion";
+import { LiquidGlass } from "../liquid-glass/LiquidGlass.js";
+import { liquidTheme, liquidTrackSource, subscribeLiquidTheme } from "../liquid-glass/source.js";
+import { usePointerReleaseFallback, useGlassContact, rubberBand, springTo, type SpringRun } from "../apple-motion/react.js";
+import { thumbLens, useThumbMotion } from "./use-thumb-motion.js";
 
 export interface GlassSliderProps {
   value?: number;

@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
-import { useGlassBackend } from "./provider";
-import type { GlassRendererBackend } from "./renderer";
+import { useGlassBackend } from "./provider.js";
+import type { GlassRendererBackend } from "./renderer.js";
 
 /** A failure applies to one selection; an explicit selection change retries it. */
 export function useRendererBackend(override?: GlassRendererBackend) {

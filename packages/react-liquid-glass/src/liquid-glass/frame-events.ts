@@ -1,4 +1,4 @@
-import type { LiquidFrameRegion } from "./render-frame";
+import type { LiquidFrameRegion } from "./render-frame.js";
 
 const frameListeners = new Set<(canvas: HTMLCanvasElement, regions: readonly LiquidFrameRegion[]) => void>();
 export function subscribeLiquidFrames(listener: (canvas: HTMLCanvasElement, regions: readonly LiquidFrameRegion[]) => void) {

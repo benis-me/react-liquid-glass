@@ -1,8 +1,8 @@
-import { readLiquidSource } from "./canvas-sources";
+import { readLiquidSource } from "./canvas-sources.js";
 import { cancelFrame, frame } from "motion";
-import { paintLiquidSvg, paintLiquidText } from "./menu-content";
-import { liquidBackground, paintLiquidHatch } from "./source";
-import { subscribeLiquidFrames } from "./renderer";
+import { paintLiquidSvg, paintLiquidText } from "./menu-content.js";
+import { liquidBackground, paintLiquidHatch } from "./source.js";
+import { subscribeLiquidFrames } from "./renderer.js";
 
 type Bounds = { left: number; top: number; width: number; height: number };
 declare const process: { env: { NODE_ENV?: string } };

@@ -1,6 +1,6 @@
 import { animate, useMotionValue } from "motion/react";
-import type { MenuTransition } from "../apple-motion/use-menu-motion";
-import { OPEN_MORPH_DURATION, CONTENT_MORPH_TIMES, OPEN_MORPH_EASES, CLOSE_FUSION_TIMES, CLOSE_FUSION_EASES, PRESS_EASE, RELEASE_EASE } from "../apple-motion/menu";
+import type { MenuTransition } from "../apple-motion/use-menu-motion.js";
+import { OPEN_MORPH_DURATION, CONTENT_MORPH_TIMES, OPEN_MORPH_EASES, CLOSE_FUSION_TIMES, CLOSE_FUSION_EASES, PRESS_EASE, RELEASE_EASE } from "../apple-motion/menu.js";
 
 export function useMenuMaterial() {
   const depth = useMotionValue(10);
