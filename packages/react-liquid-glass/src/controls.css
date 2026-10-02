@@ -458,6 +458,8 @@ html[data-theme="dark"] .dg-tabs__item:not([data-selected]):hover { background: 
 .dg-field select { cursor: pointer; padding-right: 32px; }
 .dg-field select option { color: CanvasText; background: Canvas; }
 .dg-field small { font-size: 11px; opacity: .6; }
+/* iOS Safari zooms the page into focused fields smaller than 16px. */
+@media (pointer: coarse) { .dg-field :is(input, textarea, select) { font-size: max(16px, 1em); } }
 .dg-field input::placeholder, .dg-field textarea::placeholder { color: currentColor; opacity: .4; }
 .dg-choice { display: inline-flex; align-items: center; gap: 12px; cursor: pointer; font-size: 13px; border-radius: 8px; }
 .dg-choice > .dg-surface { width: 24px; height: 24px; flex-shrink: 0; }
@@ -482,7 +484,8 @@ html[data-theme="dark"] .dg-tabs__item:not([data-selected]):hover { background: 
 .dg-accordion { display: grid; gap: 12px; }
 .dg-accordion__heading { margin: 0; font: inherit; }
 .dg-accordion__heading button { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 16px; padding: 17px 20px; color: inherit; background: transparent; border: 0; border-radius: 18px; text-align: left; font: inherit; font-size: 13px; cursor: pointer; }
-.dg-accordion__mark { font-size: 18px; }
+/* Same line box as the former 18px glyph, so heading rows keep their height. */
+.dg-accordion__mark { display: grid; place-items: center; font-size: 18px; height: 1lh; }
 .dg-accordion__body { padding: 0 20px 20px; font-size: 13px; line-height: 1.7; }
 .dg-dialog { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; border: 0; padding: 0; background: transparent; color: inherit; overflow: hidden; }
 .dg-dialog::backdrop { background: transparent; }
@@ -604,6 +607,14 @@ html[data-theme="dark"] .dg-action { --action-glass-tint: #4a4a46; }
   text-underline-offset: 4px;
 }
 :is(.dg-switch, .dg-slider, .dg-choice):has(:focus-visible) { background-color: light-dark(#00000008, #ffffff0c); }
+/* Switch and Slider tracks cover their label, and the seek bar has no text: the same short
+   underline as icon-only controls follows the thumb or the playback head instead. */
+:is(.dg-switch, .dg-slider):has(:focus-visible) :is(.dg-switch__thumb-hit, .dg-slider__thumb-hit)::after,
+.dg-video-player__bar:focus-visible .dg-video-player__progress::after {
+  content: ""; position: absolute; left: 50%; bottom: -8px; width: 14px; height: 2px; border-radius: 1px;
+  background: currentColor; translate: -50% 0; pointer-events: none;
+}
+.dg-video-player__bar:focus-visible .dg-video-player__progress::after { left: 100%; width: 18px; background: #fff; }
 .dg-tabs__item:focus-visible { outline: none; box-shadow: none; }
 .dg-tabs__item:focus-visible > span { text-decoration: underline; text-underline-offset: 4px; }
 /* Icon-only controls have no text to underline; a short underline marks the icon instead. */
@@ -647,3 +658,19 @@ html[data-theme="dark"] .dg-action { --action-glass-tint: #4a4a46; }
 .dg-liquid-glass--small .dg-liquid-menu__filter-row { grid-template-columns: 20px minmax(0, 1fr) 16px; gap: 11px; min-height: 40px; padding: 0 5px 0 30px; font-size: 13px; }
 .dg-liquid-glass--small .dg-liquid-menu__filter-row > svg:first-child { width: 18px; height: 18px; }
 .dg-liquid-glass--small .dg-liquid-menu__chevron { width: 13px; height: 13px; }
+
+/* Renderer fallbacks read the canvas state mark. Until the glass is ready, the opaque
+   resting thumbs stay visible; without WebGPU or WebGL2 surfaces also get plain fills. */
+@supports selector(:has(a)) {
+  :is(.dg-switch__thumb-hit, .dg-slider__thumb-hit) { background: #fff; border-radius: 999px; box-shadow: 0 1px 4px #00000029; }
+}
+:is(.dg-switch, .dg-slider):has(canvas[data-dg-renderer^="liquid-"]) :is(.dg-switch__thumb-hit, .dg-slider__thumb-hit) { background: none; box-shadow: none; }
+.dg-surface:has(> .dg-surface__optics > canvas[data-dg-renderer="unavailable"]),
+:is(.dg-popover-anchor, .dg-popover-layer, .dg-dialog, .dg-glass-group):has(canvas[data-dg-renderer="unavailable"]) .dg-surface {
+  background: color-mix(in srgb, currentColor 7%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 14%, transparent);
+}
+:is(.dg-popover-layer, .dg-dialog):has(canvas[data-dg-renderer="unavailable"]) > :is(.dg-popover__panel, .dg-dialog__body) {
+  background: color-mix(in srgb, Canvas 88%, transparent); backdrop-filter: blur(16px); box-shadow: inset 0 0 0 1px color-mix(in srgb, CanvasText 12%, transparent);
+}
+.dg-video-player:has(canvas[data-dg-renderer="unavailable"]) .dg-video-player__controls { opacity: 1; filter: none; pointer-events: auto; }
+.dg-video-player:has(canvas[data-dg-renderer="unavailable"]) :is(.dg-video-player__button, .dg-video-player__bar) { background-color: #0000004d; border-radius: 999px; }

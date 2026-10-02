@@ -45,7 +45,8 @@
 .focus-note { min-width: 0; }
 .focus-note h2 { font-size: 25px; line-height: 1.4; letter-spacing: -.8px; margin: 13px 0 24px; max-width: 260px; }
 .focus-note .dg-field { margin-bottom: 14px; }
-.focus-note textarea { font-size: 12px; line-height: 1.9; }
+.focus-note textarea { line-height: 1.9; }
+@media (pointer: fine) { .focus-note textarea { font-size: 12px; } }
 .focus-note > .doc-note { font-size: 10px; display: block; }
 .sequencer-scene > .dg-stage__contents { padding: 32px; }
 .sequencer-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 34px; gap: 20px; }

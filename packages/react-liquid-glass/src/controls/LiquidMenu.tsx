@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, type ReactNode } from "react";
 import { motion, useMotionValue, useTransform } from "motion/react";
 import type { LiquidLens } from "../liquid-glass/lens";
 import { LiquidGlassCanvas } from "../liquid-glass/LiquidGlassCanvas";
@@ -89,7 +89,7 @@ export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, cla
   const fusionSourceRef = useRef<HTMLCanvasElement>(null);
   const contentSourceRef = useRef<HTMLCanvasElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const [fusionSourceRevision, setFusionSourceRevision] = useState(0);
+  const fusionSourceRevision = useMotionValue(0);
   const contentActive = useMotionValue(0);
   const contentRevision = useMotionValue(0);
   const { depth, tintOpacity, zoom, buttonDepth, buttonTintOpacity, buttonZoom, closingBlur, transition, press } = useMenuMaterial();
@@ -210,7 +210,7 @@ export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, cla
     if (!owner) return;
     return createLiquidBackdrop(owner, () => owner.getBoundingClientRect(), canvas => {
       fusionSourceRef.current = canvas;
-      setFusionSourceRevision(revision => revision + 1);
+      fusionSourceRevision.set(fusionSourceRevision.get() + 1);
     }).dispose;
   }, [stageSize.height, stageSize.width, theme]);
 
@@ -252,7 +252,6 @@ export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, cla
           sourceRevision={fusionSourceRevision}
           pixelRatio={2 * scale}
           className="dg-liquid-menu__fusion-canvas"
-          ariaLabel={menuLabel}
           inheritMaterial={false}
           {...materialOverrides}
         />

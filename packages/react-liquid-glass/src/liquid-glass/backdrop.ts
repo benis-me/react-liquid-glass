@@ -74,12 +74,14 @@ export function paintLiquidBackdrop(root: HTMLElement, canvas: HTMLCanvasElement
       ctx.lineWidth = border; ctx.strokeStyle = css.borderTopColor; ctx.stroke();
     }
     if (/(hidden|clip|scroll|auto)/.test(`${css.overflowX} ${css.overflowY}`)) { ctx.beginPath(); ctx.roundRect(x, y, rect.width, rect.height, corners); ctx.clip(); }
-    // ponytail: this adapter covers DOM text/boxes, Lucide SVG and same-origin media/canvases.
+    // ponytail: this adapter covers DOM text/boxes, Lucide SVG, same-origin or CORS media and canvases.
     // Arbitrary CSS effects, cross-origin frames and browser compositor layers need a native backdrop API.
     if (element instanceof HTMLCanvasElement || element instanceof HTMLImageElement || element instanceof HTMLVideoElement) {
       const sw = element instanceof HTMLImageElement ? element.naturalWidth : element instanceof HTMLVideoElement ? element.videoWidth : element.width;
       const sh = element instanceof HTMLImageElement ? element.naturalHeight : element instanceof HTMLVideoElement ? element.videoHeight : element.height;
-      const safe = element instanceof HTMLCanvasElement || !element.currentSrc || new URL(element.currentSrc, location.href).origin === location.origin;
+      // crossorigin media either passed CORS or failed to load with zero size.
+      // ponytail: adding crossorigin to an already loaded image trusts its old pixels until the CORS reload settles.
+      const safe = element instanceof HTMLCanvasElement || element.crossOrigin !== null || !element.currentSrc || new URL(element.currentSrc, location.href).origin === location.origin;
       if (sw && sh && safe) {
         const scale = css.objectFit === "cover" ? Math.max(rect.width / sw, rect.height / sh) : css.objectFit === "contain" ? Math.min(rect.width / sw, rect.height / sh) : 0;
         const w = scale ? sw * scale : rect.width, h = scale ? sh * scale : rect.height;

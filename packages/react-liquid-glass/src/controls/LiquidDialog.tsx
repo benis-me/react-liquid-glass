@@ -1,5 +1,5 @@
 import { useId, type ComponentProps, type ReactElement, type ReactNode } from "react";
-import { X } from "lucide-react";
+import { X } from "./icons";
 import { LiquidPopover } from "./LiquidPopover";
 
 export interface GlassDialogProps {
