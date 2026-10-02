@@ -22,7 +22,12 @@ export function paintLiquidGrid(ctx: CanvasRenderingContext2D, width: number, he
 const themeListeners = new Set<() => void>();
 let themeObserver: MutationObserver | undefined;
 let themeRevision = 0;
+// Hosts mark dark mode with data-theme="dark" (as the docs do) or class="dark" (next-themes, shadcn).
+const hostTheme = () => { const root = document.documentElement; return root.dataset.theme ?? (root.classList.contains("dark") ? "dark" : "light"); };
+let observedTheme = "";
 const notifyTheme = () => { themeRevision++; themeListeners.forEach(listener => listener()); };
+// Unrelated class changes on <html> must not recapture every glass source.
+const themeAttributeChanged = () => { const theme = hostTheme(); if (theme !== observedTheme) { observedTheme = theme; notifyTheme(); } };
 const themeTransitionEnd = (event: TransitionEvent) => {
   if ((event.target === document.body || event.target === document.documentElement)
     && (event.propertyName === "background-color" || event.propertyName === "color")) notifyTheme();
@@ -30,8 +35,9 @@ const themeTransitionEnd = (event: TransitionEvent) => {
 export function subscribeLiquidTheme(notify: () => void) {
   themeListeners.add(notify);
   if (!themeObserver) {
-    themeObserver = new MutationObserver(notifyTheme);
-    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    observedTheme = hostTheme();
+    themeObserver = new MutationObserver(themeAttributeChanged);
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "class"] });
     document.addEventListener("transitionend", themeTransitionEnd);
   }
   return () => {
@@ -42,7 +48,7 @@ export function subscribeLiquidTheme(notify: () => void) {
     }
   };
 }
-export const liquidTheme = () => `${document.documentElement.dataset.theme ?? "light"}:${themeRevision}`;
+export const liquidTheme = () => `${hostTheme()}:${themeRevision}`;
 
 // Keyed by every input the probe can observe, so a hit is exact rather than stale.
 const resolvedColors = new Map<string, string>();

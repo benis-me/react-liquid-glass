@@ -79,7 +79,7 @@ export function GlassStage({
     const theme = new MutationObserver(draw);
     theme.observe(document.documentElement, {
       attributes: true,
-      attributeFilter: ["data-theme", "style"],
+      attributeFilter: ["data-theme", "class", "style"],
     });
     return () => {
       resize.disconnect();

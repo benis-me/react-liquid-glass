@@ -522,7 +522,7 @@ test("switch and slider expose a small size without changing default geometry", 
 });
 
 test("dark switch uses its own neutral enabled color", () => {
-  assert.match(libraryStylesSource, /html\[data-theme="dark"\] \.dg-switch\s*\{\s*--dg-switch-on:\s*#777773/);
+  assert.match(libraryStylesSource, /html:is\(\[data-theme="dark"\], :where\(\.dark:not\(\[data-theme\]\)\)\) \.dg-switch\s*\{\s*--dg-switch-on:\s*#777773/);
   assert.match(libraryStylesSource, /var\(--dg-switch-on, var\(--dg-control-accent\)\)/);
 });
 
@@ -784,7 +784,8 @@ test("core library stays CSS-free while optional controls ship standalone styles
 
 test("control optics retain size-independent pixel gain and the approved menu material", () => {
   assert.match(componentSource, /\.\.\.LIQUID_LENS/);
-  assert.equal((componentSource.match(/chromaAmount: \.24, edgeWidth: \.9/g) ?? []).length, 3);
+  assert.equal((componentSource.match(/chromaAmount: \.24, edgeWidth: \.9/g) ?? []).length, 1);
+  assert.equal((componentSource.match(/thumbLens\(dark, \{/g) ?? []).length, 3, "Switch, Slider and Segmented share one thumb lens");
   assert.equal((componentSource.match(/refractionPixels=\{thumbHeight \* \.22\}/g) ?? []).length, 2);
   assert.match(componentSource, /refractionPixels=\{5\.5\}/);
   const scaleCode = liquidAdapterSource.match(/const scale = props\.refractionPixels[\s\S]*?;/)?.[0];

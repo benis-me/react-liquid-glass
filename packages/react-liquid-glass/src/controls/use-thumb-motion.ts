@@ -1,5 +1,12 @@
 import { useVelocityDeformation } from "../apple-motion/react";
 import { animate, useMotionValue, useTransform, type MotionValue } from "motion/react";
+import { LIQUID_LENS } from "../liquid-glass/LiquidGlass";
+import type { LiquidLens } from "../liquid-glass/lens";
+
+/** Thumb glass shared by Switch, Slider and Segmented: low dispersion, a fine rim, a theme-aware lift. */
+export const thumbLens = (dark: boolean, lens: LiquidLens): LiquidLens => ({
+  ...LIQUID_LENS, chromaAmount: .24, edgeWidth: .9, brightness: dark ? .035 : .015, ...lens,
+});
 
 export function useThumbMotion(offset: MotionValue<number>, halfThumbWidth: number, halfThumbHeight: number, restTintBlur: number) {
   const pressTransition = { ease: [0.22, 1.15, 0.36, 1.06] as const, duration: 0.32 };
