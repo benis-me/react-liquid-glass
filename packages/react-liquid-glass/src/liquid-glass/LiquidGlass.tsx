@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { cancelFrame, frame } from "motion";
-import { LiquidGlassCanvas } from "./LiquidGlassCanvas";
-import { LIQUID_GLASS_MATERIAL, type LiquidGlassFrame, type LiquidGlassBlob } from "./renderer";
-import { captureLiquidSource, liquidRgb, liquidTheme, subscribeLiquidTheme, type LiquidSourceFactory, type LiquidSourcePainter } from "./source";
-import { isMotionValue, motionValue, readMotion, type MotionInput } from "../shared/values";
-import { DEFAULT_MATERIAL, useGlassMaterialOverrides } from "./provider";
-import { createLiquidBackdrop } from "./backdrop";
-import { useLiquidToneTracker } from "./tone";
-import type { LiquidLens } from "./lens";
+import { LiquidGlassCanvas } from "./LiquidGlassCanvas.js";
+import { LIQUID_GLASS_MATERIAL, type LiquidGlassFrame, type LiquidGlassBlob } from "./renderer.js";
+import { captureLiquidSource, liquidRgb, liquidTheme, subscribeLiquidTheme, type LiquidSourceFactory, type LiquidSourcePainter } from "./source.js";
+import { isMotionValue, motionValue, readMotion, type MotionInput } from "../shared/values.js";
+import { DEFAULT_MATERIAL, useGlassMaterialOverrides } from "./provider.js";
+import { createLiquidBackdrop } from "./backdrop.js";
+import { useLiquidToneTracker } from "./tone.js";
+import type { LiquidLens } from "./lens.js";
 
 /** Shared Liquid material defaults for DOM-backed lenses. */
 export const LIQUID_LENS = {

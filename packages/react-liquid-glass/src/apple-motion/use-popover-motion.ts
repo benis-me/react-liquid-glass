@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { animate, useMotionValue, useReducedMotion, type MotionValue } from "motion/react";
-import { OPEN_MORPH_DURATION, OPEN_MORPH_TIMES, openWidthFrames, openHeightFrames, openRadiusFrames } from "./menu";
-import { liquidEasings, retargetLiquidFrames } from "./trajectory";
+import { OPEN_MORPH_DURATION, OPEN_MORPH_TIMES, openWidthFrames, openHeightFrames, openRadiusFrames } from "./menu.js";
+import { liquidEasings, retargetLiquidFrames } from "./trajectory.js";
 
 export interface PopoverLayout {
   triggerX: number; triggerY: number; triggerWidth: number; triggerHeight: number; triggerRadius: number;

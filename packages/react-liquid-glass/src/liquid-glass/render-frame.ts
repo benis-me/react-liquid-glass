@@ -1,4 +1,4 @@
-import type { MotionInput } from "../shared/values";
+import type { MotionInput } from "../shared/values.js";
 
 export const MAX_BLOBS = 8;
 /** Changed output region, normalized to the canvas, with a top-left origin. */

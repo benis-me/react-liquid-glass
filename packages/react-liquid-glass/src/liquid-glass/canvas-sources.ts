@@ -1,4 +1,4 @@
-import type { LiquidGlassSource } from "./render-frame";
+import type { LiquidGlassSource } from "./render-frame.js";
 // Canvas swapchain contents expire after presentation. The optical DOM adapter
 // reads a retained SDR snapshot only when another surface actually needs it.
 let transparent: HTMLCanvasElement | undefined;

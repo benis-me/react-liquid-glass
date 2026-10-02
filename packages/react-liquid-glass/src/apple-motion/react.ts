@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { animate, cancelFrame, frame, useMotionValue, type MotionValue } from "motion/react";
-import { motionValue, type WritableMotionValue } from "../shared/values";
-import { stepSpring, type PhysicalSpring } from "./spring";
+import { motionValue, type WritableMotionValue } from "../shared/values.js";
+import { stepSpring, type PhysicalSpring } from "./spring.js";
 
 export type SpringRun = { stop: () => void; finished: Promise<void> };
 
@@ -150,8 +150,8 @@ export function rubberBand(distance: number, limit: number, dampening: number) {
 }
 
 
-export { usePointerReleaseFallback } from "./use-pointer-release-fallback";
-export { useGlassContact } from "./use-glass-contact";
-export { useMenuMotion, type MenuMotionOptions, type MenuLayout, type MenuTransition } from "./use-menu-motion";
+export { usePointerReleaseFallback } from "./use-pointer-release-fallback.js";
+export { useGlassContact } from "./use-glass-contact.js";
+export { useMenuMotion, type MenuMotionOptions, type MenuLayout, type MenuTransition } from "./use-menu-motion.js";
 
-export { usePopoverMotion, popoverFrames, type PopoverLayout } from "./use-popover-motion";
+export { usePopoverMotion, popoverFrames, type PopoverLayout } from "./use-popover-motion.js";

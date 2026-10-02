@@ -34,8 +34,11 @@ export const api = [LiquidGlass, GlassSwitch, LiquidGlassCanvas, createLiquidGla
 export const lens: LiquidLens = { depth: 10, domeDepth: 28, chromaAmount: .33 };
 // @ts-expect-error SVG map generation is no longer a lens parameter.
 export const obsolete: LiquidLens = { mapSize: 256 };`);
-    writeFileSync(join(folder, 'tsconfig.json'), JSON.stringify({ compilerOptions: { target: 'ES2022', module: 'ESNext', moduleResolution: 'Bundler', jsx: 'react-jsx', strict: true, skipLibCheck: false, noEmit: true, types: ['react','react-dom'] }, include: ['*.tsx'] }));
-    execFileSync(fileURLToPath(new URL('../../../node_modules/.bin/tsc', import.meta.url)), ['-p', join(folder, 'tsconfig.json')], { stdio: 'pipe' });
+    // Consumers resolve the published types with a bundler or with Node's ESM rules.
+    for (const [module, moduleResolution] of [['ESNext', 'Bundler'], ['NodeNext', 'NodeNext']]) {
+      writeFileSync(join(folder, 'tsconfig.json'), JSON.stringify({ compilerOptions: { target: 'ES2022', module, moduleResolution, jsx: 'react-jsx', strict: true, skipLibCheck: false, noEmit: true, types: ['react','react-dom'] }, include: ['*.tsx'] }));
+      execFileSync(fileURLToPath(new URL('../../../node_modules/.bin/tsc', import.meta.url)), ['-p', join(folder, 'tsconfig.json')], { stdio: 'pipe' });
+    }
   } catch (error) { if (error.stdout) throw new Error(error.stdout.toString()); throw error; }
   finally { rmSync(folder, { recursive: true, force: true }); }
 });

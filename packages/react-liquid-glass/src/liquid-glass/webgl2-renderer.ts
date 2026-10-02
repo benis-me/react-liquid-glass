@@ -1,8 +1,8 @@
-import { readLiquidSource } from "./canvas-sources";
-import { createFrameGeometry, frostPyramid } from "./frame-geometry";
-import { readMotion } from "../shared/values";
-import { MAX_BLOBS, LIQUID_GLASS_MATERIAL, type LiquidGlassSource, type LiquidGlassFrame, type LiquidFrameRegion, type LiquidRendererStats } from "./render-frame";
-import { notifyLiquidFrame } from "./frame-events";
+import { readLiquidSource } from "./canvas-sources.js";
+import { createFrameGeometry, frostPyramid } from "./frame-geometry.js";
+import { readMotion } from "../shared/values.js";
+import { MAX_BLOBS, LIQUID_GLASS_MATERIAL, type LiquidGlassSource, type LiquidGlassFrame, type LiquidFrameRegion, type LiquidRendererStats } from "./render-frame.js";
+import { notifyLiquidFrame } from "./frame-events.js";
 
 const VERTEX_SHADER = `#version 300 es
 layout(location = 0) in vec2 aPosition;

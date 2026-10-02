@@ -1,5 +1,5 @@
 import { useReducedMotion } from "motion/react";
-import { stepSpring, SIDE_BUTTON_SPRING, PLAY_BUTTON_SPRING, BAR_DRAG_SPRING, BUTTON_HOVER_SCALE } from "../apple-motion";
+import { stepSpring, SIDE_BUTTON_SPRING, PLAY_BUTTON_SPRING, BAR_DRAG_SPRING, BUTTON_HOVER_SCALE } from "../apple-motion/index.js";
 import {
   useCallback,
   useEffect,
@@ -11,11 +11,11 @@ import pauseSvg from "../assets/video/pause.svg?raw";
 import rewindSvg from "../assets/video/rewind.svg?raw";
 import forwardSvg from "../assets/video/forward.svg?raw";
 import playSvg from "../assets/video/play.svg?raw";
-import { useGlassMaterial } from "../liquid-glass/provider";
-import { useRendererBackend } from "../liquid-glass/use-renderer-backend";
-import { createLiquidGlassRenderer, type LiquidGlassBlob } from "../liquid-glass/renderer";
-import { usePointerReleaseFallback } from "../apple-motion/react";
-import { useReducedMotionPreference } from "../liquid-glass/light";
+import { useGlassMaterial } from "../liquid-glass/provider.js";
+import { useRendererBackend } from "../liquid-glass/use-renderer-backend.js";
+import { createLiquidGlassRenderer, type LiquidGlassBlob } from "../liquid-glass/renderer.js";
+import { usePointerReleaseFallback } from "../apple-motion/react.js";
+import { useReducedMotionPreference } from "../liquid-glass/light.js";
 
 function SourceVideoIcon({ source }: { source: string }) {
   return <span className="dg-video-player__source-icon" aria-hidden="true" dangerouslySetInnerHTML={{ __html: source }} />;

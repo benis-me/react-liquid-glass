@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useId, useMemo, useRef, type ReactNode } from "react";
 import { motion, useMotionValue, useTransform } from "motion/react";
-import type { LiquidLens } from "../liquid-glass/lens";
-import { LiquidGlassCanvas } from "../liquid-glass/LiquidGlassCanvas";
-import { LIQUID_LENS } from "../liquid-glass/LiquidGlass";
-import { liquidContentPose, liquidContentOptics } from "../liquid-glass/geometry";
-import { paintLiquidMenuContent } from "../liquid-glass/menu-content";
-import { createLiquidBackdrop } from "../liquid-glass/backdrop";
-import { useMenuMotion, type MenuLayout } from "../apple-motion/use-menu-motion";
-import { TRIGGER_RADIUS } from "../apple-motion/menu";
-import { useMenuMaterial } from "./use-menu-material";
-import { ScrollArea } from "./ScrollArea";
-import { useGlassMaterialOverrides } from "../liquid-glass/provider";
+import type { LiquidLens } from "../liquid-glass/lens.js";
+import { LiquidGlassCanvas } from "../liquid-glass/LiquidGlassCanvas.js";
+import { LIQUID_LENS } from "../liquid-glass/LiquidGlass.js";
+import { liquidContentPose, liquidContentOptics } from "../liquid-glass/geometry.js";
+import { paintLiquidMenuContent } from "../liquid-glass/menu-content.js";
+import { createLiquidBackdrop } from "../liquid-glass/backdrop.js";
+import { useMenuMotion, type MenuLayout } from "../apple-motion/use-menu-motion.js";
+import { TRIGGER_RADIUS } from "../apple-motion/menu.js";
+import { useMenuMaterial } from "./use-menu-material.js";
+import { ScrollArea } from "./ScrollArea.js";
+import { useGlassMaterialOverrides } from "../liquid-glass/provider.js";
 
 const BASE_MENU_LENS = LIQUID_LENS;
 

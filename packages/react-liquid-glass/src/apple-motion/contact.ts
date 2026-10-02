@@ -9,4 +9,4 @@ export function contactPull(x: number, y: number, width: number, height: number,
   return [x * gain, y * gain] as const;
 }
 
-export { contactTransform } from "../shared/contact";
+export { contactTransform } from "../shared/contact.js";

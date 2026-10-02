@@ -15,14 +15,14 @@ import {
   useReducedMotion,
   useTransform,
 } from "motion/react";
-import { springTo, useGlassContact } from "../apple-motion/react";
-import { contactTransform } from "../apple-motion/contact";
-import { SURFACE_PRESS_SPRING } from "../apple-motion/presets";
-import { LiquidGlassCanvas } from "../liquid-glass/LiquidGlassCanvas";
-import { createLiquidBackdrop } from "../liquid-glass/backdrop";
-import { PRISM_MATERIAL, useGlassTone } from "../liquid-glass/provider";
-import { useLiquidToneTracker } from "../liquid-glass/tone";
-import { paintLiquidGrid } from "../liquid-glass/source";
+import { springTo, useGlassContact } from "../apple-motion/react.js";
+import { contactTransform } from "../apple-motion/contact.js";
+import { SURFACE_PRESS_SPRING } from "../apple-motion/presets.js";
+import { LiquidGlassCanvas } from "../liquid-glass/LiquidGlassCanvas.js";
+import { createLiquidBackdrop } from "../liquid-glass/backdrop.js";
+import { PRISM_MATERIAL, useGlassTone } from "../liquid-glass/provider.js";
+import { useLiquidToneTracker } from "../liquid-glass/tone.js";
+import { paintLiquidGrid } from "../liquid-glass/source.js";
 
 export type GlassBackground = "grid" | "lines" | "plain";
 // Compact controls need less broad shading than the original, deep menu lens. They keep
