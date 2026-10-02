@@ -18,7 +18,9 @@ import { CodeBlock, PageHeading, type PageProps } from "./Pages";
 import { Link } from "./router";
 import { MaterialControls } from "./MaterialControls";
 import type { MaterialState } from "./material";
-type Substrate = GlassBackground | "photo" | "text";
+type Substrate = GlassBackground | "photo" | "color" | "text";
+// A colorful, same-origin photo, so dispersion is visible; the building photo stays monochrome.
+const COLOR_PHOTO = "/assets/flowers-placeholder.webp";
 const DEFAULT_MATERIAL = {};
 const SUBSTRATE_TEXT = {
   en: "Glass bends what lies beneath it. Letters stretch along the rim, lines curve toward the edge, and colors part where the surface turns away from the light.",
@@ -27,7 +29,7 @@ const SUBSTRATE_TEXT = {
 
 /** Real DOM behind the component, so the glass refracts an actual photo or text. */
 function SubstrateLayer({ kind, zh }: { kind: Substrate; zh: boolean }) {
-  if (kind === "photo") return <img className="playground-substrate playground-substrate--photo" src={PHOTO} alt="" aria-hidden="true" />;
+  if (kind === "photo" || kind === "color") return <img className="playground-substrate playground-substrate--photo" src={kind === "color" ? COLOR_PHOTO : PHOTO} alt="" aria-hidden="true" />;
   if (kind === "text") return <div className="playground-substrate playground-substrate--text" aria-hidden="true">{[0, 1, 2].map(index => <p key={index}>{zh ? SUBSTRATE_TEXT.zh : SUBSTRATE_TEXT.en}</p>)}</div>;
   return null;
 }
@@ -132,6 +134,7 @@ export function Playground({ locale, theme, material, setMaterial }: PageProps &
                 <option value="lines">{zh ? "条纹" : "Lines"}</option>
                 <option value="plain">{zh ? "纯色" : "Plain"}</option>
                 <option value="photo">{zh ? "照片" : "Photo"}</option>
+                <option value="color">{zh ? "彩色照片" : "Color photo"}</option>
                 <option value="text">{zh ? "文字" : "Text"}</option>
               </GlassSelect>
           </div>
@@ -154,7 +157,7 @@ export function Playground({ locale, theme, material, setMaterial }: PageProps &
               {selected.map((item) => {
                 const stage = (
                   <GlassStage
-                    background={background === "photo" || background === "text" ? "plain" : background}
+                    background={background === "photo" || background === "color" || background === "text" ? "plain" : background}
                     className={`component-preview component-preview--${item.id} ${component === "all" ? "component-preview--compact" : ""}`}
                   >
                     <SubstrateLayer kind={background} zh={zh} />
