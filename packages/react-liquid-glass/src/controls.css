@@ -484,7 +484,8 @@ html[data-theme="dark"] .dg-tabs__item:not([data-selected]):hover { background: 
 .dg-accordion { display: grid; gap: 12px; }
 .dg-accordion__heading { margin: 0; font: inherit; }
 .dg-accordion__heading button { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 16px; padding: 17px 20px; color: inherit; background: transparent; border: 0; border-radius: 18px; text-align: left; font: inherit; font-size: 13px; cursor: pointer; }
-.dg-accordion__mark { font-size: 18px; }
+/* Same line box as the former 18px glyph, so heading rows keep their height. */
+.dg-accordion__mark { display: grid; place-items: center; font-size: 18px; height: 1lh; }
 .dg-accordion__body { padding: 0 20px 20px; font-size: 13px; line-height: 1.7; }
 .dg-dialog { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; border: 0; padding: 0; background: transparent; color: inherit; overflow: hidden; }
 .dg-dialog::backdrop { background: transparent; }

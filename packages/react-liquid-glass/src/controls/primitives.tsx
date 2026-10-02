@@ -13,7 +13,7 @@ import {
   type TextareaHTMLAttributes,
 } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { Check, ChevronDown, X } from "lucide-react";
+import { Check, ChevronDown, Plus, X } from "./icons";
 import { LiquidPopover, useClosePopover } from "./LiquidPopover";
 import { usePointerReleaseFallback } from "../apple-motion/react";
 import { GlassSurface } from "./GlassSurface";
@@ -448,7 +448,7 @@ function AccordionItem({ title, content, open, toggle, lazy, headingLevel }: { t
   const [retained, setRetained] = useState(open);
   useEffect(() => { if (lazy && open) setRetained(true); }, [lazy, open]);
   return <GlassSurface radius={18}>
-    <Heading className="dg-accordion__heading"><button type="button" id={`${id}-trigger`} aria-expanded={open} aria-controls={id} onClick={toggle}>{title}<motion.span className="dg-accordion__mark" aria-hidden="true" animate={{ rotate: open ? 45 : 0 }} transition={{ duration: reduce ? 0 : .18 }}>+</motion.span></button></Heading>
+    <Heading className="dg-accordion__heading"><button type="button" id={`${id}-trigger`} aria-expanded={open} aria-controls={id} onClick={toggle}>{title}<motion.span className="dg-accordion__mark" aria-hidden="true" animate={{ rotate: open ? 45 : 0 }} transition={{ duration: reduce ? 0 : .18 }}><Plus size={13} /></motion.span></button></Heading>
     {/* Fractional rows avoid auto-height measurement temporarily resizing and scrolling the page. */}
     <motion.div id={id} role="region" aria-labelledby={`${id}-trigger`} inert={!open} aria-hidden={!open} initial={false} animate={{ gridTemplateRows: open ? "1fr" : "0fr", opacity: open ? 1 : 0 }} transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 320, damping: 32 }} style={{ display: "grid" }} onAnimationComplete={() => { if (lazy && !open) setRetained(false); }}>
       <div style={{ overflow: "hidden" }}><div className="dg-accordion__body">{(!lazy || open || retained) && content}</div></div>
