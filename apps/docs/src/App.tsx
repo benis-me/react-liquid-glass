@@ -72,24 +72,37 @@ export function App({ backend }: { backend?: GlassRendererBackend } = {}) {
     saved("glass-locale") === "zh" ? "zh" : "en",
   );
   const [mobileOpen, setMobileOpen] = useState(false);
+  // A shared link applies to this visit only; the saved material changes once the user edits it.
+  const linkedMaterial = useRef<GlassMaterial | null>(null);
   const [material, setMaterial] = useState<GlassMaterial>(() => {
     const linked = location.pathname === "/playground" ? new URLSearchParams(location.search).get("material") : null;
     const legacy = path === "/components" ? ["glass-catalog-material", "glass-playground"] : ["glass-playground", "glass-catalog-material"];
     for (const json of [linked, saved("glass-material"), ...legacy.map(saved)]) {
       if (json === null) continue;
-      try { return sanitizeMaterial(JSON.parse(json)); } catch { /* Try the saved configuration. */ }
+      try {
+        const result = sanitizeMaterial(JSON.parse(json));
+        if (json === linked) linkedMaterial.current = result;
+        else delete result.debug; // The live optical field is a per-session view, never a saved one.
+        return result;
+      } catch { /* Try the saved configuration. */ }
     }
     return {};
   });
   useEffect(() => {
-    try { localStorage.setItem("glass-material", JSON.stringify(material)); } catch { /* Controls still work without storage. */ }
+    if (material === linkedMaterial.current) return;
+    const { debug: _sessionOnly, ...persisted } = material;
+    try { localStorage.setItem("glass-material", JSON.stringify(persisted)); } catch { /* Controls still work without storage. */ }
   }, [material]);
   useEffect(() => {
     const readLink = () => {
       if (location.pathname !== "/playground") return;
       const json = new URLSearchParams(location.search).get("material");
       if (json === null) return;
-      try { setMaterial(sanitizeMaterial(JSON.parse(json))); } catch { /* Keep the current material for invalid links. */ }
+      try {
+        const next = sanitizeMaterial(JSON.parse(json));
+        linkedMaterial.current = next;
+        setMaterial(next);
+      } catch { /* Keep the current material for invalid links. */ }
     };
     window.addEventListener("popstate", readLink);
     return () => window.removeEventListener("popstate", readLink);
