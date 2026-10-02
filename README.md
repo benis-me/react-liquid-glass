@@ -2,7 +2,7 @@
 
 **HDR · Glass fusion · Apple-like motion · Spring physics**
 
-![React Liquid Glass — fused glass bodies and a pressed glass Switch over diagonal stripes, alongside the library's Slider, Tabs, liquid menu, input and buttons.](.github/assets/readme-hero.png)
+![React Liquid Glass: three fused liquid glass bodies refracting the giant "Liquid Glass" title, beside a fused GlassGroup toolbar and an open Morph Menu.](.github/assets/readme-hero.png)
 
 A React component library built on project-owned liquid glass optics and physical motion. This repository is an npm-workspaces monorepo.
 
