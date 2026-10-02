@@ -1,6 +1,8 @@
 # rglass
 
-Project-owned liquid glass optics, physical motion and accessible React components. React 19 and Motion 13 are peer dependencies. ESM, CommonJS and TypeScript declarations are included.
+![React Liquid Glass: three fused liquid glass bodies refracting the giant "Liquid Glass" title, beside a fused GlassGroup toolbar and an open Morph Menu.](https://raw.githubusercontent.com/benis-me/react-liquid-glass/main/.github/assets/readme-hero.png)
+
+Liquid glass for React: real-time refraction rendered with WebGPU and a WebGL2 fallback, one material from rest through motion, glass shapes that fuse, and Apple-like spring motion, in accessible components. React 19 and Motion 13 are peer dependencies. ESM, CommonJS and TypeScript declarations are included.
 
 ## Install
 

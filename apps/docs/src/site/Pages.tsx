@@ -102,8 +102,8 @@ export function Home({ locale, theme }: PageProps) {
         </h1>
         <p>
           {zh
-            ? "React 液态玻璃组件库。"
-            : "Liquid glass components for React."}
+            ? "React 液态玻璃组件库：WebGPU 实时折射、WebGL2 兜底，静止与运动共用同一种材质，形体可以彼此融合。"
+            : "Liquid glass components for React, with real refraction on WebGPU and a WebGL2 fallback, one material at rest and in motion, and shapes that fuse."}
         </p>
         <div className="page-actions">
           <Link className="link-button link-button--primary" href="/components">
