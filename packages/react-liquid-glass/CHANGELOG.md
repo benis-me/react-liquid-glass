@@ -10,6 +10,7 @@ Notable changes to `rglass`. Versions follow semantic versioning; before 1.0, a 
 - Pressed Switch and Slider thumbs no longer cut their shadow at the edge of the control's canvas.
 - `LiquidGlassCanvas` honors instance material values over the shared defaults. Provider presets no longer freeze the Morph Menu's animated blur, tint and zoom, and an instance `hdr={false}` also removes the HDR highlight default.
 - Controls follow `class="dark"` hosts (next-themes, shadcn) as well as `data-theme="dark"`.
+- Published declarations resolve under `moduleResolution: NodeNext`; exported types no longer degrade to `any` there.
 
 ### Added
 
