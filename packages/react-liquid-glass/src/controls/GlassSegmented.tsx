@@ -4,8 +4,8 @@ import { LiquidGlass } from "../liquid-glass/LiquidGlass.js";
 import { thumbLens } from "./use-thumb-motion.js";
 import { GlassSurface } from "./GlassSurface.js";
 import { liquidTheme, subscribeLiquidTheme } from "../liquid-glass/source.js";
-import { springTo, useGlassContact, usePointerReleaseFallback, waitForRest, useDerivedMotion, useDerivedMotion2, useVelocityDeformation, type SpringRun } from "../apple-motion/react.js";
-import { SEGMENTED_TRAVEL_SPRING, SEGMENTED_PRESS_SPRING, SEGMENTED_DRAG_CATCHUP_SPRING, SEGMENTED_RELEASE_SPRING, SEGMENTED_HEIGHT_RELEASE_SPRING, SEGMENTED_IMPACT_RETENTION, SEGMENTED_TRAIL_BIAS, SEGMENTED_HOLD_IMPACT_SCRIPT } from "../apple-motion/presets.js";
+import { springTo, useGlassContact, usePointerReleaseFallback, waitForRest, useDerivedMotion2, useVelocityDeformation, type SpringRun } from "../apple-motion/react.js";
+import { SEGMENTED_TRAVEL_SPRING, SEGMENTED_PRESS_SPRING, SEGMENTED_DRAG_CATCHUP_SPRING, SEGMENTED_RELEASE_SPRING, SEGMENTED_HEIGHT_RELEASE_SPRING, SEGMENTED_IMPACT_RETENTION, SEGMENTED_TRAIL_BIAS, SEGMENTED_HOLD_IMPACT_SCRIPT, SEGMENTED_HANDOFF, SEGMENTED_DEFORMATION } from "../apple-motion/presets.js";
 
 
 type IconProps = { className?: string };
@@ -95,13 +95,16 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
         }
         if (impactLanded.current) return 0;
       }
-      return Math.min(0.18, speed ** 0.62 * 0.0045);
+      // Stretch in proportion to speed.
+      return Math.min(0.18, speed * SEGMENTED_DEFORMATION.perSpeed);
     },
-    stiffness: () => impactLanded.current && stationaryPress() ? SEGMENTED_HOLD_IMPACT_SCRIPT.stiffness : 210,
+    // Track speed closely, so the lens is longest mid-travel and rounds out as it slows,
+    // then let one light recoil play out after it lands.
+    stiffness: () => impactLanded.current && stationaryPress() ? SEGMENTED_HOLD_IMPACT_SCRIPT.stiffness : SEGMENTED_DEFORMATION.stiffness,
     damping: () => {
-      if (!impactLanded.current) return 26;
+      if (!impactLanded.current) return SEGMENTED_DEFORMATION.damping;
       if (stationaryPress()) return SEGMENTED_HOLD_IMPACT_SCRIPT.damping;
-      return 30;
+      return SEGMENTED_DEFORMATION.landedDamping;
     },
   });
   impactKickRef.current = kickDeformation;
@@ -124,7 +127,6 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
     active * (0.18 - Math.min(0.10, Math.max(0, amount) * 0.55)));
   const minimumGlassH = useDerivedMotion2(lensH, heightBoost, (height, boost) => height * (1 + boost));
   const renderedLensH = useDerivedMotion2(expandedLensH, minimumGlassH, (height, minimum) => Math.max(height, minimum));
-  const zoom = useDerivedMotion(deformation, (amount) => 1 + amount * 0.55);
   const boostedDepth = useDerivedMotion2(deformation, interaction, (amount, pressed) => 2.5 * (1 + amount * 0.7 + pressed * 0.08));
   const stops = useRef<SpringRun[]>([]);
   const interactionStop = useRef<SpringRun | null>(null);
@@ -135,7 +137,10 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
   const transitionToken = useRef(0);
   const travelSettled = useRef<Promise<void>>(Promise.resolve());
 
-  const updateSolidThumb = (targetValue: string) => {
+  const updateSolidThumb = (targetValue: string, force = false) => {
+    // While the glass carries the selection, the solid thumb stays put and moves only when the
+    // glass lands, so it never slides out ahead of the lens.
+    if (!force && rootRef.current?.hasAttribute("data-interacting")) return;
     const item = itemRefs.current.get(targetValue);
     const thumb = solidThumbRef.current;
     if (!item || !thumb || item.offsetParent === null) return;
@@ -232,13 +237,6 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
     if (next === selectedRef.current) return;
     selectedRef.current = next;
     updateSolidThumb(next);
-    if (dragPointer.current !== null) {
-      const item = itemRefs.current.get(next);
-      if (item) {
-        lensW.set(item.getBoundingClientRect().width / 2);
-        lensH.set(item.getBoundingClientRect().height / 2);
-      }
-    }
     if (value === undefined) setLocal(next);
     onValueChange?.(next);
   };
@@ -270,6 +268,15 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
     const last = visible[visible.length - 1].rect;
     const lastCenter = last.left + last.width / 2;
     const centerX = Math.max(firstCenter, Math.min(lastCenter, clientX - dragOffsetX.current - dragCatchup.get()));
+    // Blend the lens size between the neighbouring items, so it morphs while sliding
+    // across tabs of different widths instead of popping at the midpoint.
+    const after = Math.max(0, visible.findIndex(({ rect }) => rect.left + rect.width / 2 >= centerX));
+    const from = visible[Math.max(0, after - 1)].rect;
+    const to = visible[after].rect;
+    const span = to.left + to.width / 2 - (from.left + from.width / 2);
+    const blend = span > 0 ? (centerX - (from.left + from.width / 2)) / span : 1;
+    lensW.set((from.width + (to.width - from.width) * blend) / 2);
+    lensH.set((from.height + (to.height - from.height) * blend) / 2);
     const nextX = (centerX - expandedLeft) / expandedWidth;
     const nextDirection = Math.sign(nextX - x.get());
     impactTargetX.current = nextX;
@@ -321,34 +328,29 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
       return;
     }
     const token = ++transitionToken.current;
-    interactionStop.current?.stop();
-    const shape = springTo(interaction, 0, SEGMENTED_RELEASE_SPRING);
-    interactionStop.current = shape;
-    heightStop.current?.stop();
-    const height = springTo(glassHeight, 0, SEGMENTED_HEIGHT_RELEASE_SPRING);
-    heightStop.current = height;
     const travel = settle ? updateGeometry(selectedRef.current, false) : travelSettled.current;
     if (settle) travelSettled.current = travel;
-    // Fade in the visual spring tail, not after several mathematical rest waits.
-    // Pixel-space error also prevents a zero crossing from cutting off the recoil.
-    void waitForRest([renderedLensW, renderedLensH, impactX, deformation, interaction, glassHeight], () => Math.max(
-      Math.abs(renderedLensW.get() - lensW.get()),
-      Math.abs(renderedLensH.get() - lensH.get()),
-      Math.abs(impactX.get() - impactTargetX.current) * impactWidth.current,
-      Math.abs(x.getVelocity()) * impactWidth.current * SEGMENTED_IMPACT_RETENTION * .02,
-    ))
+    // The lens stays lifted until it reaches its tab, then lands in one motion: it shrinks back
+    // and dissolves over the solid thumb, which is already in place beneath it.
+    void waitForRest([impactX, x], () => Math.abs(impactX.get() - impactTargetX.current) * impactWidth.current, SEGMENTED_HANDOFF.arrivalPixels)
       .then(() => {
         if (token !== transitionToken.current) return;
+        interactionStop.current?.stop();
+        interactionStop.current = springTo(interaction, 0, SEGMENTED_RELEASE_SPRING);
+        heightStop.current?.stop();
+        heightStop.current = springTo(glassHeight, 0, SEGMENTED_HEIGHT_RELEASE_SPRING);
         glassAnimation.current?.stop();
         solidAnimation.current?.stop();
+        updateSolidThumb(selectedRef.current, true);
         solidOpacity.set(1);
         rootRef.current?.setAttribute("data-crossfading", "");
-        const fade = animate(glassOpacity, 0, { duration: 0.12, ease: [0.22, 1, 0.36, 1] });
+        const fade = animate(glassOpacity, 0, SEGMENTED_HANDOFF.dissolve);
         glassAnimation.current = fade;
         return fade.then(() => {
           if (token === transitionToken.current) {
             rootRef.current?.removeAttribute("data-interacting");
             rootRef.current?.removeAttribute("data-crossfading");
+            updateSolidThumb(selectedRef.current);
           }
         });
       });
@@ -501,7 +503,6 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
           lensW={renderedLensW}
           lensH={renderedLensH}
           autoBorderRadius
-          zoom={zoom}
           depth={boostedDepth}
           style={{
             position: "absolute",
