@@ -27,6 +27,7 @@ export interface LiquidGlassCanvasProps extends Omit<LiquidGlassFrame, "source" 
   lightSource?: LiquidLightSource;
   className?: string;
   style?: CSSProperties;
+  /** Describes a meaningful canvas as an image; without it the glass is decorative and hidden from assistive tech. */
   ariaLabel?: string;
 }
 
@@ -117,5 +118,5 @@ export function LiquidGlassCanvas(props: LiquidGlassCanvasProps) {
   }, [props, scheduleDraw]);
 
   return <canvas key={`${requested}:${backend}:${Boolean(props.shared)}`} ref={canvasRef} data-dg-renderer-fallback={fallback?.message} className={props.className} style={props.style}
-    role="img" aria-label={props.ariaLabel ?? "Liquid glass surface"} />;
+    role={props.ariaLabel ? "img" : undefined} aria-label={props.ariaLabel} aria-hidden={props.ariaLabel ? undefined : true} />;
 }

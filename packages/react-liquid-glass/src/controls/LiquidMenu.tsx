@@ -252,7 +252,6 @@ export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, cla
           sourceRevision={fusionSourceRevision}
           pixelRatio={2 * scale}
           className="dg-liquid-menu__fusion-canvas"
-          ariaLabel={menuLabel}
           inheritMaterial={false}
           {...materialOverrides}
         />

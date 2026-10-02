@@ -604,6 +604,14 @@ html[data-theme="dark"] .dg-action { --action-glass-tint: #4a4a46; }
   text-underline-offset: 4px;
 }
 :is(.dg-switch, .dg-slider, .dg-choice):has(:focus-visible) { background-color: light-dark(#00000008, #ffffff0c); }
+/* Switch and Slider tracks cover their label, and the seek bar has no text: the same short
+   underline as icon-only controls follows the thumb or the playback head instead. */
+:is(.dg-switch, .dg-slider):has(:focus-visible) :is(.dg-switch__thumb-hit, .dg-slider__thumb-hit)::after,
+.dg-video-player__bar:focus-visible .dg-video-player__progress::after {
+  content: ""; position: absolute; left: 50%; bottom: -8px; width: 14px; height: 2px; border-radius: 1px;
+  background: currentColor; translate: -50% 0; pointer-events: none;
+}
+.dg-video-player__bar:focus-visible .dg-video-player__progress::after { left: 100%; width: 18px; background: #fff; }
 .dg-tabs__item:focus-visible { outline: none; box-shadow: none; }
 .dg-tabs__item:focus-visible > span { text-decoration: underline; text-underline-offset: 4px; }
 /* Icon-only controls have no text to underline; a short underline marks the icon instead. */
