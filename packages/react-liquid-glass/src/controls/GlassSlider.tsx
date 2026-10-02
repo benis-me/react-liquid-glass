@@ -1,11 +1,10 @@
 import { SLIDER_CLICK_SPRING } from "../apple-motion/presets";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { animate, motion, useMotionValue, useTransform } from "motion/react";
-import { LiquidGlass, LIQUID_LENS } from "../liquid-glass/LiquidGlass";
+import { LiquidGlass } from "../liquid-glass/LiquidGlass";
 import { liquidTheme, liquidTrackSource, subscribeLiquidTheme } from "../liquid-glass/source";
-import type { LiquidLens } from "../liquid-glass/lens";
 import { usePointerReleaseFallback, useGlassContact, rubberBand, springTo, type SpringRun } from "../apple-motion/react";
-import { useThumbMotion } from "./use-thumb-motion";
+import { thumbLens, useThumbMotion } from "./use-thumb-motion";
 
 export interface GlassSliderProps {
   value?: number;
@@ -131,11 +130,7 @@ export function GlassSlider({
     trackHeight: refractedTrackHeight, travel, offset,
     scaleX: targetScaleX, scaleY: targetScaleY,
   }), [width, thumbHeight, padding, refractedTrackHeight, thumbWidth, travel, offset, targetScaleX, targetScaleY]);
-  const lens: LiquidLens = {
-    ...LIQUID_LENS, depth: thumbHeight / 11, domeDepth: thumbHeight * (5 / 22),
-    chromaAmount: .24, edgeWidth: .9,
-    brightness: dark ? .035 : .015,
-  };
+  const lens = thumbLens(dark, { depth: thumbHeight / 11, domeDepth: thumbHeight * (5 / 22) });
 
   return (
     <div ref={wrapperRef} data-size={size} className={["dg-slider", className].filter(Boolean).join(" ")} style={{ width, height: thumbHeight, "--dg-slider-fill": `${thumbWidth / 2 + toOffset(current)}px`, "--dg-slider-progress": toOffset(current) / travel } as React.CSSProperties}>

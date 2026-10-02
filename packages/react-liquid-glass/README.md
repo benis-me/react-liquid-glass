@@ -22,7 +22,7 @@ npm install rglass react@^19 react-dom@^19 motion@^13
 | `rglass/controls.css` | Optional component styles, independent of the documentation site |
 | `rglass` | Convenience exports for the current Liquid renderer, controls and motion values |
 
-The core APIs do not import CSS. Import `controls.css` explicitly when using styled controls. `rglass`, `rglass/controls`, `rglass/liquid-glass` and `rglass/apple-motion/react` are client modules (`"use client"`), so React Server Components can render them directly; the renderer and `rglass/apple-motion` stay framework-agnostic. The library does not bundle fonts. Lucide icons and Radix ScrollArea are installed as dependencies.
+The core APIs do not import CSS. Import `controls.css` explicitly when using styled controls. `rglass`, `rglass/controls`, `rglass/liquid-glass` and `rglass/apple-motion/react` are client modules (`"use client"`), so React Server Components can render them directly; the renderer and `rglass/apple-motion` stay framework-agnostic. The library does not bundle fonts. Radix ScrollArea is installed as a dependency; the four icons the controls use are inlined from Lucide.
 
 ```tsx
 import { GlassStage, GlassButton, GlassSwitch } from "rglass/controls";
@@ -46,6 +46,8 @@ An empty `material={{}}` preserves every control's calibrated defaults. Ordinary
 Material resolves in this order, later values winning: the renderer base, the shared ordinary-glass defaults (`DEFAULT_MATERIAL`: dispersion 0.33, dome depth 28), each component's own calibration, the HDR highlight default (`HDR_SPECULAR_STRENGTH`, 0.48, only when the display matches `(dynamic-range: high)`), then explicit provider material. Calibrated lenses — Switch and Slider thumbs, Tabs, Spotlight and the Morph Menu — therefore keep their dispersion and dome depth unless you set them explicitly. Nested providers inherit parent overrides; `inherit={false}` starts a subtree fresh while keeping the parent's HDR preference. `useGlassMaterial()` returns the resolved ordinary-glass material, and `useGlassMaterialOverrides()` only the explicit and HDR values that calibrated components apply above their own.
 
 HDR defaults to enabled on supported displays; SDR displays keep each component's own highlight. Set `material={{ hdr: false }}` on `LiquidGlassProvider` to disable the extended highlights globally, or pass `hdr={false}` to an individual `LiquidGlass` / `LiquidGlassCanvas`. An explicit instance flag wins over the provider. The docs header persists HDR independently of material settings; presets and material reset preserve this preference.
+
+Controls follow the host theme. They switch to dark when `<html>` has `data-theme="dark"`, or the `dark` class without a `data-theme` attribute (as next-themes and shadcn set it). Their colors use CSS `light-dark()`, so also set `color-scheme: light` or `color-scheme: dark` on the root. Some CSS pipelines, including Next.js with lightningcss, compile `light-dark()` into variables that resolve only with it. `controls.css` derives the `--dg-control-*` variables (accent, track, surface, border and text) on `.dg-switch`, `.dg-slider` and `.dg-tabs` from optional host tokens: `--primary`, `--bg-1`, `--bg-4`, `--border-1` and `--fg-1` to `--fg-3`. Built-in values apply when those tokens are missing. If your app gives these names another meaning (shadcn's `--primary` holds bare HSL numbers), set the `--dg-control-*` variables directly on those selectors.
 
 ## Components
 
