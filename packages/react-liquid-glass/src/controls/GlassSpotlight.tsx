@@ -1,7 +1,7 @@
 import { useReducedMotion } from "motion/react";
-import { tween } from "../apple-motion";
-import { stepSpring } from "../apple-motion/spring";
-import { SPOTLIGHT_DRIFT_SPEED, SPOTLIGHT_FOLLOW_SPRING, SPOTLIGHT_IDLE_MS } from "../apple-motion/presets";
+import { tween } from "../apple-motion/index.js";
+import { stepSpring } from "../apple-motion/spring.js";
+import { SPOTLIGHT_DRIFT_SPEED, SPOTLIGHT_FOLLOW_SPRING, SPOTLIGHT_IDLE_MS } from "../apple-motion/presets.js";
 import {
   useCallback,
   useEffect,
@@ -9,9 +9,9 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { motionValue } from "../shared/values";
-import type { LiquidLens } from "../liquid-glass/lens";
-import { LiquidGlass } from "../liquid-glass/LiquidGlass";
+import { motionValue } from "../shared/values.js";
+import type { LiquidLens } from "../liquid-glass/lens.js";
+import { LiquidGlass } from "../liquid-glass/LiquidGlass.js";
 
 export interface GlassSpotlightProps {
   variant?: "primary" | "secondary";

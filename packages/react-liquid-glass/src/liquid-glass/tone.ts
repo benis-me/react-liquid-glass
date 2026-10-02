@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, type RefObject } from "react";
-import { createLiquidToneTracker } from "./backdrop";
+import { createLiquidToneTracker } from "./backdrop.js";
 
 type Region = { left: number; top: number; width: number; height: number };
 

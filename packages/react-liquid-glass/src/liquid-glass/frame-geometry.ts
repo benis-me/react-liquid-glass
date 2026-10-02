@@ -1,7 +1,7 @@
-import { computeDomeConstants } from "./dome";
-import { contactTransform } from "../shared/contact";
-import { readMotion } from "../shared/values";
-import { MAX_BLOBS, LIQUID_GLASS_MATERIAL, type LiquidGlassFrame, type LiquidFrameRegion } from "./render-frame";
+import { computeDomeConstants } from "./dome.js";
+import { contactTransform } from "../shared/contact.js";
+import { readMotion } from "../shared/values.js";
+import { MAX_BLOBS, LIQUID_GLASS_MATERIAL, type LiquidGlassFrame, type LiquidFrameRegion } from "./render-frame.js";
 
 /**
  * Mip-style 2x box levels below a source (floor halving, like GPU mip chains).

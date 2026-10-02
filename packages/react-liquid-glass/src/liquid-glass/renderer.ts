@@ -1,10 +1,10 @@
-import type { createWebGL2GlassRenderer } from "./webgl2-renderer";
-import { readMotion } from "../shared/values";
-import { LIQUID_GLASS_MATERIAL, type LiquidGlassFrame, type LiquidRendererStats } from "./render-frame";
-import type { createWebGPUGlassRenderer } from "./webgpu-renderer";
-import type { createHighlightHDR } from "./highlight-hdr";
-export * from "./render-frame";
-export { subscribeLiquidFrames } from "./frame-events";
+import type { createWebGL2GlassRenderer } from "./webgl2-renderer.js";
+import { readMotion } from "../shared/values.js";
+import { LIQUID_GLASS_MATERIAL, type LiquidGlassFrame, type LiquidRendererStats } from "./render-frame.js";
+import type { createWebGPUGlassRenderer } from "./webgpu-renderer.js";
+import type { createHighlightHDR } from "./highlight-hdr.js";
+export * from "./render-frame.js";
+export { subscribeLiquidFrames } from "./frame-events.js";
 
 export type GlassRendererBackend = "auto" | "webgpu" | "webgl2";
 type ActualBackend = Exclude<GlassRendererBackend, "auto">;
@@ -46,7 +46,7 @@ export function createLiquidGlassRenderer(initialCanvas: HTMLCanvasElement, opti
   const mark = () => { if (canvas.dataset) { canvas.dataset.dgRenderer = backend === "pending" || backend === "unavailable" ? backend : `liquid-${backend}`; if (error) canvas.dataset.dgRendererFallback = error.message; } };
   const unavailable = (reason: Error) => { error = reason; backend = "unavailable"; mark(); options.onError?.(reason); };
   const webgl = async () => {
-    const { createWebGL2GlassRenderer } = await import("./webgl2-renderer");
+    const { createWebGL2GlassRenderer } = await import("./webgl2-renderer.js");
     if (disposed) return false;
     engine = createWebGL2GlassRenderer(canvas, { shared: options.shared, onRestore: options.onRestore });
     dynamicRange = typeof matchMedia === "function" ? matchMedia("(dynamic-range: high)") : undefined;
@@ -87,7 +87,7 @@ export function createLiquidGlassRenderer(initialCanvas: HTMLCanvasElement, opti
     const highRange = frame.hdr !== false && !frame.debug && lit && dynamicRange?.matches && !(engine as WebGLRenderer).context.isContextLost();
     if (highRange && !requestedHDR) {
       requestedHDR = true;
-      void import("./highlight-hdr").then(module => module.createHighlightHDR(canvas)).then(next => {
+      void import("./highlight-hdr.js").then(module => module.createHighlightHDR(canvas)).then(next => {
         if (disposed) next?.dispose(); else { hdr = next; if (next && lastFrame && !suspended) draw(lastFrame); }
       }).catch(() => { /* HDR is optional; retain the SDR material. */ });
     }
@@ -108,7 +108,7 @@ export function createLiquidGlassRenderer(initialCanvas: HTMLCanvasElement, opti
   } else {
     mark();
     let locked = false, failed = false;
-    ready = import("./webgpu-renderer").then(async module => {
+    ready = import("./webgpu-renderer.js").then(async module => {
       if (disposed) return null;
       const gpu = await module.createWebGPUGlassRenderer(canvas, reason => { failed = true; void fallback(reason, locked); }, () => { locked = true; });
       if (disposed || failed) { gpu.dispose(); return null; }

@@ -1,8 +1,8 @@
 import { useEffect, useRef, type RefObject } from "react";
 import { animate, useMotionValue, useReducedMotion } from "motion/react";
-import { springTo } from "./react";
-import { contactPull } from "./contact";
-import { usePointerReleaseFallback } from "./use-pointer-release-fallback";
+import { springTo } from "./react.js";
+import { contactPull } from "./contact.js";
+import { usePointerReleaseFallback } from "./use-pointer-release-fallback.js";
 
 const RETURN = { stiffness: 420, damping: 24, mass: 1 };
 const PRESS = { stiffness: 700, damping: 42, mass: 1 };

@@ -1,11 +1,11 @@
 import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentType, type ReactNode } from "react";
 import { animate, motion, useMotionValue, useReducedMotion } from "motion/react";
-import { LiquidGlass } from "../liquid-glass/LiquidGlass";
-import { thumbLens } from "./use-thumb-motion";
-import { GlassSurface } from "./GlassSurface";
-import { liquidTheme, subscribeLiquidTheme } from "../liquid-glass/source";
-import { springTo, useGlassContact, usePointerReleaseFallback, waitForRest, useDerivedMotion, useDerivedMotion2, useVelocityDeformation, type SpringRun } from "../apple-motion/react";
-import { SEGMENTED_TRAVEL_SPRING, SEGMENTED_PRESS_SPRING, SEGMENTED_DRAG_CATCHUP_SPRING, SEGMENTED_RELEASE_SPRING, SEGMENTED_HEIGHT_RELEASE_SPRING, SEGMENTED_IMPACT_RETENTION, SEGMENTED_TRAIL_BIAS, SEGMENTED_HOLD_IMPACT_SCRIPT } from "../apple-motion/presets";
+import { LiquidGlass } from "../liquid-glass/LiquidGlass.js";
+import { thumbLens } from "./use-thumb-motion.js";
+import { GlassSurface } from "./GlassSurface.js";
+import { liquidTheme, subscribeLiquidTheme } from "../liquid-glass/source.js";
+import { springTo, useGlassContact, usePointerReleaseFallback, waitForRest, useDerivedMotion, useDerivedMotion2, useVelocityDeformation, type SpringRun } from "../apple-motion/react.js";
+import { SEGMENTED_TRAVEL_SPRING, SEGMENTED_PRESS_SPRING, SEGMENTED_DRAG_CATCHUP_SPRING, SEGMENTED_RELEASE_SPRING, SEGMENTED_HEIGHT_RELEASE_SPRING, SEGMENTED_IMPACT_RETENTION, SEGMENTED_TRAIL_BIAS, SEGMENTED_HOLD_IMPACT_SCRIPT } from "../apple-motion/presets.js";
 
 
 type IconProps = { className?: string };

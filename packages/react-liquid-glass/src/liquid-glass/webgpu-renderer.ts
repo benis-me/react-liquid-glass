@@ -1,9 +1,9 @@
-import { registerLiquidCanvas, readLiquidSource, transparentLiquidSource } from "./canvas-sources";
-import { readMotion } from "../shared/values";
-import { createFrameGeometry, frostPyramid } from "./frame-geometry";
-import { notifyLiquidFrame } from "./frame-events";
-import { MAX_BLOBS, LIQUID_GLASS_MATERIAL as defaults, type LiquidGlassFrame, type LiquidGlassSource, type LiquidFrameRegion } from "./render-frame";
-import { getGlassGPUDevice, type GPUWork } from "./webgpu-device";
+import { registerLiquidCanvas, readLiquidSource, transparentLiquidSource } from "./canvas-sources.js";
+import { readMotion } from "../shared/values.js";
+import { createFrameGeometry, frostPyramid } from "./frame-geometry.js";
+import { notifyLiquidFrame } from "./frame-events.js";
+import { MAX_BLOBS, LIQUID_GLASS_MATERIAL as defaults, type LiquidGlassFrame, type LiquidGlassSource, type LiquidFrameRegion } from "./render-frame.js";
+import { getGlassGPUDevice, type GPUWork } from "./webgpu-device.js";
 
 // WGSL Params has 11 vec4 blocks; each Blob has 8 vec4 blocks.
 const MATERIAL_FLOATS = 11 * 4, BLOB_FLOATS = 8 * 4;

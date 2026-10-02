@@ -1,5 +1,5 @@
 import { type HTMLAttributes } from "react";
-import { FusionTriggerContext, GlassSurface } from "./GlassSurface";
+import { FusionTriggerContext, GlassSurface } from "./GlassSurface.js";
 
 export interface GlassButtonGroupProps extends HTMLAttributes<HTMLDivElement> {
   label: string;

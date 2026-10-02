@@ -222,8 +222,8 @@ test("liquid uses the shared smooth-union compositor for its full lifecycle", ()
 
 test("liquid menu keeps one core-compatible Canvas material over the shared backdrop", () => {
   assert.doesNotMatch(liquidDemoSource, /buildQrGeometry|QR_SIZE|QR_GEOMETRY|occupancy|MENU_ACTIONS/);
-  assert.match(liquidDemoSource, /import type \{ LiquidLens \} from "\.\.\/liquid-glass\/lens"/);
-  assert.match(liquidDemoSource, /import \{ LiquidGlassCanvas \} from "\.\.\/liquid-glass\/LiquidGlassCanvas"/);
+  assert.match(liquidDemoSource, /import type \{ LiquidLens \} from "\.\.\/liquid-glass\/lens\.js"/);
+  assert.match(liquidDemoSource, /import \{ LiquidGlassCanvas \} from "\.\.\/liquid-glass\/LiquidGlassCanvas\.js"/);
   assert.doesNotMatch(liquidDemoSource, /<Glass|coreOpacity|fusionOpacity/);
   assert.match(liquidDemoSource, /const BASE_MENU_LENS = LIQUID_LENS/);
   assert.match(liquidDemoSource, /const LIGHT_MENU_LENS: LiquidLens/);

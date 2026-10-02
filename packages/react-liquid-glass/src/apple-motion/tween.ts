@@ -1,4 +1,4 @@
-import type { WritableMotionValue } from "../shared/values";
+import type { WritableMotionValue } from "../shared/values.js";
 
 export function tween(value: WritableMotionValue<number>, target: number, duration = 200) {
   const start = value.get();

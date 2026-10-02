@@ -5,11 +5,11 @@ import {
   type ComponentProps,
   type ReactNode,
 } from "react";
-import { LiquidPopover, useClosePopover } from "./LiquidPopover";
-import { GlassButton } from "./primitives";
-import { GlassSegmented, type GlassSegmentItem } from "./GlassSegmented";
+import { LiquidPopover, useClosePopover } from "./LiquidPopover.js";
+import { GlassButton } from "./primitives.js";
+import { GlassSegmented, type GlassSegmentItem } from "./GlassSegmented.js";
 
-export { GlassDialog, GlassSheet, type GlassDialogProps } from "./LiquidDialog";
+export { GlassDialog, GlassSheet, type GlassDialogProps } from "./LiquidDialog.js";
 
 export interface GlassPopoverProps {
   trigger: ReactNode;
@@ -74,7 +74,7 @@ export function GlassDropdownMenu({
     </LiquidPopover>
   );
 }
-export { GlassMorphMenu } from "./LiquidMenu";
+export { GlassMorphMenu } from "./LiquidMenu.js";
 export function GlassTooltip({ label, children }: {
   label: string;
   children: ReactElement<ComponentProps<"button">>;

@@ -1,7 +1,7 @@
-import { useVelocityDeformation } from "../apple-motion/react";
+import { useVelocityDeformation } from "../apple-motion/react.js";
 import { animate, useMotionValue, useTransform, type MotionValue } from "motion/react";
-import { LIQUID_LENS } from "../liquid-glass/LiquidGlass";
-import type { LiquidLens } from "../liquid-glass/lens";
+import { LIQUID_LENS } from "../liquid-glass/LiquidGlass.js";
+import type { LiquidLens } from "../liquid-glass/lens.js";
 
 /** Thumb glass shared by Switch, Slider and Segmented: low dispersion, a fine rim, a theme-aware lift. */
 export const thumbLens = (dark: boolean, lens: LiquidLens): LiquidLens => ({

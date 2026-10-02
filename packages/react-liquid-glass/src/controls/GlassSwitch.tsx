@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { animate, motion, useMotionValue, useTransform } from "motion/react";
-import { LiquidGlass } from "../liquid-glass/LiquidGlass";
-import { liquidTheme, liquidTrackSource, subscribeLiquidTheme } from "../liquid-glass/source";
-import { usePointerReleaseFallback, useGlassContact, rubberBand, springTo } from "../apple-motion/react";
-import { SWITCH_FLICK_PROJECTION, SWITCH_RELEASE_SPRING } from "../apple-motion/presets";
-import { thumbLens, useThumbMotion } from "./use-thumb-motion";
+import { LiquidGlass } from "../liquid-glass/LiquidGlass.js";
+import { liquidTheme, liquidTrackSource, subscribeLiquidTheme } from "../liquid-glass/source.js";
+import { usePointerReleaseFallback, useGlassContact, rubberBand, springTo } from "../apple-motion/react.js";
+import { SWITCH_FLICK_PROJECTION, SWITCH_RELEASE_SPRING } from "../apple-motion/presets.js";
+import { thumbLens, useThumbMotion } from "./use-thumb-motion.js";
 
 export interface GlassSwitchProps {
   checked?: boolean;
