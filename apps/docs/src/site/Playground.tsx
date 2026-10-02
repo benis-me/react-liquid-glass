@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Check, Link2 } from "lucide-react";
 import {
   GlassStage,
@@ -59,6 +59,7 @@ function readComponent(): ComponentId | "all" {
 }
 
 export function Playground({ locale, theme, material, setMaterial }: PageProps & MaterialState) {
+  const uid = useId();
   const [component, setComponent] = useState(readComponent);
   useEffect(() => {
     const update = () => setComponent(readComponent());
@@ -135,14 +136,14 @@ export function Playground({ locale, theme, material, setMaterial }: PageProps &
               </GlassSelect>
           </div>
           <div className="playground-options">
-            {component !== "all" && <label>
-              <GlassSwitch size="small" checked={compare} onCheckedChange={setCompare} ariaLabel={zh ? "与默认材质对比" : "Compare with the default material"} />
-              {zh ? "与默认对比" : "Compare with defaults"}
-            </label>}
-            <label>
-              <GlassSwitch size="small" checked={showStats} onCheckedChange={setShowStats} ariaLabel={zh ? "显示渲染帧率" : "Show rendered frames"} />
-              {zh ? "渲染帧率" : "Frame rate"}
-            </label>
+            {component !== "all" && <span className="playground-option">
+              <GlassSwitch id={`${uid}-compare`} size="small" checked={compare} onCheckedChange={setCompare} />
+              <label htmlFor={`${uid}-compare`}>{zh ? "与默认对比" : "Compare with defaults"}</label>
+            </span>}
+            <span className="playground-option">
+              <GlassSwitch id={`${uid}-stats`} size="small" checked={showStats} onCheckedChange={setShowStats} />
+              <label htmlFor={`${uid}-stats`}>{zh ? "渲染帧率" : "Frame rate"}</label>
+            </span>
             {showStats && <FrameStats zh={zh} />}
           </div>
             <div

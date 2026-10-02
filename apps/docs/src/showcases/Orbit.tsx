@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent } from "react";
+import { useEffect, useId, useRef, useState, type PointerEvent } from "react";
 import {
   cancelFrame,
   frame,
@@ -68,6 +68,7 @@ function surfaceTension(points: number[][], radii: number[], merge: number, bond
 export function Orbit({ locale, theme }: PageProps) {
   const zh = locale === "zh",
     reduce = useReducedMotion();
+  const orbitSwitch = useId();
   const root = useRef<HTMLDivElement>(null),
     source = useRef<HTMLCanvasElement | null>(null),
     revision = useRef(motionValue(0)).current;
@@ -432,16 +433,16 @@ export function Orbit({ locale, theme }: PageProps) {
             {zh ? "散开" : "Scatter"}
           </GlassButton>
         </GlassButtonGroup>
-        <label className="example-between">
-          {zh ? "环绕" : "Orbit"}
+        <div className="example-between">
+          <label htmlFor={orbitSwitch}>{zh ? "环绕" : "Orbit"}</label>
           <GlassSwitch
+            id={orbitSwitch}
             size="small"
             disabled={!!reduce}
             checked={orbiting}
             onCheckedChange={setOrbiting}
-            ariaLabel={zh ? "环绕运动" : "Orbit motion"}
           />
-        </label>
+        </div>
         <label className="orbit-viscosity">
           <span>
             {zh ? "粘滞感" : "Viscosity"}

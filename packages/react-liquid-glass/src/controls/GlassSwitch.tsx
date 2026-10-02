@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { animate, motion, useMotionValue, useTransform } from "motion/react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type InputHTMLAttributes } from "react";
+import { animate, motion, useMotionValue, useReducedMotion, useTransform } from "motion/react";
 import { LiquidGlass } from "../liquid-glass/LiquidGlass.js";
 import { liquidTheme, liquidTrackSource, subscribeLiquidTheme } from "../liquid-glass/source.js";
-import { usePointerReleaseFallback, useGlassContact, rubberBand, springTo } from "../apple-motion/react.js";
+import { usePointerReleaseFallback, useGlassContact, rubberBand } from "../apple-motion/react.js";
 import { SWITCH_FLICK_PROJECTION, SWITCH_RELEASE_SPRING } from "../apple-motion/presets.js";
-import { thumbLens, useThumbMotion } from "./use-thumb-motion.js";
+import { settleThumb, thumbLens, useThumbMotion } from "./use-thumb-motion.js";
 
-export interface GlassSwitchProps {
+/** Native input attributes (id, aria-*, required, form, onBlur…) pass through to the switch's checkbox. */
+type NativeSwitchProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "role" | "checked" | "defaultChecked" | "disabled" | "name" | "value" | "onChange" | "onClick" | "onKeyDown" | "size" | "children" | "className" | "style">;
+export interface GlassSwitchProps extends NativeSwitchProps {
   checked?: boolean;
   defaultChecked?: boolean;
   disabled?: boolean;
@@ -15,6 +17,7 @@ export interface GlassSwitchProps {
   ariaLabel?: string;
   onCheckedChange?: (checked: boolean) => void;
   className?: string;
+  style?: CSSProperties;
   size?: "default" | "small";
 }
 
@@ -24,11 +27,14 @@ export function GlassSwitch({
   disabled,
   name,
   value,
-  ariaLabel = "Switch",
+  ariaLabel,
   onCheckedChange,
   className,
+  style,
   size = "default",
+  ...inputProps
 }: GlassSwitchProps) {
+  const reduce = useReducedMotion() ?? false;
   const [local, setLocal] = useState(defaultChecked);
   const current = checked ?? local;
   const currentRef = useRef(current); currentRef.current = current;
@@ -50,11 +56,11 @@ export function GlassSwitch({
   const refractedTrackHeight = Math.round(height * 0.75);
   const restTintBlur = compact ? 0 : 4;
   const pressEase = [0.22, 1.15, 0.36, 1.06] as const;
-  const travelTransition = { ease: pressEase, duration: 0.6 };
+  const travelTransition = reduce ? { duration: 0 } : { ease: pressEase, duration: 0.6 };
 
   const offset = useMotionValue(current ? travel : 0);
   const x = useTransform(offset, (position) => (padding + inset + thumbWidth / 2 + position) / filterWidth);
-  const { lensW, lensH, radius, tintOpacity, targetScaleX, targetScaleY, tintBlur, shadowOpacity, setDeformationBoost, expand, collapse } = useThumbMotion(offset, halfThumbWidth, halfThumbHeight, restTintBlur);
+  const { lensW, lensH, radius, tintOpacity, targetScaleX, targetScaleY, tintBlur, shadowOpacity, setDeformationBoost, expand, collapse } = useThumbMotion(offset, halfThumbWidth, halfThumbHeight, restTintBlur, reduce);
 
   const rootRef = useRef<HTMLLabelElement>(null);
   const contact = useGlassContact(rootRef, { deform: false, enabled: !disabled });
@@ -138,8 +144,9 @@ export function GlassSwitch({
   const lens = thumbLens(dark, { depth: thumbHeight / 11, domeDepth: thumbHeight * (6 / 22) });
 
   return (
-    <label ref={rootRef} data-size={size} className={["dg-switch", className].filter(Boolean).join(" ")} style={{ width, height, "--dg-switch-progress": current ? 1 : 0 } as React.CSSProperties}>
+    <label ref={rootRef} data-size={size} className={["dg-switch", className].filter(Boolean).join(" ")} style={{ ...style, width, height, "--dg-switch-progress": current ? 1 : 0 } as React.CSSProperties}>
       <input
+        {...inputProps}
         ref={inputRef}
         type="checkbox"
         role="switch"
@@ -148,7 +155,8 @@ export function GlassSwitch({
         disabled={disabled}
         name={name}
         value={value}
-        aria-label={ariaLabel}
+        // A label of the host's own (id with <label htmlFor>, or aria-labelledby) replaces the fallback name.
+        aria-label={ariaLabel ?? inputProps["aria-label"] ?? (inputProps.id || inputProps["aria-labelledby"] ? undefined : "Switch")}
         onClick={(event) => { if (suppressNative.current) event.preventDefault(); }}
         onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); pulseAndToggle(!current); } }}
         onChange={(event) => pulseAndToggle(event.currentTarget.checked)}
@@ -236,7 +244,7 @@ export function GlassSwitch({
                   const velocity = offset.getVelocity();
                   const next = Math.max(0, Math.min(travel, offset.get() + velocity * SWITCH_FLICK_PROJECTION)) > travel / 2;
                   mode.current = "release";
-                  const run = springTo(offset, next ? travel : 0, SWITCH_RELEASE_SPRING);
+                  const run = settleThumb(offset, next ? travel : 0, SWITCH_RELEASE_SPRING, reduce);
                   travelAnimation.current = run;
                   void run.finished.then(() => {
                     if (!alive.current || mode.current !== "release") return;

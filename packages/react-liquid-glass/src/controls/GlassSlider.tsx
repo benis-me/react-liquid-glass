@@ -1,12 +1,15 @@
 import { SLIDER_CLICK_SPRING } from "../apple-motion/presets.js";
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { animate, motion, useMotionValue, useTransform } from "motion/react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type InputHTMLAttributes } from "react";
+import { animate, motion, useMotionValue, useReducedMotion, useTransform } from "motion/react";
 import { LiquidGlass } from "../liquid-glass/LiquidGlass.js";
 import { liquidTheme, liquidTrackSource, subscribeLiquidTheme } from "../liquid-glass/source.js";
-import { usePointerReleaseFallback, useGlassContact, rubberBand, springTo, type SpringRun } from "../apple-motion/react.js";
-import { thumbLens, useThumbMotion } from "./use-thumb-motion.js";
+import { usePointerReleaseFallback, useGlassContact, rubberBand, type SpringRun } from "../apple-motion/react.js";
+import { settleThumb, thumbLens, useThumbMotion } from "./use-thumb-motion.js";
 
-export interface GlassSliderProps {
+/** Native input attributes (id, aria-*, required, form, onBlur…) pass through to the slider's range input. */
+type NativeSliderProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "min" | "max" | "step" | "value" | "defaultValue" | "disabled" | "name" | "onChange" | "size" | "children" | "className" | "style">;
+
+export interface GlassSliderProps extends NativeSliderProps {
   value?: number;
   defaultValue?: number;
   min?: number;
@@ -17,6 +20,7 @@ export interface GlassSliderProps {
   ariaLabel?: string;
   onValueChange?: (value: number) => void;
   className?: string;
+  style?: CSSProperties;
   size?: "default" | "small";
 }
 
@@ -28,11 +32,14 @@ export function GlassSlider({
   step = 1,
   disabled,
   name,
-  ariaLabel = "Value",
+  ariaLabel,
   onValueChange,
   className,
+  style,
   size = "default",
+  ...inputProps
 }: GlassSliderProps) {
+  const reduce = useReducedMotion() ?? false;
   const [local, setLocal] = useState(defaultValue);
   const controlled = value !== undefined;
   const current = controlled ? value : local;
@@ -57,7 +64,7 @@ export function GlassSlider({
   const filterHeight = thumbHeight + padding * 2;
   const refractedTrackHeight = Math.round(thumbHeight * 0.75);
   const restTintBlur = compact ? 0 : 4;
-  const releaseTransition = { ease: [0.22, 1, 0.36, 1] as const, duration: 0.52 };
+  const releaseTransition = reduce ? { duration: 0 } : { ease: [0.22, 1, 0.36, 1] as const, duration: 0.52 };
   const toOffset = (next: number) => max > min ? ((next - min) / (max - min)) * travel : 0;
   const fromOffset = (position: number) => {
     const clamped = Math.max(0, Math.min(travel, position));
@@ -75,7 +82,7 @@ export function GlassSlider({
 
   const offset = useMotionValue(toOffset(current));
   const x = useTransform(offset, (position) => (padding + thumbWidth / 2 + position) / filterWidth);
-  const { lensW, lensH, radius, tintOpacity, targetScaleX, targetScaleY, tintBlur, shadowOpacity, setDeformationBoost, expand, collapse } = useThumbMotion(offset, halfThumbWidth, halfThumbHeight, restTintBlur);
+  const { lensW, lensH, radius, tintOpacity, targetScaleX, targetScaleY, tintBlur, shadowOpacity, setDeformationBoost, expand, collapse } = useThumbMotion(offset, halfThumbWidth, halfThumbHeight, restTintBlur, reduce);
 
   const wrapperRef = useRef<HTMLDivElement>(null);
   const contact = useGlassContact(wrapperRef, { deform: false, enabled: !disabled });
@@ -133,7 +140,7 @@ export function GlassSlider({
   const lens = thumbLens(dark, { depth: thumbHeight / 11, domeDepth: thumbHeight * (5 / 22) });
 
   return (
-    <div ref={wrapperRef} data-size={size} className={["dg-slider", className].filter(Boolean).join(" ")} style={{ width, height: thumbHeight, "--dg-slider-fill": `${thumbWidth / 2 + toOffset(current)}px`, "--dg-slider-progress": toOffset(current) / travel } as React.CSSProperties}>
+    <div ref={wrapperRef} data-size={size} className={["dg-slider", className].filter(Boolean).join(" ")} style={{ ...style, width, height: thumbHeight, "--dg-slider-fill": `${thumbWidth / 2 + toOffset(current)}px`, "--dg-slider-progress": toOffset(current) / travel } as React.CSSProperties}>
       <LiquidGlass
         contact={{ ...contact, contactX, contactY }}
         sourceFactory={sourceFactory}
@@ -165,6 +172,7 @@ export function GlassSlider({
       >
         <div style={{ padding }}>
           <input
+            {...inputProps}
             ref={inputRef}
             type="range"
             className="dg-slider__input"
@@ -174,7 +182,7 @@ export function GlassSlider({
             value={current}
             disabled={disabled}
             name={name}
-            aria-label={ariaLabel}
+            aria-label={ariaLabel ?? inputProps["aria-label"] ?? (inputProps.id || inputProps["aria-labelledby"] ? undefined : "Value")}
             onChange={(event) => {
               const next = event.currentTarget.valueAsNumber;
               clickAnimation.current?.stop();
@@ -201,7 +209,7 @@ export function GlassSlider({
               const clickedValue = fromOffset(event.clientX - rect.left - thumbWidth / 2);
               const next = toOffset(clickedValue);
               clickAnimation.current?.stop();
-              clickAnimation.current = springTo(offset, next, SLIDER_CLICK_SPRING);
+              clickAnimation.current = settleThumb(offset, next, SLIDER_CLICK_SPRING, reduce);
               emit(clickedValue);
               pointerStart.current = event.clientX;
               offsetStart.current = offset.get();

@@ -11,11 +11,14 @@ Notable changes to `rglass`. Versions follow semantic versioning; before 1.0, a 
 - `LiquidGlassCanvas` honors instance material values over the shared defaults. Provider presets no longer freeze the Morph Menu's animated blur, tint and zoom, and an instance `hdr={false}` also removes the HDR highlight default.
 - Controls follow `class="dark"` hosts (next-themes, shadcn) as well as `data-theme="dark"`.
 - Published declarations resolve under `moduleResolution: NodeNext`; exported types no longer degrade to `any` there.
+- `GlassInput` and `GlassSelect` add their description or error to the host's `aria-describedby` instead of replacing it.
+- Switch and Slider thumbs move to their new state immediately under `prefers-reduced-motion`.
 
 ### Added
 
 - Development builds warn once for each element the DOM backdrop cannot draw: CSS gradients and `url()` backgrounds, and cross-origin media without CORS.
 - `LiquidGlass` accepts `shadowBleed`, which lets a lens's shadow extend past the element instead of ending at its box.
+- `GlassSwitch` and `GlassSlider` pass native input attributes (`id`, `aria-*`, `required`, `form`, `onBlur` and so on) to their input and accept `style`. A host label, either `id` with `<label htmlFor>` or `aria-labelledby`, replaces the fallback name.
 
 ### Documentation
 
