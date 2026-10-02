@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Bookmark, Check, Copy, SlidersHorizontal, Minus, Plus, AlignLeft, AlignCenter, AlignRight, Bold, Italic, Underline } from "lucide-react";
 import {
   GlassAccordion,
@@ -49,6 +49,8 @@ export function ComponentExample({
   /** Toggle the Switch once, the first time it is seen, to show its glass travel. */
   pulse?: boolean;
 }) {
+  // A Switch is its own <label>; visible text names it through htmlFor instead of a wrapping label.
+  const uid = useId();
   const [enabled, setEnabled] = useState(false),
     [amount, setAmount] = useState(50),
     [text, setText] = useState(""),
@@ -118,10 +120,10 @@ export function ComponentExample({
           <GlassButton aria-label={t("Italic", "斜体")}><Italic size={16} /></GlassButton>
           <GlassButton aria-label={t("Underline", "下划线")}><Underline size={16} /></GlassButton>
         </GlassGroup>
-        <label className="example-between">
-          {t("Merge", "融合")}
-          <GlassSwitch size="small" checked={enabled} onCheckedChange={setEnabled} ariaLabel={t("Merge the shapes", "融合形状")} />
-        </label>
+        <div className="example-between">
+          <label htmlFor={`${uid}-merge`}>{t("Merge", "融合")}</label>
+          <GlassSwitch id={`${uid}-merge`} size="small" checked={enabled} onCheckedChange={setEnabled} />
+        </div>
       </div>;
     case "switch":
       return (
@@ -330,14 +332,14 @@ export function ComponentExample({
             closeLabel={closeLabel}
           >
             <div className="example-stack">
-              <label className="example-between">
-                {t("Notifications", "通知")}
+              <div className="example-between">
+                <label htmlFor={`${uid}-notifications`}>{t("Notifications", "通知")}</label>
                 <GlassSwitch
+                  id={`${uid}-notifications`}
                   checked={enabled}
                   onCheckedChange={setEnabled}
-                  ariaLabel={t("Notifications", "通知")}
                 />
-              </label>
+              </div>
               <GlassSlider
                 value={amount}
                 onValueChange={setAmount}
@@ -354,15 +356,15 @@ export function ComponentExample({
           label={t("Quick settings", "快捷设置")}
         >
           <div className="example-stack">
-            <label className="example-between">
-              {t("Quiet mode", "安静模式")}
+            <div className="example-between">
+              <label htmlFor={`${uid}-quiet`}>{t("Quiet mode", "安静模式")}</label>
               <GlassSwitch
+                id={`${uid}-quiet`}
                 size="small"
                 checked={enabled}
                 onCheckedChange={setEnabled}
-                ariaLabel={t("Quiet mode", "安静模式")}
               />
-            </label>
+            </div>
             <GlassSlider
               size="small"
               value={amount}
