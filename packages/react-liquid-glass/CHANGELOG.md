@@ -16,6 +16,7 @@ Notable changes to `rglass`. Versions follow semantic versioning; before 1.0, a 
 
 ### Added
 
+- The Morph Menu moves focus into its panel on opening, prefers the checked item, supports arrow keys, Home and End, and makes its closed panel inert.
 - Development builds warn once for each element the DOM backdrop cannot draw: CSS gradients and `url()` backgrounds, and cross-origin media without CORS.
 - `LiquidGlass` accepts `shadowBleed`, which lets a lens's shadow extend past the element instead of ending at its box.
 - `GlassSwitch` and `GlassSlider` pass native input attributes (`id`, `aria-*`, `required`, `form`, `onBlur` and so on) to their input and accept `style`. A host label, either `id` with `<label htmlFor>` or `aria-labelledby`, replaces the fallback name.

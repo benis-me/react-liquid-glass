@@ -7,6 +7,7 @@ import {
 } from "react";
 import { LiquidPopover, useClosePopover } from "./LiquidPopover.js";
 import { GlassButton } from "./primitives.js";
+import { moveMenuFocus } from "./menu-keys.js";
 import { GlassSegmented, type GlassSegmentItem } from "./GlassSegmented.js";
 
 export { GlassDialog, GlassSheet, type GlassDialogProps } from "./LiquidDialog.js";
@@ -44,30 +45,7 @@ export function GlassDropdownMenu({
     <LiquidPopover trigger={<GlassButton>{trigger}</GlassButton>} label={label} role="menu" morphTrigger={morphTrigger}>
       <div
         className="dg-dropdown"
-        onKeyDown={(event) => {
-          if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key))
-            return;
-          event.preventDefault();
-          const buttons = [
-            ...event.currentTarget.querySelectorAll<HTMLButtonElement>(
-              "button:not([disabled])",
-            ),
-          ];
-          if (!buttons.length) return;
-          const index = buttons.indexOf(
-            document.activeElement as HTMLButtonElement,
-          );
-          buttons[
-            event.key === "Home"
-              ? 0
-              : event.key === "End"
-                ? buttons.length - 1
-                : (index +
-                    (event.key === "ArrowDown" ? 1 : -1) +
-                    buttons.length) %
-                  buttons.length
-          ].focus();
-        }}
+        onKeyDown={moveMenuFocus}
       >
         {items.map((item, i) => <MenuItem key={i} item={item} />)}
       </div>
