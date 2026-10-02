@@ -17,7 +17,10 @@
     "glassmorphism",
     "webgpu",
     "webgl",
-    "components"
+    "components",
+    "ios",
+    "apple",
+    "refraction"
   ],
   "publishConfig": {
     "access": "public",
@@ -72,7 +75,7 @@
   "sideEffects": [
     "**/*.css"
   ],
-  "description": "Liquid glass optics, physical motion and accessible React components.",
+  "description": "Liquid glass for React: WebGPU refraction with a WebGL2 fallback, fusing shapes and spring motion, in accessible components.",
   "scripts": {
     "build": "vite build --config vite.config.mjs && tsc -p tsconfig.json",
     "prepack": "npm run build",
