@@ -38,6 +38,8 @@ export interface LiquidGlassProps {
   autoBorderRadius?: boolean;
   tintColor?: string; tintOpacity?: MotionInput; tintBlur?: MotionInput;
   shadowOpacity?: MotionInput;
+  /** Draw past this element by the shadow's reach, so a lens that grows or travels to the edge never cuts its shadow. */
+  shadowBleed?: boolean;
   pixelRatio?: number;
   /** Align small control canvases to physical pixels, avoiding a second compositor resample. */
   pixelAlign?: boolean;
@@ -71,6 +73,10 @@ export function LiquidGlass(props: LiquidGlassProps) {
   const [size, setSize] = useState({ width: 0, height: 0 });
   const sizeRef = useRef(size); sizeRef.current = size;
   const measured = size.width > 0 && size.height > 0;
+  const shadowBlur = Math.min(26, size.height * .2), shadowOffset = Math.min(18, size.height * .12);
+  // Extra canvas on every side; the source and backdrop grow with it so the lens stays in place.
+  const bleed = props.shadowBleed ? Math.ceil(shadowBlur * 2.5 + shadowOffset) : 0;
+  const bleedRef = useRef(bleed); bleedRef.current = bleed;
   const backdropHandle = useRef<{ refresh: () => void } | null>(null);
   const capturedKey = useRef("");
   const [tint, setTint] = useState<readonly [number, number, number]>([1, 1, 1]);
@@ -84,6 +90,7 @@ export function LiquidGlass(props: LiquidGlassProps) {
     ctx.setTransform(2, 0, 0, 2, 0, 0);
     ctx.clearRect(0, 0, canvas.width / 2, canvas.height / 2);
     if (backdropRef.current) ctx.drawImage(backdropRef.current, 0, 0, canvas.width / 2, canvas.height / 2);
+    ctx.translate(bleedRef.current, bleedRef.current);
     painter(ctx);
     sourceRevision.set(sourceRevision.get() + 1);
   }, [sourceRevision]);
@@ -125,11 +132,11 @@ export function LiquidGlass(props: LiquidGlassProps) {
     let cancelled = false;
     const capture = () => {
       const token = ++generation.current;
-      const { width, height } = sizeRef.current;
+      const { width, height } = sizeRef.current, bleed = bleedRef.current;
       capturedKey.current = `${width}x${height}:${themeRef.current}`;
       if (props.sourceFactory) {
         const canvas = sourceRef.current ?? document.createElement("canvas");
-        canvas.width = Math.round(width * 2); canvas.height = Math.round(height * 2);
+        canvas.width = Math.round((width + bleed * 2) * 2); canvas.height = Math.round((height + bleed * 2) * 2);
         sourceRef.current = canvas;
         painterRef.current = props.sourceFactory(root, width, height);
         scheduleSource();
@@ -137,10 +144,18 @@ export function LiquidGlass(props: LiquidGlassProps) {
         painterRef.current = null;
         const background = props.sourceBackground?.(root, width, height);
         void captureLiquidSource(root, width, height, ctx => {
-          if (backdropRef.current) ctx.drawImage(backdropRef.current, 0, 0, width, height);
+          if (backdropRef.current) ctx.drawImage(backdropRef.current, bleed * 2, bleed * 2, width * 2, height * 2, 0, 0, width, height);
           background?.(ctx);
         }).then(canvas => {
           if (cancelled || generation.current !== token) return;
+          if (bleed) {
+            const inner = canvas;
+            canvas = document.createElement("canvas");
+            canvas.width = inner.width + bleed * 4; canvas.height = inner.height + bleed * 4;
+            const ctx = canvas.getContext("2d")!;
+            if (backdropRef.current) ctx.drawImage(backdropRef.current, 0, 0, canvas.width, canvas.height);
+            ctx.drawImage(inner, bleed * 2, bleed * 2);
+          }
           sourceRef.current = canvas;
           sourceRevision.set(sourceRevision.get() + 1);
         }).catch(error => { if (!cancelled) console.error("Liquid source capture failed", error); });
@@ -187,11 +202,12 @@ export function LiquidGlass(props: LiquidGlassProps) {
     if (!owner || !measured) return;
     const visible = () => readMotion(config.current.tintOpacity ?? 0) < 1;
     const backdrop = createLiquidBackdrop(props.backdropRoot?.current ?? owner, () => {
-      const rect = owner.getBoundingClientRect();
-      return { left: rect.left, top: rect.top, width: sizeRef.current.width, height: sizeRef.current.height };
+      const rect = owner.getBoundingClientRect(), bleed = bleedRef.current;
+      return { left: rect.left - bleed, top: rect.top - bleed, width: sizeRef.current.width + bleed * 2, height: sizeRef.current.height + bleed * 2 };
     }, canvas => {
       backdropRef.current = canvas;
-      publishTone(canvas);
+      const { width, height } = sizeRef.current, bleed = bleedRef.current;
+      publishTone(canvas, bleed ? { left: bleed / (width + bleed * 2), top: bleed / (height + bleed * 2), width: width / (width + bleed * 2), height: height / (height + bleed * 2) } : undefined);
       if (painterRef.current) scheduleSource(); else captureRef.current();
     }, visible);
     backdropHandle.current = backdrop;
@@ -228,6 +244,8 @@ export function LiquidGlass(props: LiquidGlassProps) {
   }, [props.tintOpacity ?? 0, material.tintStrength ?? 0]);
   const blur = derived(() => readMotion(material.blurStrength ?? lens.blurAmount ?? .5) + readMotion(props.tintBlur ?? 0) * .4, [props.tintBlur ?? 0, material.blurStrength ?? 0]);
   const shadow = derived(() => .04 + .07 * readMotion(props.shadowOpacity ?? 1), [props.shadowOpacity ?? 1]);
+  const canvasWidth = size.width + bleed * 2, canvasHeight = size.height + bleed * 2;
+  const toCanvas = (value: MotionInput, extent: number, total: number) => bleed ? derived(() => (readMotion(value) * extent + bleed) / total, [value]) : value;
   const scale = props.refractionPixels === undefined
     ? Math.max(Math.abs(lens.scaleX ?? .11), Math.abs(lens.scaleY ?? .11))
     : Math.max(0, props.refractionPixels) * 2;
@@ -238,18 +256,18 @@ export function LiquidGlass(props: LiquidGlassProps) {
     {props.refractionTarget ? <div ref={targetRef} inert aria-hidden="true"
       style={{ position: "absolute", inset: 0, opacity: 0, pointerEvents: "none" }}>{props.refractionTarget}</div> : null}
     {size.width > 0 && size.height > 0 ? <LiquidGlassCanvas shared inheritMaterial={false}
-      sourceRef={sourceRef} sourceRevision={sourceRevision} width={size.width} height={size.height}
-      blobs={[{ x: props.x ?? .5, y: props.y ?? .5, radius, halfWidth: width, halfHeight: height, velocityX: props.velocity?.x, velocityY: props.velocity?.y, ...props.contact }]}
+      sourceRef={sourceRef} sourceRevision={sourceRevision} width={canvasWidth} height={canvasHeight}
+      blobs={[{ x: toCanvas(props.x ?? .5, size.width, canvasWidth), y: toCanvas(props.y ?? .5, size.height, canvasHeight), radius, halfWidth: width, halfHeight: height, velocityX: props.velocity?.x, velocityY: props.velocity?.y, ...props.contact }]}
       mergeDistance={0}
-      refractionRatio={props.refractionPixels !== undefined ? [1 / size.width, 1 / size.height]
-        : scale ? [(lens.scaleX ?? scale) / scale, (lens.scaleY ?? scale) / scale] : [1, 1]}
+      refractionRatio={props.refractionPixels !== undefined ? [1 / canvasWidth, 1 / canvasHeight]
+        : scale ? [(lens.scaleX ?? scale) / scale * size.width / canvasWidth, (lens.scaleY ?? scale) / scale * size.height / canvasHeight] : [size.width / canvasWidth, size.height / canvasHeight]}
       chromaAmount={lens.chromaAmount} specularStrength={lens.specularStrength}
       edgeDepth={props.depth ?? lens.depth} domeDepth={lens.domeDepth}
       brightness={lens.brightness} specularRotation={lens.specularRotation}
       glowStrength={lens.glowStrength} glowSpread={lens.glowSpread} glowExponent={lens.glowExponent}
       edgeStrength={lens.edgeStrength} edgeWidth={lens.edgeWidth} edgeExponent={lens.edgeExponent}
       tintColor={tint}
-      shadowStrength={shadow} shadowBlur={Math.min(26, size.height * .2)} shadowOffset={Math.min(18, size.height * .12)}
+      shadowStrength={shadow} shadowBlur={shadowBlur} shadowOffset={shadowOffset}
       magnification={props.zoom}
       transparentOutside={!props.debug} debug={props.debug}
       {...material}
@@ -258,6 +276,7 @@ export function LiquidGlass(props: LiquidGlassProps) {
       // Provider tuning changes the optical material, not the opaque rest endpoint.
       tintStrength={tintStrength} blurStrength={blur}
       pixelRatio={props.tintOpacity !== undefined ? 2 : material.pixelRatio ?? props.pixelRatio ?? 2}
-      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} /> : null}
+      style={bleed ? { position: "absolute", left: -bleed, top: -bleed, width: canvasWidth, height: canvasHeight, pointerEvents: "none" }
+        : { position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} /> : null}
   </div>;
 }

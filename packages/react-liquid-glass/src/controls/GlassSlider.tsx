@@ -155,6 +155,7 @@ export function GlassSlider({
         tintOpacity={tintOpacity}
         tintBlur={tintBlur}
         shadowOpacity={shadowOpacity}
+        shadowBleed
         pixelRatio={2}
         pixelAlign
         style={{ width: filterWidth, height: filterHeight, overflow: "visible", margin: -padding }}

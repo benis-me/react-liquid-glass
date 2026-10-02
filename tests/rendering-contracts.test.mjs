@@ -790,14 +790,15 @@ test("control optics retain size-independent pixel gain and the approved menu ma
   const scaleCode = liquidAdapterSource.match(/const scale = props\.refractionPixels[\s\S]*?;/)?.[0];
   const ratioCode = liquidAdapterSource.match(/refractionRatio=\{([^}]+)\}/)?.[1];
   assert.ok(scaleCode && ratioCode);
-  const gain = new Function("props", "lens", "size", `${scaleCode}\nreturn [scale, ${ratioCode}];`);
-  for (const [width, height] of [[124, 78], [290, 72], [698, 206], [490, 206]]) {
-    const [scale, ratio] = gain({ refractionPixels: 4.84 }, LIQUID_GLASS_MATERIAL, { width, height });
-    for (const [axis, length] of [width, height].entries()) {
+  const gain = new Function("props", "lens", "size", "canvasWidth", "canvasHeight", `${scaleCode}\nreturn [scale, ${ratioCode}];`);
+  // A shadow bleed widens the canvas around the same element; pixel gain must not change with it.
+  for (const [width, height, bleed] of [[124, 78, 0], [290, 72, 0], [698, 206, 0], [490, 206, 0], [124, 78, 49], [290, 72, 45]]) {
+    const [scale, ratio] = gain({ refractionPixels: 4.84 }, LIQUID_GLASS_MATERIAL, { width, height }, width + bleed * 2, height + bleed * 2);
+    for (const [axis, length] of [width + bleed * 2, height + bleed * 2].entries()) {
       assert.ok(Math.abs(scale * .5 * ratio[axis] * length - 4.84) < 1e-9, "padding and aspect ratio must not amplify refraction");
     }
   }
-  assert.deepEqual(gain({}, { scaleX: .08, scaleY: .12 }, { width: 124, height: 78 }), [.12, [.08 / .12, 1]], "per-axis optical gain remains unchanged");
+  assert.deepEqual(gain({}, { scaleX: .08, scaleY: .12 }, { width: 124, height: 78 }, 124, 78), [.12, [.08 / .12, 1]], "per-axis optical gain remains unchanged");
   assert.equal(LIQUID_GLASS_MATERIAL.chromaAmount, .55);
   assert.match(componentSource, /SEGMENTED_TRAVEL_SPRING = \{ mass: 1, stiffness: 260, damping: 28 \}/);
   assert.match(componentSource, /SEGMENTED_HOLD_IMPACT_SCRIPT = \{\s*stiffness: 360,\s*damping: 24,\s*impulse: -1\.6,/s);
