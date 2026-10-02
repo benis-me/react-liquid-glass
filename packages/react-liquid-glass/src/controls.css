@@ -122,6 +122,7 @@ html:is([data-theme="dark"], :where(.dark:not([data-theme]))) .dg-switch { --dg-
   will-change: transform, width, opacity;
   transition: transform 220ms cubic-bezier(.22, 1, .36, 1), width 180ms cubic-bezier(.22, 1, .36, 1), height 180ms cubic-bezier(.22, 1, .36, 1);
 }
+.dg-tabs[data-interacting] .dg-tabs__solid-thumb { transition: none; }
 .dg-tabs__glass-layer {
   z-index: 2;
   pointer-events: none;

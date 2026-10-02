@@ -13,6 +13,8 @@ Notable changes to `rglass`. Versions follow semantic versioning; before 1.0, a 
 - Published declarations resolve under `moduleResolution: NodeNext`; exported types no longer degrade to `any` there.
 - `GlassInput` and `GlassSelect` add their description or error to the host's `aria-describedby` instead of replacing it.
 - Switch and Slider thumbs move to their new state immediately under `prefers-reduced-motion`.
+- Tabs land in one motion. The lens stays lifted until it reaches its tab, then shrinks and dissolves into the base color, instead of resting as glass and then switching. The base color no longer slides ahead of the lens when pressed.
+- A dragged Tabs lens changes size smoothly between tabs of different widths instead of jumping at the midpoint. Its stretch now follows speed, and the velocity zoom is gone.
 
 ### Added
 

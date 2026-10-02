@@ -541,8 +541,8 @@ test("switch, slider, and toggle retain their source motion contracts", () => {
   assert.match(componentSource, /inputRef\.current\?\.focus/);
   assert.doesNotMatch(componentSource, /dg-slider__value/);
   assert.match(componentSource, /duration: 0\.6/);
-  assert.match(componentSource, /return Math\.min\(0\.18, speed \*\* 0\.62 \* 0\.0045\)/);
-  assert.match(componentSource, /zoom=\{zoom\}/);
+  assert.match(componentSource, /return Math\.min\(0\.18, speed \* SEGMENTED_DEFORMATION\.perSpeed\)/);
+  assert.doesNotMatch(componentSource, /zoom=\{zoom\}/, "the Tabs lens has no velocity zoom");
   assert.match(componentSource, /depth=\{boostedDepth\}/);
   assert.match(componentSource, /refracted \? color1 : "#bcbbbb"/);
 });
@@ -577,6 +577,7 @@ test("segmented control is solid at rest and directly tracks drag as glass", () 
   assert.match(componentSource, /const nearestSegment = \(clientX: number\)/);
   assert.match(componentSource, /const nextX = \(centerX - expandedLeft\) \/ expandedWidth/);
   assert.match(componentSource, /x\.set\(nextX\)/);
+  assert.match(componentSource, /lensW\.set\(\(from\.width \+ \(to\.width - from\.width\) \* blend\) \/ 2\)/, "the dragged lens morphs between tab widths instead of popping");
   assert.match(componentSource, /className="dg-tabs__solid-thumb"/);
   assert.match(componentSource, /className="dg-tabs__glass-layer"/);
   assert.match(libraryStylesSource, /\.dg-tabs__solid-thumb[^}]*background:\s*rgba\(18, 18, 22, \.08\)/s);
@@ -628,10 +629,12 @@ test("segmented motion uses velocity-preserving iOS-style physical springs", () 
 test("segmented glass attenuation overlaps the low-amplitude travel tail", () => {
   assert.match(componentSource, /const glassOpacity = useMotionValue\(0\)/);
   assert.doesNotMatch(componentSource, /Promise\.all\(\[shape\.finished, height\.finished\]\)/);
-  assert.match(componentSource, /waitForRest\(\[renderedLensW, renderedLensH, impactX, deformation, interaction, glassHeight\]/);
+  assert.match(componentSource, /waitForRest\(\[impactX, x\], \(\) => Math\.abs\(impactX\.get\(\) - impactTargetX\.current\) \* impactWidth\.current, SEGMENTED_HANDOFF\.arrivalPixels\)/);
+  assert.match(componentSource, /\.then\(\(\) => \{\s*if \(token !== transitionToken\.current\) return;\s*interactionStop\.current\?\.stop\(\);\s*interactionStop\.current = springTo\(interaction, 0, SEGMENTED_RELEASE_SPRING\)/, "the lens stays lifted until it lands");
   assert.match(componentSource, /epsilon = 1, timeoutMs = 900, holdMs = 32/);
   assert.match(componentSource, /restTimer = window\.setTimeout\(finish, holdMs\)/);
-  assert.match(componentSource, /animate\(glassOpacity, 0, \{ duration: 0\.12, ease: \[0\.22, 1, 0\.36, 1\] \}\)/);
+  assert.match(componentSource, /animate\(glassOpacity, 0, SEGMENTED_HANDOFF\.dissolve\)/);
+  assert.match(componentSource, /SEGMENTED_HANDOFF = \{ arrivalPixels: 4, dissolve: \{ duration: 0\.32/);
   assert.doesNotMatch(componentSource, /setTimeout\(\(\) => \{\s*rootRef\.current\?\.removeAttribute\("data-interacting"\)/);
   assert.doesNotMatch(libraryStylesSource, /\.dg-tabs__solid-thumb\s*\{[^}]*opacity 90ms/s);
 });
@@ -667,9 +670,10 @@ test("the retained material supports opaque control rests without covering refra
 });
 
 test("segmented braking squashes both axes and hover stays subtle", () => {
-  assert.match(componentSource, /stiffness: \(\) => impactLanded\.current && stationaryPress\(\) \? SEGMENTED_HOLD_IMPACT_SCRIPT\.stiffness : 210/);
-  assert.match(componentSource, /if \(!impactLanded\.current\) return 26/);
-  assert.match(componentSource, /return 30/);
+  assert.match(componentSource, /stiffness: \(\) => impactLanded\.current && stationaryPress\(\) \? SEGMENTED_HOLD_IMPACT_SCRIPT\.stiffness : SEGMENTED_DEFORMATION\.stiffness/);
+  assert.match(componentSource, /if \(!impactLanded\.current\) return SEGMENTED_DEFORMATION\.damping/);
+  assert.match(componentSource, /return SEGMENTED_DEFORMATION\.landedDamping/);
+  assert.match(componentSource, /SEGMENTED_DEFORMATION = \{ perSpeed: 0\.00024, stiffness: 760, damping: 50, landedDamping: 30 \}/);
   assert.match(componentSource, /typeof options\.stiffness === "function" \? options\.stiffness\(\) : options\.stiffness/);
   assert.match(componentSource, /typeof options\.damping === "function" \? options\.damping\(\) : options\.damping/);
   assert.match(componentSource, /width \* \(1 \+ amount \* 0\.75\)/);
@@ -721,7 +725,7 @@ test("segmented glass stays slightly taller than the tab group", () => {
 
 test("segmented vertical boost collapses during settling instead of lingering", () => {
   assert.match(componentSource, /const SEGMENTED_HEIGHT_RELEASE_SPRING = \{ mass: 0\.8, stiffness: 260, damping: 23\.6 \}/);
-  assert.match(componentSource, /heightStop\.current = height/);
+  assert.match(componentSource, /heightStop\.current = springTo\(glassHeight, 0, SEGMENTED_HEIGHT_RELEASE_SPRING\)/);
   assert.match(componentSource, /heightStop\.current\?\.stop\(\);\s*glassHeight\.set\(1\)/);
   assert.doesNotMatch(componentSource, /fade\.then\(\(\) => \{[\s\S]*glassHeight\.set\(0\)/);
 });
@@ -737,7 +741,9 @@ test("segmented final crossfade keeps content colors stable and compositor-only"
 
 test("segmented final state attenuates optics over an already-present base material", () => {
   assert.match(componentSource, /animate\(solidOpacity, 0, \{ duration: 0\.1/);
-  assert.match(componentSource, /solidOpacity\.set\(1\);\s*rootRef\.current\?\.setAttribute\("data-crossfading", ""\)/);
+  assert.match(componentSource, /updateSolidThumb\(selectedRef\.current, true\);\s*solidOpacity\.set\(1\);\s*rootRef\.current\?\.setAttribute\("data-crossfading", ""\)/);
+  assert.match(componentSource, /if \(!force && rootRef\.current\?\.hasAttribute\("data-interacting"\)\) return;/, "the hidden solid thumb never slides out ahead of the lens");
+  assert.match(libraryStylesSource, /\.dg-tabs\[data-interacting\] \.dg-tabs__solid-thumb \{ transition: none; \}/);
   assert.doesNotMatch(componentSource, /animate\(solidOpacity, 1/);
 });
 

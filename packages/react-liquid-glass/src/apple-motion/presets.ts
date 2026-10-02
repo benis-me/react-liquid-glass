@@ -11,6 +11,10 @@ export const SEGMENTED_RELEASE_SPRING = { mass: 1, stiffness: 150, damping: 19 }
 export const SEGMENTED_HEIGHT_RELEASE_SPRING = { mass: 0.8, stiffness: 260, damping: 23.6 };
 export const SEGMENTED_IMPACT_RETENTION = 0.18;
 export const SEGMENTED_TRAIL_BIAS = 0.35;
+/** Velocity stretch of the Tabs lens: tight tracking while moving, a lighter recoil once it lands. */
+export const SEGMENTED_DEFORMATION = { perSpeed: 0.00024, stiffness: 760, damping: 50, landedDamping: 30 };
+/** Landing: once the lens is this close to its tab, it shrinks and dissolves over the solid thumb. */
+export const SEGMENTED_HANDOFF = { arrivalPixels: 4, dissolve: { duration: 0.32, ease: [0.4, 0, 0.2, 1] as const } };
 export const SEGMENTED_HOLD_IMPACT_SCRIPT = {
   stiffness: 360,
   damping: 24,
