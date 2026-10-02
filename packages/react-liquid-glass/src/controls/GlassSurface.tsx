@@ -25,9 +25,11 @@ import { useLiquidToneTracker } from "../liquid-glass/tone";
 import { paintLiquidGrid } from "../liquid-glass/source";
 
 export type GlassBackground = "grid" | "lines" | "plain";
-// Compact controls need less broad shading than the original, deep menu lens.
+// Compact controls need less broad shading than the original, deep menu lens. They keep
+// the shared default dispersion and dome depth rather than the prism preset's.
+const { chromaAmount: _prismChroma, ...PRISM_SURFACE } = PRISM_MATERIAL;
 export const SURFACE_MATERIAL = {
-  ...PRISM_MATERIAL,
+  ...PRISM_SURFACE,
   glowStrength: .1, glowSpread: .6, edgeStrength: .26, edgeWidth: 1.2,
   shadowStrength: .055, shadowBlur: 14, shadowOffset: 4,
 } as const;
@@ -203,7 +205,6 @@ function OpticalSurface({
                 ...contact,
               },
             ]}
-            domeDepth={Math.min(18, size.height * 0.25)}
             edgeDepth={Math.min(12, size.height * 0.12)}
             refractionRatio={[(size.width + 28) / (size.width + 80), (size.height + 28) / (size.height + 80)]}
             transparentOutside

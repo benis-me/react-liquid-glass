@@ -322,8 +322,6 @@ export function Orbit({ locale, theme }: PageProps) {
           mergeDistance={38 * Math.min(1, size.width / 600)}
           refractionStrength={0.14}
           edgeDepth={14}
-          domeDepth={24}
-          chromaAmount={0.55}
           blurStrength={0.8}
           specularStrength={0.72}
           glowStrength={0.3}

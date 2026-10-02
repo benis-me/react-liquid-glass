@@ -357,7 +357,7 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
         ...(active ? [{ x: bodyX, y: bodyY, radius: model.radius, cornerRadius: model.radius, halfWidth: model.w, halfHeight: model.h, refractionRatio: [(frame.pw + 56) / frame.width, (frame.ph + 56) / frame.height] as const }] : []),
         { x: frame.tx / frame.width, y: frame.ty / frame.height, radius: frame.tr, cornerRadius: frame.tr, halfWidth: triggerW, halfHeight: triggerH, refractionRatio: [(frame.tw + 28) / frame.width, (frame.th + 28) / frame.height], ...contact },
       ]}
-      mergeDistance={model.merge} edgeDepth={10} domeDepth={18}
+      mergeDistance={model.merge} edgeDepth={10}
       blurStrength={backgroundBlur} shadowStrength={.08} shadowBlur={18} shadowOffset={6}
       style={{ display: "block", width: "100%", height: "100%" }} />, host)}
   </>;
