@@ -99,6 +99,9 @@ export function Orbit({ locale, theme }: PageProps) {
     last: number;
     capture: HTMLButtonElement;
     samples: Sample[];
+    /** Grab point to body center, so a body never jumps under the pointer. */
+    offsetX: number;
+    offsetY: number;
   } | null>(null);
   dimensions.current = size;
   settings.current = { viscosity, orbiting, reduce };
@@ -280,8 +283,8 @@ export function Orbit({ locale, theme }: PageProps) {
     const rect = root.current!.getBoundingClientRect(),
       body = bodies[drag.index],
       now = event.timeStamp || performance.now();
-    const x = rubber((event.clientX - rect.left) / rect.width),
-      y = rubber((event.clientY - rect.top) / rect.height);
+    const x = rubber((event.clientX - rect.left) / rect.width + drag.offsetX),
+      y = rubber((event.clientY - rect.top) / rect.height + drag.offsetY);
     drag.samples.push({ t: now, x, y });
     while (drag.samples.length > 8 || now - drag.samples[0].t > 100) drag.samples.shift();
     [body.vx, body.vy] = trackVelocity(drag.samples).map((value) => Math.max(-4, Math.min(4, value)));
@@ -377,6 +380,8 @@ export function Orbit({ locale, theme }: PageProps) {
                 last: start,
                 capture: event.currentTarget,
                 samples: [{ t: start, x: bodies[nearest].x.get(), y: bodies[nearest].y.get() }],
+                offsetX: bodies[nearest].x.get() - (event.clientX - rect.left) / rect.width,
+                offsetY: bodies[nearest].y.get() - (event.clientY - rect.top) / rect.height,
               };
               bodies[nearest].vx = bodies[nearest].vy = 0;
               wake.current();
