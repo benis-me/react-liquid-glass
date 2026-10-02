@@ -1,0 +1,61 @@
+# Changelog
+
+Notable changes to `rglass`. Versions follow semantic versioning; before 1.0, a minor version may include breaking changes.
+
+## Unreleased
+
+### Fixed
+
+- Fusion necks refract continuously: a body's rim slope no longer draws straight seams or shard-like patches inside fused glass.
+- Pressed Switch and Slider thumbs no longer cut their shadow at the edge of the control's canvas.
+- `LiquidGlassCanvas` honors instance material values over the shared defaults. Provider presets no longer freeze the Morph Menu's animated blur, tint and zoom, and an instance `hdr={false}` also removes the HDR highlight default.
+- Controls follow `class="dark"` hosts (next-themes, shadcn) as well as `data-theme="dark"`.
+- Published declarations resolve under `moduleResolution: NodeNext`; exported types no longer degrade to `any` there.
+
+### Added
+
+- Development builds warn once for each element the DOM backdrop cannot draw: CSS gradients and `url()` backgrounds, and cross-origin media without CORS.
+- `LiquidGlass` accepts `shadowBleed`, which lets a lens's shadow extend past the element instead of ending at its box.
+
+### Documentation
+
+- The README lists what the DOM backdrop draws and skips, explains that fixed glass must follow the content it floats over, and covers theming, browser support and server rendering.
+
+## 0.2.1 — 2026-10-02
+
+### Fixed
+
+- `crossorigin` media that passed CORS shows through glass backdrops.
+- Decorative glass canvases are hidden from assistive technology; `LiquidGlassCanvas` takes `ariaLabel` for a meaningful one.
+- Switch, Slider and the video seek bar show keyboard focus.
+- Controls stay visible before a renderer is ready and in browsers without WebGPU or WebGL2.
+- Form fields keep 16px text on touch devices, so iOS Safari does not zoom in.
+
+### Changed
+
+- The four Lucide icons the controls use are inlined; `lucide-react` is no longer a dependency.
+- The Morph Menu keeps its backdrop revision in a MotionValue instead of re-rendering for it.
+
+## 0.2.0 — 2026-09-29
+
+### Added
+
+- `GlassGroup` fuses up to eight DOM children in one canvas once they come within `spacing`.
+- Opt-in optics: `refractionModel: "bevel"`, a pointer or device `lightSource`, and `material.tone`, which publishes `data-dg-tone`.
+- Physical release and follow for Switch, Slider and Spotlight.
+- React entries are marked `"use client"` for React Server Components.
+
+### Fixed
+
+- Shared material defaults no longer override each control's calibration, and frost stays stable while content moves underneath.
+- Popover glass keeps drawing in the top layer and after the viewport resizes.
+- Video seek-bar ARIA, GlassVideo autoplay under reduced motion, focus on icon-only controls and AA contrast on glass.
+- The shared GPU device is released as soon as it is unused.
+
+## 0.1.1 — 2026-09-14
+
+- Package metadata: MIT license, repository, homepage and keywords.
+
+## 0.1.0 — 2026-09-14
+
+- First release: WebGPU-first liquid glass with a WebGL2 fallback, the `liquid-glass` and `apple-motion` cores, and React controls.
