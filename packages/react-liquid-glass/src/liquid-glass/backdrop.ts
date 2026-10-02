@@ -5,6 +5,17 @@ import { liquidBackground, paintLiquidHatch } from "./source";
 import { subscribeLiquidFrames } from "./renderer";
 
 type Bounds = { left: number; top: number; width: number; height: number };
+declare const process: { env: { NODE_ENV?: string } };
+// Development builds name each element the adapter cannot draw, once. Bundlers replace
+// process.env.NODE_ENV; unbundled ESM has no process and stays quiet.
+let development = false;
+try { development = process.env.NODE_ENV !== "production"; } catch { /* no process */ }
+const warned = new WeakSet<Element>();
+const warnSkipped = (element: Element, what: string) => {
+  if (!development || warned.has(element)) return;
+  warned.add(element);
+  console.warn(`rglass: ${what} cannot show through liquid glass. Paint it into a canvas for LiquidGlassCanvas, or see the README for what the DOM backdrop draws.`, element);
+};
 const pending = new Set<() => void>();
 let batchLayout: WeakMap<Element, { rect: DOMRect; css?: CSSStyleDeclaration }> | undefined;
 const layout = (element: Element) => {
@@ -68,7 +79,9 @@ export function paintLiquidBackdrop(root: HTMLElement, canvas: HTMLCanvasElement
     ctx.save(); ctx.globalAlpha *= Number(css.opacity);
     ctx.fillStyle = css.backgroundColor;
     ctx.beginPath(); ctx.roundRect(x, y, rect.width, rect.height, corners); ctx.fill();
-    ctx.save(); ctx.clip(); paintLiquidHatch(ctx, css, rect, bounds); ctx.restore();
+    ctx.save(); ctx.clip();
+    if (!paintLiquidHatch(ctx, css, rect, bounds) && css.backgroundImage !== "none") warnSkipped(element, "A CSS background-image (gradient or url())");
+    ctx.restore();
     const border = parseFloat(css.borderTopWidth);
     if (border > 0 && css.borderTopStyle !== "none") {
       ctx.lineWidth = border; ctx.strokeStyle = css.borderTopColor; ctx.stroke();
@@ -82,6 +95,7 @@ export function paintLiquidBackdrop(root: HTMLElement, canvas: HTMLCanvasElement
       // crossorigin media either passed CORS or failed to load with zero size.
       // ponytail: adding crossorigin to an already loaded image trusts its old pixels until the CORS reload settles.
       const safe = element instanceof HTMLCanvasElement || element.crossOrigin !== null || !element.currentSrc || new URL(element.currentSrc, location.href).origin === location.origin;
+      if (!safe) warnSkipped(element, "Cross-origin media without crossorigin and CORS");
       if (sw && sh && safe) {
         const scale = css.objectFit === "cover" ? Math.max(rect.width / sw, rect.height / sh) : css.objectFit === "contain" ? Math.min(rect.width / sw, rect.height / sh) : 0;
         const w = scale ? sw * scale : rect.width, h = scale ? sh * scale : rect.height;

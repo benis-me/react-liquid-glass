@@ -98,13 +98,13 @@ export function liquidBackground(root: HTMLElement): string {
 
 type BackgroundBounds = Pick<DOMRect, "left" | "top" | "width" | "height">;
 
-/** Match a thin 135deg CSS hatch, with its phase anchored to the background box. */
+/** Match a thin 135deg CSS hatch, with its phase anchored to the background box. Returns whether it matched. */
 export function paintLiquidHatch(ctx: CanvasRenderingContext2D, css: CSSStyleDeclaration, rect: BackgroundBounds, bounds: BackgroundBounds) {
   // ponytail: only this two-color repeating gradient is supported; other CSS backgrounds need an explicit source.
   const stripe = css.backgroundImage.match(/^repeating-linear-gradient\(135deg, (rgba?\([^)]+\)) 0px, \1 ([\d.]+)px, rgba\(0, 0, 0, 0\) \2px, rgba\(0, 0, 0, 0\) ([\d.]+)px\)$/);
-  if (!stripe) return;
+  if (!stripe) return false;
   const width = Number(stripe[2]), period = Number(stripe[3]);
-  if (!(width > 0 && period > width)) return;
+  if (!(width > 0 && period > width)) return false;
   const step = period * Math.SQRT2, origin = bounds.left - rect.left + bounds.top - rect.top;
   const lines = new Path2D();
   for (let d = Math.floor(origin / step) * step; d < origin + bounds.width + bounds.height; d += step) {
@@ -112,6 +112,7 @@ export function paintLiquidHatch(ctx: CanvasRenderingContext2D, css: CSSStyleDec
     lines.moveTo(0, y); lines.lineTo(bounds.width, y - bounds.width);
   }
   ctx.save(); ctx.strokeStyle = stripe[1]; ctx.lineWidth = width; ctx.stroke(lines); ctx.restore();
+  return true;
 }
 
 /** Ancestor colors and supported background patterns, in viewport coordinates. */

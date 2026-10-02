@@ -125,7 +125,7 @@ const guides: Guide[] = [
         en: "What glass can see",
         zh: "玻璃能看到什么",
         body: [
-          ["Glass refracts a source. UI components use a bounded DOM backdrop adapter that re-rasterizes common page content — backgrounds, text, images, canvases and SVG — inside each surface's bounds. Video and Spotlight sample their media directly, and custom scenes pass a canvas.", "玻璃折射的是一个源。UI 组件使用有边界的 DOM 背景适配器，在每个表面的范围内重新绘制常见页面内容，包括背景、文字、图片、画布与 SVG。视频与 Spotlight 直接采样媒体，自定义场景传入画布。"],
+          ["Glass refracts a source. UI components use a bounded DOM backdrop adapter that re-rasterizes common page content — background colors, text, images, canvases and SVG — inside each surface's bounds. It skips CSS gradients and url() backgrounds, box-shadow, cross-origin media without CORS and iframes, and warns about each in development. Video and Spotlight sample their media directly, and custom scenes pass a canvas.", "玻璃折射的是一个源。UI 组件使用有边界的 DOM 背景适配器，在每个表面的范围内重新绘制常见页面内容，包括背景色、文字、图片、画布与 SVG。CSS 渐变与 url() 背景、box-shadow、未开启 CORS 的跨域媒体和 iframe 不会被绘制，开发环境下会逐一警告。视频与 Spotlight 直接采样媒体，自定义场景传入画布。"],
           ["The adapter is not universal browser capture: CSS filters, iframes, cross-origin media without CORS and some effects are not reproduced. Supply same-origin or CORS-enabled media.", "该适配器并非完整的浏览器画面捕获：CSS 滤镜、iframe、未开启 CORS 的跨域媒体以及部分效果不会被还原。请使用同源或启用 CORS 的媒体。"],
         ],
       },
@@ -156,7 +156,7 @@ const guides: Guide[] = [
       {
         en: "Scrolling",
         zh: "滚动",
-        body: [["Glass that scrolls with its content keeps its backdrop. Fixed glass over scrolling content repaints only its own region, batched with every other surface once per frame. Pointer-driven light redraws visible glass on each pointer frame, so opt in deliberately.", "随内容一起滚动的玻璃会保留背景。固定在滚动内容上方的玻璃只重绘自身区域，并与其他表面在每帧合并处理。指针驱动的光源会在每个指针帧重绘可见玻璃，请按需开启。"]],
+        body: [["Glass that scrolls with its content keeps its backdrop. Inline glass samples only what comes before it in the DOM, so place fixed glass after the content it floats over. Fixed glass over scrolling content repaints only its own region, batched with every other surface once per frame. Pointer-driven light redraws visible glass on each pointer frame, so opt in deliberately.", "随内容一起滚动的玻璃会保留背景。行内玻璃只采样 DOM 中位于它之前的内容，因此固定玻璃要放在它所覆盖的内容之后。固定在滚动内容上方的玻璃只重绘自身区域，并与其他表面在每帧合并处理。指针驱动的光源会在每个指针帧重绘可见玻璃，请按需开启。"]],
       },
       {
         en: "Measure",
