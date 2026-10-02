@@ -197,8 +197,12 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
     let b = p.blobs[index];
     if (min(b.sizeVelocity.x, b.sizeVelocity.y) <= 0.001) { continue; }
     let blobDistance = movingBlobSdf(point, index, 0.0);
-    let weight = exp(-max(blobDistance - distance, 0.0) / blendRadius);
+    // A fusion neck reaches past this body's own outline: read its cap at the merged
+    // depth instead, so its rim slope never shows inside the neck. Lone bodies are unchanged.
+    let fill = max(blobDistance - distance, 0.0);
+    let weight = exp(-fill / blendRadius);
     let local = movingBlobLocal(point, index);
+    let lensLocal = local * max(1.0 - fill / max(length(local), 0.001), 0.0);
     let extent = max(b.sizeVelocity.xy, vec2f(1.0));
     if (b.contact.z > 0.001) {
       let finger = point - b.shape.xy - b.contact.xy * extent;
@@ -207,12 +211,12 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
       let crest = exp(-dot(finger, finger) / (radius * radius * 0.09));
       contactLight += b.contact.z * weight * (spread * (0.16 + 0.5 * falloff) + crest * 0.26);
     }
-    let normalizedLocal = clamp(local / extent, vec2f(-1.0), vec2f(1.0));
+    let normalizedLocal = clamp(lensLocal / extent, vec2f(-1.0), vec2f(1.0));
     var gradient = normalizedLocal;
     if (p.frost.z > 0.001) {
-      let capped = min(abs(local), b.dome.xy * 0.999);
+      let capped = min(abs(lensLocal), b.dome.xy * 0.999);
       let denominator = sqrt(max(b.dome.xy * b.dome.xy - capped * capped, vec2f(0.001)));
-      gradient = sign(local) * capped / denominator * b.dome.zw;
+      gradient = sign(lensLocal) * capped / denominator * b.dome.zw;
     }
     glassGradient += gradient * b.ratio.xy * weight;
     if (p.flags.w > 0.5) {

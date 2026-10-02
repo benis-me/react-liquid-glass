@@ -143,6 +143,27 @@ document.querySelector('#frost')!.addEventListener('click',()=>report(async()=>{
     return {pattern:'1 CSS px lines shifted by one source pixel',rows};
   }finally{host.remove()}
 }));
+document.querySelector('#fusion')!.addEventListener('click',()=>report(async()=>{
+  const {gl,gpu,glCanvas,gpuCanvas,check}=await get();
+  // Debug pixels hold 0.5 + displacement * 4 in R/G and coverage in B. Away from the rim,
+  // a fused neck must refract continuously: no seam where one body's lens hands over to the next.
+  const frame:LiquidGlassFrame={source:source(),width:320,height:240,pixelRatio:2,hdr:false,debug:true,mergeDistance:38,blobs:[{x:.45,y:.44,radius:26,halfWidth:69,halfHeight:57},{x:.69,y:.72,radius:31}]};
+  const rows=[];
+  for(const [backend,renderer,canvas] of [['webgl2',gl,glCanvas],['webgpu',gpu,gpuCanvas]] as const){
+    const data=await drawPixels(renderer,canvas,frame);check();
+    const w=canvas.width,h=canvas.height,rim=12,at=(x:number,y:number)=>(y*w+x)*4;
+    const covered=(x:number,y:number)=>x>=0&&y>=0&&x<w&&y<h&&data[at(x,y)+2]===255;
+    const inner=(x:number,y:number)=>[-rim,0,rim].every(dy=>[-rim,0,rim].every(dx=>covered(x+dx,y+dy)));
+    let maxJump=0;
+    for(let y=0;y<h-1;y++)for(let x=0;x<w-1;x++){
+      if(!inner(x,y))continue;const i=at(x,y),r=at(x+1,y),d=at(x,y+1);
+      maxJump=Math.max(maxJump,Math.abs(data[i]-data[r])+Math.abs(data[i+1]-data[r+1])+Math.abs(data[i]-data[d])+Math.abs(data[i+1]-data[d+1]));
+    }
+    rows.push({backend,maxJump});
+  }
+  assert(rows.every(row=>row.maxJump<=16),`Fusion neck refracts with a seam: ${JSON.stringify(rows)}`);
+  return rows;
+}));
 document.querySelector('#lifecycle')!.addEventListener('click',()=>report(async()=>{
   await reset();const host=fixture(),image=source(),p=baseFrame(image);let renderers:ReturnType<typeof createLiquidGlassRenderer>[]=[];
   const own=Object.getOwnPropertyDescriptor(navigator,'gpu');
