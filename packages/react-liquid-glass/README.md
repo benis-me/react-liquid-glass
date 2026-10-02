@@ -111,27 +111,13 @@ This is a DOM redraw adapter, not universal native backdrop capture. Other CSS e
 
 Controls keep their own motion and default material calibration. Switch/Slider tracks and segmented ink are composited over the shared backdrop from the same live control state; the menu retains one merged SDF for its body, button and neck throughout the transition.
 
-WebGPU surfaces share one device and batch their commands while presenting directly to their own canvases. A retained GPU texture preserves each SDR result after presentation. The DOM backdrop adapter requests a cached 2D snapshot only when another glass surface samples that canvas. Source textures, Gaussian intermediates and content mipmaps are cached by revision; strong frost resamples cached 2× box reductions, rebuilt only for a new source revision, so coarse blur does not alias moving text or grids; offscreen and resting surfaces do not draw. The WebGL2 fallback retains its shared small-surface context. Video follows decoded-frame callbacks, pauses offscreen and redraws paused seeks/resizes. To preserve the accepted video colors across browser import APIs, the WebGPU source adapter normalizes each changed frame through one retained canvas before upload; it does not perform a pixel readback or allocate an ImageBitmap per frame. This color-compatibility step remains an input cost. The default small-control canvas is 2×. `prefers-reduced-motion` suppresses automatic decorative drift and uses immediate control states where applicable.
+Offscreen and resting surfaces do not draw, and small controls render at 2×. `prefers-reduced-motion` suppresses automatic decorative drift and uses immediate control states where applicable.
 
 `ScrollArea` is available from `/controls` with `orientation="vertical" | "horizontal" | "both"`, `viewportProps`, and `contentClassName`. It uses Radix's native scrolling with overlay thumbs shown on hover. Popovers, dialogs, menus and textareas use it internally; import `controls.css` for its styles.
-
-## Build from this repository
-
-```sh
-npm ci
-npm run build:lib
-npm pack --workspace rglass
-```
-
-The package includes built code, optional styles and declarations; it excludes docs, videos and other site assets. No npm publication is performed by these commands.
 
 ## Renderer selection
 
 All controls, Video, Spotlight and Liquid surfaces use the WebGPU-first renderer. WebGL2 is the fallback. There is no SVG glass renderer or compatibility backend.
-
-The migration intentionally removes `Glass` / `DezinGlass`, `GlassCanvas`, the old target groups/providers, displacement-map generators, SVG presets and the `/legacy` entry. Existing imports of those APIs must be updated. Use `LiquidGlass` for DOM-backed surfaces, `LiquidGlassCanvas` for explicit image, canvas and video sources, and `LiquidGlassProvider` for shared materials. `LiquidLens` contains only parameters consumed by the GPU material; SVG map options are removed, and `LiquidGlass.pixelRatio` replaces `filterResolution`.
-
-Canvas2D supplies DOM redraws, video color normalization and requested backdrop snapshots; glass optics execute on the selected GPU backend. The bounded DOM adapter does not reproduce arbitrary browser-filtered DOM or external SVG displacement maps.
 
 `<LiquidGlassProvider material={material} backend="auto">` prefers WebGPU. Use `backend="webgl2"` for comparison or explicit compatibility, and `backend="webgpu"` to require WebGPU without fallback. Material values and Motion interactions are independent of backend selection.
 
@@ -143,7 +129,17 @@ Changing the provider's backend selection retries that selection after a failure
 
 Published declarations use the consumer's DOM WebGPU types. The development-only `@webgpu/types` package is not referenced by public declarations and does not inject duplicate globals into applications using current TypeScript.
 
-The docs dev server accepts `?renderer=webgl2` or `?renderer=webgpu` for comparison; production always uses automatic selection. `/tests/browser-smoke.html` runs the application checks in either mode; checks that inspect GL uniforms are marked separately and run in WebGL2. `/tests/gpu-parity.html` compares asymmetric sources at identical geometry/DPR, rejects empty renders and fusion-neck seams, and exercises recovery, backend switching, HDR and performance. The floating-point HDR fixture can run on SDR hardware; it does not verify a physical HDR display's brightness or gamut. Performance results are workload/device-specific; API selection alone does not establish a speedup.
+## Browser support
+
+Glass needs WebGPU or WebGL2. WebGPU is used where the browser exposes it, such as current Chrome, Edge and Safari; other capable browsers use WebGL2 with the same optics. Without either, surfaces, overlays and video controls fall back to plain translucent fills and stay usable. Overlays need the Popover API and `<dialog>` (Chrome and Edge 114+, Safari 17+, Firefox 125+). HDR highlights need an HDR display and extended-range canvas support; otherwise glass renders in SDR. Viewport emulation does not reproduce mobile GPUs or HDR output, so check important flows on real devices.
+
+## Server rendering
+
+Modules touch no browser APIs at import time and render static markup with `react-dom/server`; glass starts drawing after hydration. Because the component entries are client modules, Next.js App Router server components can render them with serializable props; pass callbacks from your own client components. Import `rglass/controls.css` once in the root layout, and set the theme and `color-scheme` before first paint so server-rendered pages do not flash the wrong scheme.
+
+## Changes
+
+See the [changelog](https://github.com/benis-me/react-liquid-glass/blob/main/packages/react-liquid-glass/CHANGELOG.md).
 
 ## License
 
