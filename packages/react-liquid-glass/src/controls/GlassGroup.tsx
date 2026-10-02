@@ -140,7 +140,6 @@ export function GlassGroup({ spacing = 20, children, className = "", ...props }:
             height={size.height + PAD * 2}
             blobs={blobs}
             mergeDistance={Math.max(0, spacing)}
-            domeDepth={Math.min(18, smallest * .25)}
             edgeDepth={Math.min(12, smallest * .12)}
             transparentOutside
             style={{ width: "100%", height: "100%" }}

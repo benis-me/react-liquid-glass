@@ -1,6 +1,7 @@
 import type { GlassRendererBackend } from "./renderer";
 import type { LiquidLightSource } from "./light";
 import { createContext, useContext, useMemo, useSyncExternalStore, type ReactNode } from "react";
+import { isMotionValue } from "../shared/values";
 
 export type GlassMaterial = Partial<
   Record<
@@ -102,13 +103,25 @@ export function useDisplayHDR() {
  * and the display supports it. Calibrated components apply these above their own
  * values; they intentionally omit the shared ordinary-glass defaults.
  */
-export function useGlassMaterialOverrides(): GlassMaterial {
+export function useGlassMaterialOverrides(hdr?: boolean): GlassMaterial {
   const material = useContext(MaterialContext);
   const displayHDR = useDisplayHDR();
+  // An instance `hdr` flag wins over the provider's, including for the HDR highlight default.
+  const highlight = (hdr ?? material.hdr) !== false && displayHDR;
   return useMemo(() => ({
-    ...(material.hdr !== false && displayHDR ? { specularStrength: HDR_SPECULAR_STRENGTH } : {}),
+    ...(highlight ? { specularStrength: HDR_SPECULAR_STRENGTH } : {}),
     ...material,
-  }), [material, displayHDR]);
+  }), [material, highlight]);
+}
+
+/**
+ * Ordinary glass resolves as shared defaults < instance values < explicit and HDR overrides.
+ * An instance MotionValue keeps animating; a provider constant never freezes it.
+ */
+export function resolveGlassMaterial<T extends object>(instance: T, overrides: GlassMaterial): T {
+  const merged: Record<string, unknown> = { ...DEFAULT_MATERIAL, ...instance };
+  for (const [key, value] of Object.entries(overrides)) if (!isMotionValue(merged[key])) merged[key] = value;
+  return merged as T;
 }
 
 /** Ordinary glass: shared defaults beneath the explicit overrides above. */

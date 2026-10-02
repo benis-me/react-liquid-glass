@@ -804,6 +804,22 @@ test("control optics retain size-independent pixel gain and the approved menu ma
   assert.match(componentSource, /SEGMENTED_HOLD_IMPACT_SCRIPT = \{\s*stiffness: 360,\s*damping: 24,\s*impulse: -1\.6,/s);
 });
 
+test("ordinary glass resolves defaults < instance < provider without freezing animated values", () => {
+  const read = (path, name) => {
+    const source = readFileSync(new URL(`../packages/react-liquid-glass/src/${path}`, import.meta.url), "utf8");
+    const start = source.indexOf(`export function ${name}`);
+    return stripTypeScriptTypes(source.slice(start, source.indexOf("\n}\n", start) + 2)).replace("export function", "function");
+  };
+  const isMotionValue = new Function(`${read("shared/values.ts", "isMotionValue")}\nreturn isMotionValue;`)();
+  const resolve = new Function("DEFAULT_MATERIAL", "isMotionValue", `${read("liquid-glass/provider.tsx", "resolveGlassMaterial")}\nreturn resolveGlassMaterial;`)(
+    { chromaAmount: .33, domeDepth: 28 }, isMotionValue);
+  assert.deepEqual(resolve({}, {}), { chromaAmount: .33, domeDepth: 28 }, "shared defaults fill missing values");
+  assert.equal(resolve({ domeDepth: 18 }, {}).domeDepth, 18, "an instance value beats the shared default");
+  assert.equal(resolve({ domeDepth: 18 }, { domeDepth: 40 }).domeDepth, 40, "explicit provider material beats the instance");
+  const blur = motionValue(.5);
+  assert.equal(resolve({ blurStrength: blur }, { blurStrength: 2 }).blurStrength, blur, "a provider constant never freezes an animated value");
+});
+
 test("Slider's refracted fill retains a moving round cap at every progress", () => {
   const source = readFileSync(new URL("../packages/react-liquid-glass/src/liquid-glass/source.ts", import.meta.url), "utf8");
   const painterCode = source.slice(source.indexOf("export function liquidTrackSource"), source.indexOf("const svgImages"));

@@ -234,7 +234,6 @@ export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, cla
           refractionStrength={menuLens.scaleX}
           chromaAmount={menuLens.chromaAmount}
           specularStrength={menuLens.specularStrength}
-          blurStrength={materialBlur}
           edgeDepth={materialDepth}
           domeDepth={menuLens.domeDepth}
           brightness={menuLens.brightness}
@@ -246,14 +245,16 @@ export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, cla
           edgeWidth={menuLens.edgeWidth}
           edgeExponent={menuLens.edgeExponent}
           tintColor={theme === "dark" ? [74 / 255, 74 / 255, 70 / 255] : [1, 1, 1]}
-          tintStrength={materialTintOpacity}
-          magnification={materialZoom}
           shadowStrength={0.11}
           sourceRevision={fusionSourceRevision}
           pixelRatio={2 * scale}
           className="dg-liquid-menu__fusion-canvas"
           inheritMaterial={false}
           {...materialOverrides}
+          // The morph animates these; a provider constant must not freeze them.
+          blurStrength={materialBlur}
+          tintStrength={materialTintOpacity}
+          magnification={materialZoom}
         />
       </div>
 
