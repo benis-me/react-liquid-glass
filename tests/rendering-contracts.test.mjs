@@ -62,7 +62,7 @@ test("small controls retain sharp 2x Liquid surfaces and only draw when dirty", 
 
 test("slider track clicks spring to the target and dragging takes over without a jump", () => {
   assert.match(componentSource, /const SLIDER_CLICK_SPRING = \{ mass: 0\.8, stiffness: 300, damping: 24 \}/);
-  assert.match(componentSource, /clickAnimation\.current = springTo\(offset, next, SLIDER_CLICK_SPRING\)/);
+  assert.match(componentSource, /clickAnimation\.current = settleThumb\(offset, next, SLIDER_CLICK_SPRING, reduce\)/);
   assert.match(componentSource, /if \(!pointerMoved\.current && Math\.abs\(event\.clientX - pointerStart\.current\) < 3\) return/);
   assert.match(componentSource, /clickAnimation\.current\?\.stop\(\);\s*pointerMoved\.current = true;\s*pointerStart\.current = event\.clientX;\s*offsetStart\.current = offset\.get\(\)/s);
 });
@@ -536,7 +536,7 @@ test("action glass stays icon-free and uses a neutral dark material", () => {
 test("switch, slider, and toggle retain their source motion contracts", () => {
   assert.match(componentSource, /const offset = useMotionValue\(current \? travel : 0\)/);
   assert.match(componentSource, /window\.setTimeout\(\(\) => \{[\s\S]*mode\.current === "pending"[\s\S]*\}, 200\)/);
-  assert.match(componentSource, /animate\(tintOpacity, 0, pressTransition\)/);
+  assert.match(componentSource, /to\(tintOpacity, 0, pressTransition\)/);
   assert.match(componentSource, /rubberBand\(-next, overshoot/);
   assert.match(componentSource, /inputRef\.current\?\.focus/);
   assert.doesNotMatch(componentSource, /dg-slider__value/);

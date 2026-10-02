@@ -131,9 +131,7 @@ export function GlassInput({
         <input
           {...props}
           id={inputId}
-          aria-describedby={
-            description ? `${id}-hint` : props["aria-describedby"]
-          }
+          aria-describedby={[description && `${id}-hint`, props["aria-describedby"]].filter(Boolean).join(" ") || undefined}
         />
       </GlassSurface>
       {description && <small id={`${id}-hint`}>{description}</small>}
@@ -235,7 +233,7 @@ export function GlassSelect({ label, children, className = "", id: suppliedId, r
       {children}
     </select>
     <LiquidPopover label={label ?? props["aria-label"] ?? "Options"} role="listbox" multiple={props.multiple}
-      trigger={<GlassButton id={id} disabled={props.disabled} role="combobox" aria-invalid={invalid || props["aria-invalid"]} aria-describedby={invalid ? `${id}-error` : props["aria-describedby"]} aria-label={props["aria-label"]} aria-labelledby={label ? `${id}-label ${id}-value` : undefined}>
+      trigger={<GlassButton id={id} disabled={props.disabled} role="combobox" aria-invalid={invalid || props["aria-invalid"]} aria-describedby={[invalid && `${id}-error`, props["aria-describedby"]].filter(Boolean).join(" ") || undefined} aria-label={props["aria-label"]} aria-labelledby={label ? `${id}-label ${id}-value` : undefined}>
         <span id={`${id}-value`}>{options.filter(option => option.selected).map(option => option.label).join(", ") || "—"}</span><ChevronDown aria-hidden="true" />
       </GlassButton>}>
       <div className="dg-select-options" onKeyDown={event => {

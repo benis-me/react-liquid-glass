@@ -126,7 +126,7 @@ td.api-description { color: var(--muted); min-width: 200px; line-height: 1.6; }
 
 .playground-single .component-preview { min-height: 430px; }
 .playground-options { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px; margin: -2px 0 16px; font-size: 11px; color: var(--muted); }
-.playground-options label { display: inline-flex; align-items: center; gap: 9px; }
+.playground-options label, .playground-option { display: inline-flex; align-items: center; gap: 9px; }
 .frame-stats { margin-left: auto; font-family: var(--font-mono); font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .playground-compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .playground-compare figcaption { font-size: 10px; color: var(--muted); padding: 10px 1px 0; }
