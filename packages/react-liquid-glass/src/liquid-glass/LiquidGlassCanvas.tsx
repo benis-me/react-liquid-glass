@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, type CSSProperties, type RefObject } fr
 import { cancelFrame, frame } from "motion";
 import { isMotionValue, readMotion, type MotionInput } from "../shared/values.js";
 import { createLiquidGlassRenderer, type GlassRendererBackend, type LiquidGlassFrame, type LiquidGlassSource } from "./renderer.js";
-import { useGlassMaterial } from "./provider.js";
+import { resolveGlassMaterial, useGlassMaterialOverrides } from "./provider.js";
 import { useRendererBackend } from "./use-renderer-backend.js";
 import { readLiquidLightAngle, subscribeLiquidLight, useReducedMotionPreference, type LiquidLightSource } from "./light.js";
 
@@ -32,9 +32,9 @@ export interface LiquidGlassCanvasProps extends Omit<LiquidGlassFrame, "source" 
 }
 
 export function LiquidGlassCanvas(props: LiquidGlassCanvasProps) {
-  const material = useGlassMaterial();
+  const overrides = useGlassMaterialOverrides(props.hdr);
   const { requested, backend, fallback, onFallback } = useRendererBackend(props.backend);
-  props = props.inheritMaterial === false ? props : { ...props, ...material, hdr: props.hdr ?? material.hdr };
+  props = props.inheritMaterial === false ? props : { ...resolveGlassMaterial(props, overrides), hdr: props.hdr ?? overrides.hdr };
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const config = useRef(props);
   config.current = props;

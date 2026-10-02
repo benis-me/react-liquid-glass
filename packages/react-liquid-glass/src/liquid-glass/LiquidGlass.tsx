@@ -59,7 +59,7 @@ export interface LiquidGlassProps {
 export function LiquidGlass(props: LiquidGlassProps) {
   // Explicit provider values override this lens; shared defaults only fill in
   // parameters that the lens does not calibrate (see `lens` below).
-  const material = { ...props.material, ...useGlassMaterialOverrides() };
+  const material = { ...props.material, ...useGlassMaterialOverrides(props.hdr) };
   const rootRef = useRef<HTMLDivElement>(null);
   const publishTone = useLiquidToneTracker(rootRef, material.tone === true);
   const contentRef = useRef<HTMLDivElement>(null);
