@@ -458,6 +458,8 @@ html[data-theme="dark"] .dg-tabs__item:not([data-selected]):hover { background: 
 .dg-field select { cursor: pointer; padding-right: 32px; }
 .dg-field select option { color: CanvasText; background: Canvas; }
 .dg-field small { font-size: 11px; opacity: .6; }
+/* iOS Safari zooms the page into focused fields smaller than 16px. */
+@media (pointer: coarse) { .dg-field :is(input, textarea, select) { font-size: max(16px, 1em); } }
 .dg-field input::placeholder, .dg-field textarea::placeholder { color: currentColor; opacity: .4; }
 .dg-choice { display: inline-flex; align-items: center; gap: 12px; cursor: pointer; font-size: 13px; border-radius: 8px; }
 .dg-choice > .dg-surface { width: 24px; height: 24px; flex-shrink: 0; }
