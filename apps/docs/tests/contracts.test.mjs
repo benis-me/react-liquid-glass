@@ -43,6 +43,25 @@ export const obsolete: LiquidLens = { mapSize: 256 };`);
   finally { rmSync(folder, { recursive: true, force: true }); }
 });
 
+test('every documented component lists each prop of its published Props interface', () => {
+  // Read the declarations consumers get, so the catalog cannot drift from the shipped API.
+  const folder = new URL('../../../packages/react-liquid-glass/dist/controls/', import.meta.url);
+  const declarations = readdirSync(folder).filter(file => file.endsWith('.d.ts')).map(file => readFileSync(new URL(file, folder), 'utf8')).join('\n');
+  const ownProps = name => {
+    const body = declarations.match(new RegExp(`export interface ${name}\\b[^{]*\\{([\\s\\S]*?)\\n\\}`))?.[1];
+    return body && [...body.matchAll(/^\s{4}(?:readonly\s+)?([\w-]+)\??:/gm)].map(match => match[1]);
+  };
+  let checked = 0;
+  for (const entry of catalog) {
+    const props = ownProps(`${entry.api}Props`);
+    if (!props) continue; // Components typed inline document their props by hand.
+    checked++;
+    const listed = entry.props.flatMap(([name]) => name.split(/\s*\/\s*/));
+    assert.deepEqual(props.filter(prop => !listed.includes(prop)), [], `${entry.id}: undocumented ${entry.api}Props`);
+  }
+  assert.ok(checked >= 10, `only ${checked} catalog entries have a Props interface to check`);
+});
+
 test('shared material links accept only finite renderer settings and clamp extreme values', () => {
   assert.deepEqual(sanitizeMaterial(null), {}); assert.deepEqual(sanitizeMaterial([]), {});
   assert.deepEqual(sanitizeMaterial({ hdr: false }), {}, 'Old material links cannot override the global display preference');
