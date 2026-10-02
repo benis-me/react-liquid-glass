@@ -141,7 +141,7 @@ Changing the provider's backend selection retries that selection after a failure
 
 Published declarations use the consumer's DOM WebGPU types. The development-only `@webgpu/types` package is not referenced by public declarations and does not inject duplicate globals into applications using current TypeScript.
 
-The docs dev server accepts `?renderer=webgl2` or `?renderer=webgpu` for comparison; production always uses automatic selection. `/tests/browser-smoke.html` runs the application checks in either mode; checks that inspect GL uniforms are marked separately and run in WebGL2. `/tests/gpu-parity.html` compares asymmetric sources at identical geometry/DPR, rejects empty renders, and exercises recovery, backend switching, HDR and performance. The floating-point HDR fixture can run on SDR hardware; it does not verify a physical HDR display's brightness or gamut. Performance results are workload/device-specific; API selection alone does not establish a speedup.
+The docs dev server accepts `?renderer=webgl2` or `?renderer=webgpu` for comparison; production always uses automatic selection. `/tests/browser-smoke.html` runs the application checks in either mode; checks that inspect GL uniforms are marked separately and run in WebGL2. `/tests/gpu-parity.html` compares asymmetric sources at identical geometry/DPR, rejects empty renders and fusion-neck seams, and exercises recovery, backend switching, HDR and performance. The floating-point HDR fixture can run on SDR hardware; it does not verify a physical HDR display's brightness or gamut. Performance results are workload/device-specific; API selection alone does not establish a speedup.
 
 ## License
 

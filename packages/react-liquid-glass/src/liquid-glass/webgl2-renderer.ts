@@ -275,8 +275,12 @@ void main() {
       index,
       0.
     );
-    float weight = exp(-max(blobDistance - distance, 0.) / blendRadius);
+    // A fusion neck reaches past this body's own outline: read its cap at the merged
+    // depth instead, so its rim slope never shows inside the neck. Lone bodies are unchanged.
+    float fill = max(blobDistance - distance, 0.);
+    float weight = exp(-fill / blendRadius);
     vec2 local = movingBlobLocal(point, uBlobs[index], uVelocity[index], index);
+    vec2 lensLocal = local * max(1. - fill / max(length(local), .001), 0.);
     vec2 extent = max(uHalfSize[index], vec2(1.));
     if (uContact[index].z > .001) {
       vec2 finger = point - uBlobs[index].xy - uContact[index].xy * extent;
@@ -285,13 +289,13 @@ void main() {
       float crest = exp(-dot(finger, finger) / (radius * radius * .09));
       contactLight += uContact[index].z * weight * (spread * (.16 + .5 * falloff) + crest * .26);
     }
-    vec2 normalizedLocal = clamp(local / extent, vec2(-1.), vec2(1.));
+    vec2 normalizedLocal = clamp(lensLocal / extent, vec2(-1.), vec2(1.));
     vec2 gradient = normalizedLocal;
     if (uDomeDepth > .001) {
       vec4 dome = uDome[index];
-      vec2 capped = min(abs(local), dome.xy * .999);
+      vec2 capped = min(abs(lensLocal), dome.xy * .999);
       vec2 denominator = sqrt(max(dome.xy * dome.xy - capped * capped, vec2(.001)));
-      gradient = sign(local) * capped / denominator * dome.zw;
+      gradient = sign(lensLocal) * capped / denominator * dome.zw;
     }
     glassGradient += gradient * uBlobRefractionRatio[index] * weight;
     if (uBevel) {
