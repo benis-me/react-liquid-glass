@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { animate, motion, useMotionValue, useTransform } from "motion/react";
-import { LiquidGlass, LIQUID_LENS } from "../liquid-glass/LiquidGlass";
+import { LiquidGlass } from "../liquid-glass/LiquidGlass";
 import { liquidTheme, liquidTrackSource, subscribeLiquidTheme } from "../liquid-glass/source";
-import type { LiquidLens } from "../liquid-glass/lens";
 import { usePointerReleaseFallback, useGlassContact, rubberBand, springTo } from "../apple-motion/react";
 import { SWITCH_FLICK_PROJECTION, SWITCH_RELEASE_SPRING } from "../apple-motion/presets";
-import { useThumbMotion } from "./use-thumb-motion";
+import { thumbLens, useThumbMotion } from "./use-thumb-motion";
 
 export interface GlassSwitchProps {
   checked?: boolean;
@@ -136,11 +135,7 @@ export function GlassSwitch({
     scaleX: targetScaleX, scaleY: targetScaleY,
   }), [width, height, padding, refractedTrackHeight, thumbWidth, travel, offset, targetScaleX, targetScaleY]);
   // Keep a thin refracting band and shallow cap at both thumb sizes.
-  const lens: LiquidLens = {
-    ...LIQUID_LENS, depth: thumbHeight / 11, domeDepth: thumbHeight * (6 / 22),
-    chromaAmount: .24, edgeWidth: .9,
-    brightness: dark ? .035 : .015,
-  };
+  const lens = thumbLens(dark, { depth: thumbHeight / 11, domeDepth: thumbHeight * (6 / 22) });
 
   return (
     <label ref={rootRef} data-size={size} className={["dg-switch", className].filter(Boolean).join(" ")} style={{ width, height, "--dg-switch-progress": current ? 1 : 0 } as React.CSSProperties}>

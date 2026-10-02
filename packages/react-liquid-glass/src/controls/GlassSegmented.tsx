@@ -1,8 +1,8 @@
 import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentType, type ReactNode } from "react";
 import { animate, motion, useMotionValue, useReducedMotion } from "motion/react";
-import { LiquidGlass, LIQUID_LENS } from "../liquid-glass/LiquidGlass";
+import { LiquidGlass } from "../liquid-glass/LiquidGlass";
+import { thumbLens } from "./use-thumb-motion";
 import { GlassSurface } from "./GlassSurface";
-import type { LiquidLens } from "../liquid-glass/lens";
 import { liquidTheme, subscribeLiquidTheme } from "../liquid-glass/source";
 import { springTo, useGlassContact, usePointerReleaseFallback, waitForRest, useDerivedMotion, useDerivedMotion2, useVelocityDeformation, type SpringRun } from "../apple-motion/react";
 import { SEGMENTED_TRAVEL_SPRING, SEGMENTED_PRESS_SPRING, SEGMENTED_DRAG_CATCHUP_SPRING, SEGMENTED_RELEASE_SPRING, SEGMENTED_HEIGHT_RELEASE_SPRING, SEGMENTED_IMPACT_RETENTION, SEGMENTED_TRAIL_BIAS, SEGMENTED_HOLD_IMPACT_SCRIPT } from "../apple-motion/presets";
@@ -371,10 +371,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
     stopDragCatchup();
     releaseInteraction(0, dragMoved.current);
   });
-  const lens: LiquidLens = {
-    ...LIQUID_LENS, lensW: 50, lensH: 20, borderRadius: 16, depth: 2.5, domeDepth: 8,
-    chromaAmount: .24, edgeWidth: .9, brightness: dark ? .035 : .015,
-  };
+  const lens = thumbLens(dark, { lensW: 50, lensH: 20, borderRadius: 16, depth: 2.5, domeDepth: 8 });
 
   const items = (interactive: boolean, refracted = false) => segments.map((segment) => {
     const { value: itemValue, label, Icon, color1, color2 } = segment;

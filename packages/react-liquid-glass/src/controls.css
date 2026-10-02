@@ -58,7 +58,7 @@
   border-radius: 999px;
   background: color-mix(in srgb, var(--dg-switch-off), var(--dg-switch-on, var(--dg-control-accent)) calc(var(--dg-switch-progress) * 100%));
 }
-html[data-theme="dark"] .dg-switch { --dg-switch-on: #777773; }
+html:is([data-theme="dark"], :where(.dark:not([data-theme]))) .dg-switch { --dg-switch-on: #777773; }
 
 .dg-slider {
   border-radius: 999px;
@@ -161,8 +161,8 @@ html[data-theme="dark"] .dg-switch { --dg-switch-on: #777773; }
   --dg-icon-color-2: var(--dg-icon-active-2) !important;
   color: var(--dg-control-text);
 }
-html[data-theme="dark"] .dg-tabs__solid-thumb { background: rgba(255, 255, 255, .08); }
-html[data-theme="dark"] .dg-tabs__item:not([data-selected]):hover { background: rgba(255, 255, 255, .04); }
+html:is([data-theme="dark"], :where(.dark:not([data-theme]))) .dg-tabs__solid-thumb { background: rgba(255, 255, 255, .08); }
+html:is([data-theme="dark"], :where(.dark:not([data-theme]))) .dg-tabs__item:not([data-selected]):hover { background: rgba(255, 255, 255, .04); }
 .dg-tabs__item span { font-size: .875rem; line-height: 1; }
 .dg-tabs__icon { flex-shrink: 0; width: 20px; height: 20px; }
 .dg-tabs__overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
@@ -552,7 +552,7 @@ html[data-theme="dark"] .dg-tabs__item:not([data-selected]):hover { background: 
 
 .dg-action { width: 100%; --dg-action-tint: light-dark(#fff, #4a4a46); }
 .dg-action__button:disabled { opacity: .4; cursor: not-allowed; }
-html[data-theme="dark"] .dg-action { --action-glass-tint: #4a4a46; }
+html:is([data-theme="dark"], :where(.dark:not([data-theme]))) .dg-action { --action-glass-tint: #4a4a46; }
 
 /* Scrollbars overlay the viewport; they never reserve a native scrollbar gutter. */
 .dg-scroll-area { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
