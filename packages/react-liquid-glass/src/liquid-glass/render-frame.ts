@@ -54,6 +54,12 @@ export interface LiquidGlassFrame {
   contentOpacity?: MotionInput;
   contentRefraction?: MotionInput;
   contentBlur?: MotionInput;
+  /**
+   * `lens` (default) pins `content` to the first body, like ink on the glass. `source`
+   * lays it over the source instead: refracted and dispersed exactly like the source,
+   * but at `contentBlur` rather than the material's frost.
+   */
+  contentSpace?: "lens" | "source";
   width: number;
   height: number;
   blobs: readonly LiquidGlassBlob[];

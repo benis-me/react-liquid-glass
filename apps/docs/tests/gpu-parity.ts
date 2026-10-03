@@ -23,6 +23,8 @@ function source() {
   return canvas;
 }
 function ink() {const c=document.createElement('canvas');c.width=280;c.height=360;const ctx=c.getContext('2d')!;ctx.fillStyle='#111';ctx.font='24px sans-serif';ctx.fillText('Material',28,52);ctx.fillStyle='#ea5830';ctx.fillRect(30,100,60,60);ctx.fillStyle='#555';ctx.fillText('Refraction',28,230);return c;}
+// Same extent as source(): source-space ink lies over it, refracted but not frosted.
+function sourceInk() {const c=document.createElement('canvas');c.width=640;c.height=480;const ctx=c.getContext('2d')!;ctx.font='bold 42px sans-serif';ctx.fillStyle='#1d1d1f';ctx.fillText('Sharp ink',190,200);ctx.fillStyle='#ea5830';ctx.fillRect(220,232,150,36);return c;}
 function pixels(canvas: HTMLCanvasElement) {const c=document.createElement('canvas');c.width=canvas.width;c.height=canvas.height;const ctx=c.getContext('2d',{willReadFrequently:true})!;ctx.drawImage(canvas,0,0);return ctx.getImageData(0,0,c.width,c.height).data;}
 function drawPixels(renderer: { draw(p: LiquidGlassFrame): boolean }, canvas: HTMLCanvasElement, p: LiquidGlassFrame) {
   return new Promise<Uint8ClampedArray>((resolve, reject) => {
@@ -49,7 +51,7 @@ document.querySelector('#run')!.addEventListener('click', async()=> {
   try {
     const {gl,gpu,glCanvas,gpuCanvas,check}=await get();
     const base: LiquidGlassFrame={source:source(),width:320,height:240,blobs:[{x:.46,y:.43,radius:29,halfWidth:85,halfHeight:70}],hdr:false};
-    const cases: [string,Partial<LiquidGlassFrame>][]=[['clear',{blurStrength:0}],['fine',{blurStrength:.2}],['fine endpoint',{blurStrength:.5}],['frost blend',{blurStrength:.62}],['menu frost',{blurStrength:1.6}],['broad frost',{blurStrength:4}],['deep frost',{blurStrength:12}],['angle',{specularRotation:37}],['opaque rest',{tintStrength:1}],['transparent',{transparentOutside:true}],['partial opacity',{transparentOutside:true,opacity:.43}],['debug',{debug:true}],['foreground',{content:ink(),contentOpacity:.7,contentBlur:1.8,contentRefraction:.8}],['fusion',{blobs:[{x:.45,y:.44,radius:26,halfWidth:69,halfHeight:57},{x:.69,y:.72,radius:31}],mergeDistance:38}],['contact',{blobs:[{x:.42,y:.53,radius:24,halfWidth:62,halfHeight:83,contactStrength:.8,contactX:.55,contactY:-.4,pullX:16,pullY:-12,velocityX:550,velocityY:-140}],specularRotation:123}]];
+    const cases: [string,Partial<LiquidGlassFrame>][]=[['clear',{blurStrength:0}],['fine',{blurStrength:.2}],['fine endpoint',{blurStrength:.5}],['frost blend',{blurStrength:.62}],['menu frost',{blurStrength:1.6}],['broad frost',{blurStrength:4}],['deep frost',{blurStrength:12}],['angle',{specularRotation:37}],['opaque rest',{tintStrength:1}],['transparent',{transparentOutside:true}],['partial opacity',{transparentOutside:true,opacity:.43}],['debug',{debug:true}],['foreground',{content:ink(),contentOpacity:.7,contentBlur:1.8,contentRefraction:.8}],['source ink',{content:sourceInk(),contentOpacity:1,contentSpace:'source',blurStrength:1.6}],['source ink bevel',{content:sourceInk(),contentOpacity:.8,contentSpace:'source',blurStrength:4,refractionModel:'bevel'}],['fusion',{blobs:[{x:.45,y:.44,radius:26,halfWidth:69,halfHeight:57},{x:.69,y:.72,radius:31}],mergeDistance:38}],['contact',{blobs:[{x:.42,y:.53,radius:24,halfWidth:62,halfHeight:83,contactStrength:.8,contactX:.55,contactY:-.4,pullX:16,pullY:-12,velocityX:550,velocityY:-140}],specularRotation:123}]];
     const picture=new Image();picture.src=(base.source as HTMLCanvasElement).toDataURL();await picture.decode();
     const video=document.createElement('video');video.muted=true;video.preload='auto';video.src='/assets/flowers.mp4';
     await new Promise<void>((resolve,reject)=>{video.onloadeddata=()=>resolve();video.onerror=()=>reject(new Error('Video fixture failed to load'));video.load()});
@@ -66,7 +68,9 @@ document.querySelector('#run')!.addEventListener('click', async()=> {
     const vf=new VideoFrame(video,{timestamp:0});const colorSpace=vf.colorSpace.toJSON();vf.close();
     // Cross-API interpolation/mip rounding may differ at a few glyph-edge pixels.
     // Tight mean/P99 plus a composited bound still reject visible material/color drift.
-    const failed=rows.filter(r=>r.mean>0.2||r.p99>3||r.compositedMax>6);
+    // Rim-frosted source ink reads generated mips, which WebGL2 (generateMipmap) and WebGPU
+    // (its own pass) build differently: a handful of glyph-edge pixels may differ by up to 10.
+    const failed=rows.filter(r=>r.mean>0.2||r.p99>3||r.compositedMax>(r.name.startsWith('source ink')?10:6));
     result.dataset.status=failed.length?'fail':'pass';result.textContent=JSON.stringify({status:result.dataset.status,failed:failed.map(r=>r.name),videoColorSpace:colorSpace,rows,gl:gl.stats,gpu:gpu.stats},null,2);
   }catch(error){result.dataset.status='fail';result.textContent=error instanceof Error?error.stack!:String(error)}
 });

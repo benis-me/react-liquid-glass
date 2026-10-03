@@ -207,15 +207,19 @@ async function rasterSvg(svg: SVGSVGElement) {
  * content/theme/font/resize boundaries; lens movement only samples the retained texture.
  * ponytail: supports this project's images, grid, text and SVG; use an explicit
  * source factory/Canvas for arbitrary CSS effects instead of guessing their pixels.
+ * `layers`: `base` paints only the substrate, `ink` only the DOM on transparency, `all` both.
  */
-export async function captureLiquidSource(root: HTMLElement, width: number, height: number, background?: LiquidSourcePainter) {
+export async function captureLiquidSource(root: HTMLElement, width: number, height: number, background?: LiquidSourcePainter, layers: "all" | "base" | "ink" = "all") {
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.round(width * 2));
   canvas.height = Math.max(1, Math.round(height * 2));
   const ctx = canvas.getContext("2d")!;
   ctx.scale(2, 2);
-  ctx.fillStyle = liquidBackground(root.parentElement!); ctx.fillRect(0, 0, width, height);
-  background?.(ctx);
+  if (layers !== "ink") {
+    ctx.fillStyle = liquidBackground(root.parentElement!); ctx.fillRect(0, 0, width, height);
+    background?.(ctx);
+  }
+  if (layers === "base") return canvas;
   const bounds = root.getBoundingClientRect();
   for (const element of root.querySelectorAll<HTMLElement>("div, span, button, img")) {
     if (element.closest("svg")) continue;

@@ -26,6 +26,7 @@ uniform sampler2D uContent;
 uniform float uContentOpacity;
 uniform float uContentRefraction;
 uniform float uContentBlur;
+uniform bool uContentSource;
 uniform vec2 uSourceSize;
 uniform vec3 uBlobs[8];
 uniform vec2 uHalfSize[8];
@@ -204,10 +205,20 @@ vec3 sampleGlass(vec2 uv, vec2 displacement) {
   return uBlur > .5 ? mix(frosted, sampleFrost(uv, displacement), smoothstep(.5, .75, uBlur)) : frosted;
 }
 
-vec4 sampleContent(vec2 uv) {
+vec4 sampleContent(vec2 uv, float blur) {
   if (any(lessThan(uv, vec2(0.))) || any(greaterThan(uv, vec2(1.)))) return vec4(0.);
   // Prefilter glyphs instead of spacing discrete taps far enough to duplicate strokes.
-  return texture(uContent, uv, log2(1. + uContentBlur * 2.));
+  return texture(uContent, uv, log2(1. + blur * 2.));
+}
+// Source-space ink takes the backdrop's refracted, dispersed position. It stays at its own
+// blur under the clear center and takes the material's frost where the rim compresses it.
+vec3 overlayInk(vec3 color, vec2 uv, vec2 displacement) {
+  float blur = mix(uContentBlur, uBlur, smoothstep(1., 4., length(displacement * uSourceSize)));
+  vec4 outer = sampleContent(uv - displacement * (1. + .2 * uChroma), blur) * uContentOpacity;
+  vec4 middle = sampleContent(uv - displacement * (1. + .1 * uChroma), blur) * uContentOpacity;
+  vec4 inner = sampleContent(uv - displacement, blur) * uContentOpacity;
+  vec4 red = uBevel ? inner : outer, blue = uBevel ? outer : inner;
+  return vec3(color.r * (1. - red.a) + red.r, color.g * (1. - middle.a) + middle.g, color.b * (1. - blue.a) + blue.b);
 }
 
 void main() {
@@ -243,7 +254,7 @@ void main() {
     return;
   }
   // Opaque resting control thumbs need their SDF coverage/shadow, not optics.
-  if (uTint >= 1. && uContentOpacity <= .001 && !uDebug && !uEmissionOnly) {
+  if (uTint >= 1. && (uContentOpacity <= .001 || uContentSource) && !uDebug && !uEmissionOnly) {
     float alpha = coverage + outsideShadow * (1. - coverage);
     outputColor = uTransparentOutside
       ? vec4(uTintColor * coverage / max(alpha, .0001), alpha * uOpacity)
@@ -350,13 +361,13 @@ void main() {
   float rimLight = reflection * reflectionLight * edgeGain;
   float brightnessAmount = clamp(abs(uBrightness), 0., 1.);
   vec4 ink = vec4(0.);
-  if (uContentOpacity > .001) {
+  if (uContentOpacity > .001 && !uContentSource) {
     vec2 extent = max(uHalfSize[0] * 2., vec2(1.));
     vec2 local = movingBlobLocal(point, uBlobs[0], uVelocity[0], 0);
     // Reuse the live merged optical field; only the peripheral ink is stretched.
     float edgeFocus = 1. - smoothstep(0., max(uDepth * 2., 1.), inside);
     vec2 contentUv = .5 + (local - displacement * uSourceSize * .42 * uContentRefraction * edgeFocus) / extent;
-    ink = sampleContent(contentUv) * uContentOpacity;
+    ink = sampleContent(contentUv, uContentBlur) * uContentOpacity;
   }
   // The same fine crest and contact field feed HDR. No frost pass is repeated,
   // and foreground ink, opaque thumbs and SDF coverage still occlude the light.
@@ -366,6 +377,7 @@ void main() {
     return;
   }
   vec3 refracted = sampleGlass(vUv, displacement);
+  if (uContentSource && uContentOpacity > .001) refracted = overlayInk(refracted, vUv, displacement);
   // Video's highlight response preserves contrast on both bright and dark substrates.
   float luminance = dot(refracted, vec3(.299, .587, .114));
   float shine = specular * uSpecular * (127. / 255.);
@@ -445,7 +457,7 @@ function createTexture(gl: WebGL2RenderingContext) {
 
 
 const uniformNames = [
-  "uSource", "uFrostSource", "uFrostUv", "uContent", "uContentOpacity", "uContentRefraction", "uContentBlur",
+  "uSource", "uFrostSource", "uFrostUv", "uContent", "uContentOpacity", "uContentRefraction", "uContentBlur", "uContentSource",
   "uSourceSize", "uBlobs[0]", "uHalfSize[0]", "uCornerRadius[0]", "uVelocity[0]",
   "uContact[0]", "uContactInverse[0]", "uContactOffset[0]", "uEmissionOnly",
   "uDome[0]", "uBlobRefractionRatio[0]", "uBlobCount", "uMergeDistance", "uRefraction", "uRefractionRatio",
@@ -752,6 +764,7 @@ export function createWebGL2GlassRenderer(
     gl.uniform1f(u.uContentOpacity, p.content ? readMotion(p.contentOpacity ?? 0) : 0);
     gl.uniform1f(u.uContentRefraction, readMotion(p.contentRefraction ?? 0));
     gl.uniform1f(u.uContentBlur, readMotion(p.contentBlur ?? 0));
+    gl.uniform1i(u.uContentSource, p.contentSpace === "source" ? 1 : 0);
     gl.uniform1i(u.uTransparentOutside, p.transparentOutside ? 1 : 0);
     gl.uniform1i(u.uDebug, p.debug ? 1 : 0);
     gl.uniform1i(u.uBevel, p.refractionModel === "bevel" ? 1 : 0);
@@ -772,7 +785,7 @@ export function createWebGL2GlassRenderer(
         const record = (value: number) => { if (!Object.is(highlightState[index], value)) changed = true; highlightState[index++] = value; };
         for (const values of [blobs, sizes, corners, velocities, contacts, contactInverses, contactOffsets, domes, refractionRatios]) for (const value of values) record(value);
         for (const key of scalarKeys) record(readMotion(p[key] ?? LIQUID_GLASS_MATERIAL[key]));
-        for (const value of [width, height, p.width, p.height, count, ...refraction, readMotion(p.contentOpacity ?? 0), readMotion(p.contentRefraction ?? 0), readMotion(p.contentBlur ?? 0)]) record(value);
+        for (const value of [width, height, p.width, p.height, count, ...refraction, readMotion(p.contentOpacity ?? 0), readMotion(p.contentRefraction ?? 0), readMotion(p.contentBlur ?? 0), Number(p.contentSpace === "source")]) record(value);
         if (changed) {
           gl.uniform1i(u.uEmissionOnly, 1); gl.drawArrays(gl.TRIANGLES, 0, 6);
           presentHighlightHDR(device.canvas, { x: 0, y: sourceTop, width, height }); stats.emissionDraws++;

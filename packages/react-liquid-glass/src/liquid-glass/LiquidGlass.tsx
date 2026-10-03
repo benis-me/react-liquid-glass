@@ -25,6 +25,8 @@ export interface LiquidGlassProps {
   children?: ReactNode;
   /** Existing DOM layout to snapshot once; interactive children remain native. */
   refractionTarget?: ReactNode;
+  /** Keep the captured DOM's text and icons sharp: they refract and disperse with the backdrop, which alone takes the material's blur. */
+  sharpInk?: boolean;
   /** For live tracks/procedural content: prepare once, then repaint from MotionValues. */
   sourceFactory?: LiquidSourceFactory;
   /** Explicit substrate underneath captured foreground ink. */
@@ -65,9 +67,10 @@ export function LiquidGlass(props: LiquidGlassProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const targetRef = useRef<HTMLDivElement>(null);
   const sourceRef = useRef<HTMLCanvasElement | null>(null);
+  const inkRef = useRef<HTMLCanvasElement | null>(null);
   const painterRef = useRef<LiquidSourcePainter | null>(null);
   const backdropRef = useRef<HTMLCanvasElement | null>(null);
-  const captureRef = useRef<() => void>(() => undefined);
+  const captureRef = useRef<(reuseInk?: boolean) => void>(() => undefined);
   const sourceRevision = useRef(motionValue(0)).current;
   const config = useRef(props); config.current = props;
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -130,7 +133,8 @@ export function LiquidGlass(props: LiquidGlassProps) {
     const root = targetRef.current ?? contentRef.current;
     if (!root || !measured) return;
     let cancelled = false;
-    const capture = () => {
+    // A backdrop change reuses the DOM ink; only the target's own changes repaint it.
+    const capture = (reuseInk = false) => {
       const token = ++generation.current;
       const { width, height } = sizeRef.current, bleed = bleedRef.current;
       capturedKey.current = `${width}x${height}:${themeRef.current}`;
@@ -143,51 +147,60 @@ export function LiquidGlass(props: LiquidGlassProps) {
       } else {
         painterRef.current = null;
         const background = props.sourceBackground?.(root, width, height);
-        void captureLiquidSource(root, width, height, ctx => {
-          if (backdropRef.current) ctx.drawImage(backdropRef.current, bleed * 2, bleed * 2, width * 2, height * 2, 0, 0, width, height);
-          background?.(ctx);
-        }).then(canvas => {
+        // The backdrop continues into the bleed margins; ink stays transparent there.
+        const pad = (inner: HTMLCanvasElement, backdrop: boolean) => {
+          if (!bleed) return inner;
+          const canvas = document.createElement("canvas");
+          canvas.width = inner.width + bleed * 4; canvas.height = inner.height + bleed * 4;
+          const ctx = canvas.getContext("2d")!;
+          if (backdrop && backdropRef.current) ctx.drawImage(backdropRef.current, 0, 0, canvas.width, canvas.height);
+          ctx.drawImage(inner, bleed * 2, bleed * 2);
+          return canvas;
+        };
+        const retained = props.sharpInk && reuseInk ? inkRef.current : null;
+        void Promise.all([
+          captureLiquidSource(root, width, height, ctx => {
+            if (backdropRef.current) ctx.drawImage(backdropRef.current, bleed * 2, bleed * 2, width * 2, height * 2, 0, 0, width, height);
+            background?.(ctx);
+          }, props.sharpInk ? "base" : "all"),
+          // Sharp ink is a separate layer, so the material's frost never reaches it.
+          props.sharpInk && !retained ? captureLiquidSource(root, width, height, undefined, "ink") : undefined,
+        ]).then(([canvas, ink]) => {
           if (cancelled || generation.current !== token) return;
-          if (bleed) {
-            const inner = canvas;
-            canvas = document.createElement("canvas");
-            canvas.width = inner.width + bleed * 4; canvas.height = inner.height + bleed * 4;
-            const ctx = canvas.getContext("2d")!;
-            if (backdropRef.current) ctx.drawImage(backdropRef.current, 0, 0, canvas.width, canvas.height);
-            ctx.drawImage(inner, bleed * 2, bleed * 2);
-          }
-          sourceRef.current = canvas;
+          sourceRef.current = pad(canvas, true);
+          inkRef.current = ink ? pad(ink, false) : retained;
           sourceRevision.set(sourceRevision.get() + 1);
         }).catch(error => { if (!cancelled) console.error("Liquid source capture failed", error); });
       }
     };
+    const recapture = () => capture();
     captureRef.current = capture;
     capture();
-    const changes = props.sourceFactory ? null : new MutationObserver(capture);
+    const changes = props.sourceFactory ? null : new MutationObserver(recapture);
     changes?.observe(root, {
       subtree: true, childList: true, characterData: true,
       attributes: true, attributeFilter: ["src", "class", "data-selected"],
     });
-    root.addEventListener("load", capture, true);
-    root.addEventListener("scroll", capture, true);
-    root.addEventListener("focusin", capture);
+    root.addEventListener("load", recapture, true);
+    root.addEventListener("scroll", recapture, true);
+    root.addEventListener("focusin", recapture);
     const settledStyle = (event: TransitionEvent) => {
       if (["color", "fill", "stroke", "background-color"].includes(event.propertyName)) capture();
     };
     root.addEventListener("transitionend", settledStyle);
-    document.fonts.addEventListener("loadingdone", capture);
+    document.fonts.addEventListener("loadingdone", recapture);
     return () => {
       cancelled = true;
       captureRef.current = () => undefined;
       changes?.disconnect();
       cancelFrame(drawSource);
-      root.removeEventListener("load", capture, true);
-      root.removeEventListener("scroll", capture, true);
-      root.removeEventListener("focusin", capture);
+      root.removeEventListener("load", recapture, true);
+      root.removeEventListener("scroll", recapture, true);
+      root.removeEventListener("focusin", recapture);
       root.removeEventListener("transitionend", settledStyle);
-      document.fonts.removeEventListener("loadingdone", capture);
+      document.fonts.removeEventListener("loadingdone", recapture);
     };
-  }, [props.sourceFactory, props.sourceBackground, hasTarget, measured, scheduleSource, drawSource, sourceRevision]);
+  }, [props.sourceFactory, props.sourceBackground, props.sharpInk, hasTarget, measured, scheduleSource, drawSource, sourceRevision]);
   useEffect(() => {
     if (measured && capturedKey.current !== `${size.width}x${size.height}:${theme}`) captureRef.current();
     backdropHandle.current?.refresh();
@@ -208,7 +221,7 @@ export function LiquidGlass(props: LiquidGlassProps) {
       backdropRef.current = canvas;
       const { width, height } = sizeRef.current, bleed = bleedRef.current;
       publishTone(canvas, bleed ? { left: bleed / (width + bleed * 2), top: bleed / (height + bleed * 2), width: width / (width + bleed * 2), height: height / (height + bleed * 2) } : undefined);
-      if (painterRef.current) scheduleSource(); else captureRef.current();
+      if (painterRef.current) scheduleSource(); else captureRef.current(true);
     }, visible);
     backdropHandle.current = backdrop;
     let wasVisible = visible();
@@ -257,6 +270,7 @@ export function LiquidGlass(props: LiquidGlassProps) {
       style={{ position: "absolute", inset: 0, opacity: 0, pointerEvents: "none" }}>{props.refractionTarget}</div> : null}
     {size.width > 0 && size.height > 0 ? <LiquidGlassCanvas shared inheritMaterial={false}
       sourceRef={sourceRef} sourceRevision={sourceRevision} width={canvasWidth} height={canvasHeight}
+      contentRef={inkRef} contentOpacity={props.sharpInk ? 1 : 0} contentSpace="source"
       blobs={[{ x: toCanvas(props.x ?? .5, size.width, canvasWidth), y: toCanvas(props.y ?? .5, size.height, canvasHeight), radius, halfWidth: width, halfHeight: height, velocityX: props.velocity?.x, velocityY: props.velocity?.y, ...props.contact }]}
       mergeDistance={0}
       refractionRatio={props.refractionPixels !== undefined ? [1 / canvasWidth, 1 / canvasHeight]

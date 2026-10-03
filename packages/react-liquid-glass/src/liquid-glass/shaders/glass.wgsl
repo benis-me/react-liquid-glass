@@ -138,9 +138,21 @@ fn sampleGlass(uv: vec2f, displacement: vec2f) -> vec3f {
   if (blur > 0.5) { return mix(frosted, sampleFrost(uv, displacement), smoothstep(0.5, 0.75, blur)); }
   return frosted;
 }
-fn sampleContent(uv: vec2f) -> vec4f {
+fn sampleContent(uv: vec2f, blur: f32) -> vec4f {
   if (any(uv < vec2f(0.0)) || any(uv > vec2f(1.0))) { return vec4f(0.0); }
-  return textureSampleBias(content, linearSampler, uv, log2(1.0 + p.ink.z * 2.0));
+  return textureSampleBias(content, linearSampler, uv, log2(1.0 + blur * 2.0));
+}
+// Source-space ink takes the backdrop's refracted, dispersed position. It stays at its own
+// blur under the clear center and takes the material's frost where the rim compresses it.
+fn overlayInk(color: vec3f, uv: vec2f, displacement: vec2f) -> vec3f {
+  let blur = mix(p.ink.z, p.frost.x, smoothstep(1.0, 4.0, length(displacement * p.size.xy)));
+  let outer = sampleContent(uv - displacement * (1.0 + 0.2 * p.refraction.z), blur) * p.ink.x;
+  let middle = sampleContent(uv - displacement * (1.0 + 0.1 * p.refraction.z), blur) * p.ink.x;
+  let inner = sampleContent(uv - displacement, blur) * p.ink.x;
+  var red = outer;
+  var blue = inner;
+  if (p.flags.w > 0.5) { red = inner; blue = outer; }
+  return vec3f(color.r * (1.0 - red.a) + red.r, color.g * (1.0 - middle.a) + middle.g, color.b * (1.0 - blue.a) + blue.b);
 }
 fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
   let transparent = p.flags.y > 0.5;
@@ -177,7 +189,7 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
     if (transparent) { return vec4f(0.0, 0.0, 0.0, outsideShadow * p.shadow.w); }
     return vec4f(mix(raw.rgb, color, p.shadow.w), raw.a);
   }
-  if (p.edge.w >= 1.0 && p.ink.x <= 0.001 && !debug && !emissionOnly) {
+  if (p.edge.w >= 1.0 && (p.ink.x <= 0.001 || p.ink.w > 0.5) && !debug && !emissionOnly) {
     let alpha = coverage + outsideShadow * (1.0 - coverage);
     if (transparent) { return vec4f(p.tint.xyz * coverage / max(alpha, 0.0001), alpha * p.shadow.w); }
     return vec4f(mix(raw.rgb, p.tint.xyz, coverage * p.shadow.w), raw.a);
@@ -258,18 +270,19 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
   let rimLight = reflection * reflectionLight * edgeGain;
   let brightnessAmount = clamp(abs(p.frost.w), 0.0, 1.0);
   var ink = vec4f(0.0);
-  if (p.ink.x > 0.001) {
+  if (p.ink.x > 0.001 && p.ink.w < 0.5) {
     let extent = max(p.blobs[0].sizeVelocity.xy * 2.0, vec2f(1.0));
     let local = movingBlobLocal(point, 0u);
     let edgeFocus = 1.0 - smoothstep(0.0, max(p.frost.y * 2.0, 1.0), inside);
     let contentUv = vec2f(0.5) + (local - displacement * p.size.xy * 0.42 * p.ink.y * edgeFocus) / extent;
-    ink = sampleContent(contentUv) * p.ink.x;
+    ink = sampleContent(contentUv, p.ink.z) * p.ink.x;
   }
   if (emissionOnly) {
     let visibility = coverage * p.shadow.w * (1.0 - clamp(p.edge.w, 0.0, 1.0)) * (1.0 - ink.a);
     return vec4f(vec3f(contactLight, rimLight * (1.0 - brightnessAmount), 0.0) * visibility, 1.0);
   }
   var refracted = sampleGlass(uv, displacement);
+  if (p.ink.x > 0.001 && p.ink.w > 0.5) { refracted = overlayInk(refracted, uv, displacement); }
   let luminance = dot(refracted, vec3f(0.299, 0.587, 0.114));
   let shine = specular * p.refraction.w * (127.0 / 255.0);
   refracted = mix(refracted + vec3f(shine), refracted * (1.0 - shine), smoothstep(0.3, 0.7, luminance));
