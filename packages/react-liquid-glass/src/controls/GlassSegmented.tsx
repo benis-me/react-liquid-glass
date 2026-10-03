@@ -5,7 +5,7 @@ import { thumbLens } from "./use-thumb-motion.js";
 import { GlassSurface } from "./GlassSurface.js";
 import { liquidTheme, subscribeLiquidTheme } from "../liquid-glass/source.js";
 import { springTo, useGlassContact, usePointerReleaseFallback, waitForRest, useDerivedMotion2, useVelocityDeformation, type SpringRun } from "../apple-motion/react.js";
-import { SEGMENTED_TRAVEL_SPRING, SEGMENTED_PRESS_SPRING, SEGMENTED_DRAG_CATCHUP_SPRING, SEGMENTED_RELEASE_SPRING, SEGMENTED_HEIGHT_RELEASE_SPRING, SEGMENTED_IMPACT_RETENTION, SEGMENTED_TRAIL_BIAS, SEGMENTED_HOLD_IMPACT_SCRIPT, SEGMENTED_HANDOFF, SEGMENTED_DEFORMATION } from "../apple-motion/presets.js";
+import { SEGMENTED_TRAVEL_SPRING, SEGMENTED_PRESS_SPRING, SEGMENTED_DRAG_CATCHUP_SPRING, SEGMENTED_RELEASE_SPRING, SEGMENTED_HEIGHT_RELEASE_SPRING, SEGMENTED_IMPACT_RETENTION, SEGMENTED_TRAIL_BIAS, SEGMENTED_HOLD_IMPACT_SCRIPT, SEGMENTED_HANDOFF, SEGMENTED_DEFORMATION, SEGMENTED_LIFT_OUTSET } from "../apple-motion/presets.js";
 
 
 type IconProps = { className?: string };
@@ -56,6 +56,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
   const hasLinks = segments.some(item => item.href);
   const selected = segments.some((item) => item.value === current) ? current : current === "" || hasLinks ? "" : segments[0].value;
   const rootRef = useRef<HTMLDivElement>(null);
+  const groupRef = useRef<HTMLDivElement>(null);
   const contact = useGlassContact(rootRef, { deform: false });
   const solidThumbRef = useRef<HTMLSpanElement>(null);
   const itemRefs = useRef(new Map<string, HTMLButtonElement | HTMLAnchorElement>());
@@ -115,14 +116,15 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
     const overshoot = (position - target) * direction;
     const retainedOvershoot = impactLanded.current || overshoot > 0 ? overshoot * SEGMENTED_IMPACT_RETENTION : overshoot;
     const softened = target + direction * retainedOvershoot;
-    const velocityStretch = lensW.get() * (1 + interaction.get() * 0.10) * Math.max(0, amount) * 0.75;
+    const velocityStretch = lensW.get() * Math.max(0, amount) * 0.75;
     return softened - direction * velocityStretch * SEGMENTED_TRAIL_BIAS / Math.max(1, impactWidth.current);
   });
   const stretchedLensW = useDerivedMotion2(lensW, deformation, (width, amount) => width * (1 + amount * 0.75));
   const stretchedLensH = useDerivedMotion2(lensH, deformation, (height, amount) => height * (1 - amount * 0.52));
-  const renderedLensW = useDerivedMotion2(stretchedLensW, interaction, (width, amount) => width * (1 + amount * 0.10));
+  // Lifted glass swells by a fixed outset, so it overflows the bar like the native lens.
+  const renderedLensW = useDerivedMotion2(stretchedLensW, interaction, (width, amount) => width + amount * SEGMENTED_LIFT_OUTSET);
   const contactX = useDerivedMotion2(contact.contactX, impactX, (fraction, position) => ((fraction + 1) * (impactWidth.current - SEGMENTED_PAD_X * 2) / 2 + SEGMENTED_PAD_X - position * impactWidth.current) / renderedLensW.get());
-  const expandedLensH = useDerivedMotion2(stretchedLensH, interaction, (height, amount) => height * (1 + amount * 0.22));
+  const expandedLensH = useDerivedMotion2(stretchedLensH, interaction, (height, amount) => height + amount * SEGMENTED_LIFT_OUTSET);
   const heightBoost = useDerivedMotion2(glassHeight, deformation, (active, amount) =>
     active * (0.18 - Math.min(0.10, Math.max(0, amount) * 0.55)));
   const minimumGlassH = useDerivedMotion2(lensH, heightBoost, (height, boost) => height * (1 + boost));
@@ -374,6 +376,9 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
     releaseInteraction(0, dragMoved.current);
   });
   const lens = thumbLens(dark, { lensW: 50, lensH: 20, borderRadius: 16, depth: 2.5, domeDepth: 8 });
+  // The bar never changes with the selection; skipping its re-render keeps it from redrawing,
+  // and the lens, which refracts it, from recapturing.
+  const container = useMemo(() => <GlassSurface className="dg-tabs__container" radius={999} />, []);
 
   const items = (interactive: boolean, refracted = false) => segments.map((segment) => {
     const { value: itemValue, label, Icon, color1, color2 } = segment;
@@ -413,8 +418,9 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
 
   return (
     <div ref={rootRef} data-custom={suppliedItems ? "true" : undefined} className={["dg-tabs", className].filter(Boolean).join(" ")}>
-      <GlassSurface className="dg-tabs__container" radius={999} />
+      {container}
       <div
+        ref={groupRef}
         className="dg-tabs__group"
         role={hasLinks ? "group" : tablist ? "tablist" : "radiogroup"}
         aria-label={ariaLabel}
@@ -495,7 +501,9 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
         <LiquidGlass
           contact={{ ...contact, contactX }}
           className="dg-tabs__glass"
-          backdropRoot={rootRef}
+          // Leave out only the native tabs, so the lifted lens refracts the bar's own edge.
+          backdropRoot={groupRef}
+          sharpInk
           refractionPixels={5.5}
           lens={lens}
           x={impactX}

@@ -15,12 +15,14 @@ Notable changes to `rglass`. Versions follow semantic versioning; before 1.0, a 
 - Switch and Slider thumbs move to their new state immediately under `prefers-reduced-motion`.
 - Tabs land in one motion. The lens stays lifted until it reaches its tab, then shrinks and dissolves into the base color, instead of resting as glass and then switching. The base color no longer slides ahead of the lens when pressed.
 - A dragged Tabs lens changes size smoothly between tabs of different widths instead of jumping at the midpoint. Its stretch now follows speed, and the velocity zoom is gone.
+- A pressed Tabs lens grows past the bar like the native control, shows the bar's edge bent through it, and keeps the tab labels and icons beneath it sharp. The bar no longer redraws on every selection change.
 
 ### Added
 
 - The Morph Menu moves focus into its panel on opening, prefers the checked item, supports arrow keys, Home and End, and makes its closed panel inert.
 - Development builds warn once for each element the DOM backdrop cannot draw: CSS gradients and `url()` backgrounds, and cross-origin media without CORS.
 - `LiquidGlass` accepts `shadowBleed`, which lets a lens's shadow extend past the element instead of ending at its box.
+- `LiquidGlass` accepts `sharpInk`, which keeps the captured text and icons crisp under frosted glass. They refract and disperse with the backdrop, and only the backdrop and the lens rim take the material's blur. `LiquidGlassCanvas` exposes the same layer as `contentSpace: "source"`.
 - `GlassSwitch` and `GlassSlider` pass native input attributes (`id`, `aria-*`, `required`, `form`, `onBlur` and so on) to their input and accept `style`. A host label, either `id` with `<label htmlFor>` or `aria-labelledby`, replaces the fallback name.
 
 ### Documentation

@@ -386,7 +386,8 @@ test("liquid content refraction and blur follow shape, with a neutral settled en
   assert.match(liquidDemoSource, /closingBlur\.jump\(0\)/);
   assert.match(liquidDemoSource, /opacity: domContentOpacity/);
   assert.match(liquidCanvasSource, /local - displacement \* uSourceSize \* \.42 \* uContentRefraction \* edgeFocus/);
-  assert.match(liquidCanvasSource, /texture\(uContent, uv, log2\(1\. \+ uContentBlur \* 2\.\)\)/);
+  assert.match(liquidCanvasSource, /texture\(uContent, uv, log2\(1\. \+ blur \* 2\.\)\)/);
+  assert.match(liquidCanvasSource, /ink = sampleContent\(contentUv, uContentBlur\) \* uContentOpacity/);
   assert.match(liquidCanvasSource, /gl\.LINEAR_MIPMAP_LINEAR/);
   assert.match(liquidCanvasSource, /UNPACK_PREMULTIPLY_ALPHA_WEBGL, true/);
   assert.match(liquidCanvasSource, /value\.on\("change", scheduleDraw\)/);
@@ -594,8 +595,33 @@ test("segmented click expands, travels as glass, then collapses", () => {
   assert.match(componentSource, /releaseInteraction\(0, dragMoved\.current\)/);
   assert.match(componentSource, /const releaseInteraction = \(delay = 0, settle = true\)/);
   assert.match(componentSource, /const travel = settle \? updateGeometry\(selectedRef\.current, false\) : travelSettled\.current/);
-  assert.match(componentSource, /width \* \(1 \+ amount \* 0\.10\)/);
-  assert.match(componentSource, /height \* \(1 \+ amount \* 0\.22\)/);
+  assert.match(componentSource, /width \+ amount \* SEGMENTED_LIFT_OUTSET/);
+  assert.match(componentSource, /height \+ amount \* SEGMENTED_LIFT_OUTSET/);
+});
+
+test("segmented lens overflows the bar, refracts its edge and keeps tab text sharp", () => {
+  assert.match(componentSource, /export const SEGMENTED_LIFT_OUTSET = 9;/, "a 9px outset clears the bar's 3px inset by 6px");
+  assert.match(componentSource, /backdropRoot=\{groupRef\}/, "only the native tabs leave the backdrop; the bar stays visible through the lens");
+  assert.match(componentSource, /\n\s*sharpInk\n/);
+  assert.match(componentSource, /const container = useMemo\(\(\) => <GlassSurface className="dg-tabs__container" radius=\{999\} \/>, \[\]\)/, "selection changes never redraw the bar");
+});
+
+test("source-space ink refracts with the backdrop, sharp at the center and frosted at the rim", () => {
+  const wgsl = readFileSync(new URL("../packages/react-liquid-glass/src/liquid-glass/shaders/glass.wgsl", import.meta.url), "utf8");
+  const gpu = readFileSync(new URL("../packages/react-liquid-glass/src/liquid-glass/webgpu-renderer.ts", import.meta.url), "utf8");
+  assert.match(liquidCanvasSource, /float blur = mix\(uContentBlur, uBlur, smoothstep\(1\., 4\., length\(displacement \* uSourceSize\)\)\)/);
+  assert.match(wgsl, /let blur = mix\(p\.ink\.z, p\.frost\.x, smoothstep\(1\.0, 4\.0, length\(displacement \* p\.size\.xy\)\)\)/);
+  // Ink joins the backdrop before shading, so the lens lights and tints both alike.
+  assert.ok(liquidCanvasSource.indexOf("refracted = overlayInk(refracted, vUv, displacement)") < liquidCanvasSource.indexOf("float shine ="));
+  assert.ok(wgsl.indexOf("refracted = overlayInk(refracted, uv, displacement)") < wgsl.indexOf("let shine ="));
+  assert.match(liquidCanvasSource, /if \(uContentOpacity > \.001 && !uContentSource\)/);
+  assert.match(wgsl, /if \(p\.ink\.x > 0\.001 && p\.ink\.w < 0\.5\)/);
+  assert.match(liquidCanvasSource, /gl\.uniform1i\(u\.uContentSource, p\.contentSpace === "source" \? 1 : 0\)/);
+  assert.match(gpu, /Number\(p\.contentSpace === "source"\)\], 32\)/);
+  assert.match(liquidAdapterSource, /props\.sharpInk \? "base" : "all"/);
+  assert.match(liquidAdapterSource, /captureLiquidSource\(root, width, height, undefined, "ink"\)/);
+  assert.match(liquidAdapterSource, /contentRef=\{inkRef\} contentOpacity=\{props\.sharpInk \? 1 : 0\} contentSpace="source"/);
+  assert.match(liquidAdapterSource, /else captureRef\.current\(true\)/, "a backdrop change reuses the captured ink");
 });
 
 test("segmented edge items stay centered and the selected fill stays flat", () => {
