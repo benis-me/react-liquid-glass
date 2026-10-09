@@ -2,12 +2,13 @@
 
 Notable changes to `rglass`. Versions follow semantic versioning; before 1.0, a minor version may include breaking changes.
 
-## Unreleased
+## 0.3.0 — 2026-10-09
 
 ### Changed
 
 - HDR light is restrained. A press now peaks near 1.5× SDR white instead of nearly 3×, the static rim near 1.2×, and overlapping light never stacks into glare: contact and rim share one soft cap, identical on WebGPU and WebGL2.
 - Glass edges follow iOS 27's more distinct border. The contour depends on edge strength alone, so it no longer thins on HDR displays; over dark content the same contour lightens instead of vanishing, so edges stay defined in dark mode; and the static top and bottom highlight is brighter.
+- Pointer feedback is quieter. Tabs and Morph Menu rows fill on hover at once instead of fading, Tabs labels keep their color on hover, and `GlassGroup` and `GlassButtonGroup` buttons press to 97% over 100ms.
 
 ### Fixed
 
@@ -33,6 +34,7 @@ Notable changes to `rglass`. Versions follow semantic versioning; before 1.0, a 
 ### Documentation
 
 - The README lists what the DOM backdrop draws and skips, explains that fixed glass must follow the content it floats over, and covers theming, browser support and server rendering.
+- The documentation site is redesigned: live specimens on the home page, a material demo with its own sliders, quieter navigation, and the same light and dark themes in English and Chinese.
 
 ## 0.2.1 — 2026-10-02
 
