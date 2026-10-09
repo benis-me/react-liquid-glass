@@ -1,4 +1,5 @@
-import { CodeBlock, PageHeading, type PageProps } from "./Pages";
+import type { PageProps } from "./Pages";
+import { CodeBlock, PageHeading } from "./ui";
 import { DocsPagination, guideList } from "./docs-index";
 
 type Section = { en: string; zh: string; body: [string, string][]; code?: string; label?: string };

@@ -339,8 +339,10 @@ export async function checkShowcasePerformance() {
     const x=handles[0].getBoundingClientRect().x;handles[0].dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}));
     await until(()=>handles[0].getBoundingClientRect().x>x+3,'Keyboard body movement failed');
     await wait(1400);const idle=orbitFrames;await wait(150);assert(orbitFrames===idle,'Settled Orbit still renders');
-    click('input[aria-label="Orbit motion"]');await until(()=>orbitFrames>idle+8,'Orbit animation did not start');
-    click('input[aria-label="Orbit motion"]');
+    // The switch is named by its visible label, so reach it through that association.
+    const orbitSwitch='#'+CSS.escape(document.querySelector('.orbit-toolbar label[for]').htmlFor);
+    click(orbitSwitch);await until(()=>orbitFrames>idle+8,'Orbit animation did not start');
+    click(orbitSwitch);
     assert(document.documentElement.scrollWidth<=document.documentElement.clientWidth+1,'Showcase overflows the viewport');
     return {notes,playheadColumns:columns.size,steadyKeyFrames:0,orbit:'gather, scatter, keyboard, idle and orbit passed'};
   }finally{stop();AudioContext.prototype.createOscillator=create;await go('/showcase')}

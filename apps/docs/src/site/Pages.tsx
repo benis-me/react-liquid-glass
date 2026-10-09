@@ -1,76 +1,27 @@
-import { useState } from "react";
-import {
-  ArrowDown,
-  ArrowLeft,
-  ArrowRight,
-  Check,
-  Copy,
-  ExternalLink,
-  SlidersHorizontal,
-} from "lucide-react";
+import { memo, useState } from "react";
+import { ArrowLeft, ArrowRight, ArrowUpRight, RotateCcw, SlidersHorizontal } from "lucide-react";
 import {
   GlassStage,
   GlassSpotlight,
-  GlassButton,
   GlassTabs,
   GlassInput,
   GlassPopover,
+  GlassSlider,
   ScrollArea,
 } from "rglass/controls";
-import {
-  catalog,
-  groups,
-  groupZh,
-  exampleCode,
-  type ComponentId,
-} from "./catalog";
+import { LiquidGlassProvider, type GlassMaterial } from "rglass/liquid-glass";
+import { catalog, groups, groupZh, exampleCode, type ComponentId } from "./catalog";
 import { MaterialControls } from "./MaterialControls";
 import type { MaterialState } from "./material";
 import { ComponentExample, PHOTO, PHOTO_SIZES, PHOTO_SRCSET } from "./ComponentExample";
 import { propNote } from "./prop-notes";
 import { Link } from "./router";
+import { CodeBlock, InstallCommand, PageHeading, SectionHeading } from "./ui";
 import type { Locale } from "../i18n";
+
+export { CodeBlock, PageHeading } from "./ui";
 export type PageProps = { locale: Locale; theme: "light" | "dark" };
-export function CodeBlock({
-  code,
-  label = "React",
-  locale = "en",
-}: {
-  code: string;
-  label?: string;
-  locale?: Locale;
-}) {
-  const [status, setStatus] = useState("");
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(code);
-      setStatus(locale === "zh" ? "已复制" : "Copied");
-    } catch {
-      setStatus(locale === "zh" ? "请选中代码复制" : "Select the code to copy");
-    }
-  };
-  return (
-    <div className="code-block">
-      <div className="code-block__bar">
-        <span>{label}</span>
-        <button type="button" className="plain-button"
-          onClick={copy}
-          aria-label={locale === "zh" ? "复制代码" : "Copy code"}
-        >
-          {status ? <Check size={13} /> : <Copy size={13} />}
-          <span aria-live="polite">
-            {status || (locale === "zh" ? "复制" : "Copy")}
-          </span>
-        </button>
-      </div>
-      <ScrollArea orientation="horizontal" viewportProps={{ "aria-label": label }}>
-      <pre>
-        <code>{code}</code>
-      </pre>
-      </ScrollArea>
-    </div>
-  );
-}
+
 export function Preview({
   id,
   locale,
@@ -79,187 +30,188 @@ export function Preview({
   pulse = false,
 }: PageProps & { id: ComponentId; compact?: boolean; pulse?: boolean }) {
   return (
-    <GlassStage
-      className={`component-preview component-preview--${id} ${compact ? "component-preview--compact" : ""}`}
-    >
-      <ComponentExample
-        id={id}
-        locale={locale}
-        theme={theme}
-        compact={compact}
-        pulse={pulse}
-      />
+    <GlassStage className={`component-preview component-preview--${id} ${compact ? "component-preview--compact" : ""}`}>
+      <ComponentExample id={id} locale={locale} theme={theme} compact={compact} pulse={pulse} />
     </GlassStage>
   );
 }
-export function Home({ locale, theme }: PageProps) {
-  const zh = locale === "zh";
+
+/** A live specimen in the home collection, with a plain link to its page. */
+function Specimen({ id, locale, theme, pulse, compact, variant = id }: PageProps & { id: ComponentId; pulse?: boolean; compact?: boolean; variant?: string }) {
+  const entry = catalog.find(item => item.id === id)!;
   return (
-    <div className="home">
-      <section className="home-intro">
-        <h1>
-          Liquid Glass
-        </h1>
-        <p>
-          {zh
-            ? "React 液态玻璃组件库：WebGPU 实时折射、WebGL2 兜底，静止与运动共用同一种材质，形体可以彼此融合。"
-            : "Liquid glass components for React, with real refraction on WebGPU and a WebGL2 fallback, one material at rest and in motion, and shapes that fuse."}
-        </p>
-        <div className="page-actions">
-          <Link className="link-button link-button--primary" href="/components">
-            {zh ? "探索组件" : "Explore components"}
-            <ArrowRight size={15} />
-          </Link>
-          <Link className="link-button" href="/docs/installation">
-            {zh ? "开始使用" : "Get started"}
-          </Link>
-        </div>
-      </section>
-      <div className="home-hero">
-        <GlassSpotlight
-          backgroundImage={PHOTO}
-          backgroundSrcSet={PHOTO_SRCSET}
-          backgroundSizes={PHOTO_SIZES}
-          lens={{
-            lensW: 118,
-            lensH: 118,
-            borderRadius: 118,
-            chromaAmount: 0.24,
-          }}
-        />
-        <div className="home-hero__label">
-          <span>01 / REFRACTION</span>
-          <ArrowDown size={16} />
-        </div>
-      </div>
-      <section className="home-section">
-        <div className="section-heading">
-          <div>
-            <span className="eyebrow">{zh ? "组件" : "The collection"}</span>
-            <h2>{zh ? "组件" : "Components"}</h2>
-          </div>
-          <Link className="text-link" href="/components">
-            {zh ? "所有组件" : "All components"}
-            <ArrowRight size={15} />
-          </Link>
-        </div>
-        <div className="home-controls">
-          <Preview id="switch" locale={locale} theme={theme} pulse />
-          <Preview id="slider" locale={locale} theme={theme} />
-          <Preview id="tabs" locale={locale} theme={theme} />
-        </div>
-        <div className="home-control-labels">
-          <Link href="/components/switch">
-            Switch <ArrowRight size={13} />
-          </Link>
-          <Link href="/components/slider">
-            Slider <ArrowRight size={13} />
-          </Link>
-          <Link href="/components/tabs">
-            Tabs <ArrowRight size={13} />
-          </Link>
-        </div>
-      </section>
-      <section className="home-section home-playground">
-        <div>
-          <span className="eyebrow">Playground</span>
-          <h2>{zh ? "调节材质" : "Tune the material"}</h2>
-          <p>
-            {zh
-              ? "折射、磨砂、色散与高光。"
-              : "Refraction, frost, dispersion and light."}
-          </p>
-          <Link className="text-link" href="/playground">
-            {zh ? "打开 Playground" : "Open the playground"}
-            <ArrowRight size={15} />
-          </Link>
-        </div>
-        <GlassStage className="home-material" background="lines">
+    <div className={`specimen specimen--${variant}`}>
+      <Preview id={id} locale={locale} theme={theme} compact={compact} pulse={pulse} />
+      <Link className="specimen__label" href={`/components/${id}`}>
+        {entry.name}<ArrowUpRight aria-hidden="true" />
+      </Link>
+    </div>
+  );
+}
+
+const demoFields = [
+  { key: "refractionStrength", en: "Refraction", zh: "折射", min: 0, max: .4, step: .01, initial: .2 },
+  { key: "blurStrength", en: "Frost", zh: "磨砂", min: 0, max: 8, step: .1, initial: .2 },
+  { key: "chromaAmount", en: "Dispersion", zh: "色散", min: 0, max: 1.5, step: .01, initial: .33 },
+] as const;
+type DemoKey = (typeof demoFields)[number]["key"];
+
+/** Three live material values on the Lines substrate. Local to this page; the Playground keeps the full set. */
+const MaterialDemo = memo(function MaterialDemo({ locale, theme }: PageProps) {
+  const zh = locale === "zh";
+  const [material, setMaterial] = useState<Partial<Record<DemoKey, number>>>({});
+  return (
+    <div className="material-demo">
+      <LiquidGlassProvider material={material as GlassMaterial}>
+        <GlassStage className="material-demo__stage" background="lines">
           <ComponentExample id="button-group" locale={locale} theme={theme} compact />
           <GlassInput aria-label={zh ? "写点什么" : "Write something"} placeholder={zh ? "写点什么…" : "Write something…"} />
           <ComponentExample id="toggle" locale={locale} theme={theme} compact />
         </GlassStage>
-      </section>
-      <section className="home-section">
-        <div className="section-heading">
-          <div>
-            <span className="eyebrow">
-              {zh ? "小小的实验" : "Small experiments"}
-            </span>
-            <h2>
-              {zh
-                ? "演示应用"
-                : "Showcase"}
-            </h2>
-          </div>
-          <Link className="text-link" href="/showcase">
-            {zh ? "体验全部" : "View showcase"}
-            <ArrowRight size={15} />
+      </LiquidGlassProvider>
+      <div className="material-demo__panel">
+        <header>
+          <h3>{zh ? "材质" : "Material"}</h3>
+          <button type="button" className="plain-button" onClick={() => setMaterial({})} disabled={!Object.keys(material).length}
+            aria-label={zh ? "恢复默认材质" : "Restore the default material"}>
+            <RotateCcw size={15} aria-hidden="true" />
+          </button>
+        </header>
+        {demoFields.map(field => {
+          const value = material[field.key] ?? field.initial;
+          return (
+            <label className="material-demo__field" key={field.key}>
+              <span>{zh ? field.zh : field.en}<output>{value.toFixed(2)}</output></span>
+              <GlassSlider min={field.min} max={field.max} step={field.step} value={value}
+                ariaLabel={zh ? field.zh : field.en}
+                onValueChange={next => setMaterial(current => ({ ...current, [field.key]: next }))} />
+            </label>
+          );
+        })}
+        <Link className="text-link" href="/playground">{zh ? "全部 21 个参数" : "All 21 parameters"}<ArrowRight /></Link>
+      </div>
+    </div>
+  );
+});
+
+export function Home({ locale, theme }: PageProps) {
+  const zh = locale === "zh";
+  return (
+    <div className="home">
+      <section className="hero">
+        <h1>Liquid Glass</h1>
+        <p>
+          {zh
+            ? "React 液态玻璃组件：WebGPU 实时折射，静止与运动共用一种材质，形体可以彼此融合。"
+            : "Liquid glass components for React, with real refraction on WebGPU, one material at rest and in motion, and shapes that fuse."}
+        </p>
+        <div className="hero-actions">
+          <Link className="button button--primary" href="/components">
+            {zh ? "探索组件" : "Explore components"}<ArrowRight aria-hidden="true" />
           </Link>
+          <Link className="button" href="/docs/installation">{zh ? "开始使用" : "Get started"}</Link>
+          <InstallCommand locale={locale} />
         </div>
+      </section>
+      <div className="hero-visual">
+        <GlassSpotlight
+          backgroundImage={PHOTO}
+          backgroundSrcSet={PHOTO_SRCSET}
+          backgroundSizes={PHOTO_SIZES}
+          lens={{ lensW: 118, lensH: 118, borderRadius: 118, chromaAmount: 0.24 }}
+        />
+      </div>
+
+      <section className="home-section" aria-labelledby="home-collection">
+        <SectionHeading id="home-collection" eyebrow={zh ? "组件" : "The collection"} title={zh ? "组件" : "Components"}
+          link={{ href: "/components", label: zh ? `全部 ${catalog.length} 个组件` : `All ${catalog.length} components` }} />
+        <div className="bento">
+          <Specimen id="morph-menu" variant="menu" locale={locale} theme={theme} compact />
+          <Specimen id="switch" locale={locale} theme={theme} pulse />
+          <Specimen id="slider" locale={locale} theme={theme} />
+          <Specimen id="tabs" locale={locale} theme={theme} />
+          <Specimen id="glass-group" locale={locale} theme={theme} />
+          <Specimen id="button" locale={locale} theme={theme} />
+        </div>
+      </section>
+
+      <section className="home-section" aria-labelledby="home-material">
+        <SectionHeading id="home-material" eyebrow="Playground" title={zh ? "调节材质" : "Tune the material"}
+          link={{ href: "/playground", label: zh ? "打开 Playground" : "Open the playground" }} />
+        <MaterialDemo locale={locale} theme={theme} />
+      </section>
+
+      <section className="home-section" aria-labelledby="home-showcase">
+        <SectionHeading id="home-showcase" eyebrow={zh ? "小小的实验" : "Small experiments"} title={zh ? "应用展示" : "Showcase"}
+          link={{ href: "/showcase", label: zh ? "全部展示" : "View showcase" }} />
         <ShowcaseCards locale={locale} />
+      </section>
+
+      <section className="home-section" aria-labelledby="home-start">
+        <SectionHeading id="home-start" eyebrow={zh ? "开始使用" : "Get started"} title={zh ? "两步接入" : "Two steps in"}
+          link={{ href: "/docs/installation", label: zh ? "阅读文档" : "Read the docs" }} />
+        <div className="start-steps">
+          <div className="start-step">
+            <h3><span>1</span>{zh ? "安装" : "Install"}</h3>
+            <CodeBlock label="Terminal" locale={locale} code="npm install rglass react@^19 react-dom@^19 motion@^13" />
+          </div>
+          <div className="start-step">
+            <h3><span>2</span>{zh ? "使用" : "Use"}</h3>
+            <CodeBlock locale={locale} code={'import { GlassButton } from "rglass/controls";\nimport "rglass/controls.css";\n\n<GlassButton>Continue</GlassButton>;'} />
+          </div>
+        </div>
       </section>
     </div>
   );
 }
+
 export const scenes = [
-  {
-    id: "focus",
-    number: "01",
-    name: "Focus",
-    zh: "专注舱",
-    description: "A timer and local notes.",
-    summary: "专注计时与本地笔记。",
-    symbol: "25:00",
-    tags: "Timer · Local notes",
-  },
-  {
-    id: "sequencer",
-    number: "02",
-    name: "Glass keys",
-    zh: "玻璃音序器",
-    description: "An eight-step sequencer.",
-    summary: "八步音序器。",
-    symbol: "▂ ▆ ▃ █ ▂ ▅ ▇ ▃",
-    tags: "Web Audio · Sequencer",
-  },
-  {
-    id: "orbit",
-    number: "03",
-    name: "Liquid orbit",
-    zh: "流体磁场",
-    description: "Drag, release, merge.",
-    summary: "拖动、释放、融合。",
-    symbol: "◯ ◯ ◯",
-    tags: "Physics · SDF fusion",
-  },
+  { id: "focus", number: "01", name: "Focus", zh: "专注舱", description: "A timer and local notes.", summary: "专注计时与本地笔记。", tags: "Timer · Local notes" },
+  { id: "sequencer", number: "02", name: "Glass keys", zh: "玻璃音序器", description: "An eight-step sequencer.", summary: "八步音序器。", tags: "Web Audio · Sequencer" },
+  { id: "orbit", number: "03", name: "Liquid orbit", zh: "流体磁场", description: "Drag, release, merge.", summary: "拖动、释放、融合。", tags: "Physics · SDF fusion" },
 ] as const;
-/** Showcase cards; their heading level follows the page they sit on. */
+
+// Each thumbnail is a small diagram of the app itself: its clock, its opening pattern, its three bodies.
+const SEQUENCE = [8, 0, 4, 0, 2, 4, 1, 2];
+function ShowcaseThumb({ id }: { id: (typeof scenes)[number]["id"] }) {
+  if (id === "focus") return <span className="numeric">25:00</span>;
+  if (id === "sequencer") return (
+    <svg width="108" height="52" viewBox="0 0 108 52" aria-hidden="true">
+      {SEQUENCE.flatMap((mask, column) => [0, 1, 2, 3].map(row => (
+        <rect key={`${column}-${row}`} x={column * 14} y={row * 14} width="10" height="10" rx="3"
+          fill="currentColor" opacity={mask & (1 << row) ? 1 : .14} />
+      )))}
+    </svg>
+  );
+  return (
+    <svg width="112" height="48" viewBox="0 0 112 48" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+      <circle cx="22" cy="24" r="15" /><circle cx="55" cy="24" r="20" /><circle cx="89" cy="24" r="14" />
+    </svg>
+  );
+}
+
+/** The showcase index; its heading level follows the page it sits on. */
 export function ShowcaseCards({ locale, headingLevel = 3 }: { locale: Locale; headingLevel?: 2 | 3 }) {
   const Heading = `h${headingLevel}` as const;
   return (
-    <div className="showcase-cards">
-      {scenes.map((scene) => (
-        <Link
-          className={`showcase-card showcase-card--${scene.id}`}
-          key={scene.id}
-          href={`/showcase/${scene.id}`}
-        >
-          <div className="showcase-card__visual" aria-hidden="true">
-            <span>{scene.symbol}</span>
-            <small>{scene.number}</small>
-          </div>
-          <div className="showcase-card__title">
-            <Heading>{locale === "zh" ? scene.zh : scene.name}</Heading>
-            <ArrowRight size={16} />
-          </div>
-          <p>{locale === "zh" ? scene.summary : scene.description}</p>
-          <span className="eyebrow">{scene.tags}</span>
-        </Link>
+    <ol className="showcase-list">
+      {scenes.map(scene => (
+        <li key={scene.id}>
+          <Link className={`showcase-row showcase-row--${scene.id}`} href={`/showcase/${scene.id}`}>
+            <span className="showcase-row__number">{scene.number}</span>
+            <span className="showcase-row__title">
+              <Heading>{locale === "zh" ? scene.zh : scene.name}</Heading>
+              <span>{locale === "zh" ? scene.summary : scene.description} <span className="visually-hidden">{scene.tags}</span></span>
+            </span>
+            <span className="showcase-row__visual" aria-hidden="true"><ShowcaseThumb id={scene.id} /></span>
+            <ArrowRight aria-hidden="true" />
+          </Link>
+        </li>
       ))}
-    </div>
+    </ol>
   );
 }
+
 export function Catalog({ locale, theme, material, setMaterial }: PageProps & MaterialState) {
   const [group, setGroup] = useState("All");
   const zh = locale === "zh";
@@ -267,13 +219,10 @@ export function Catalog({ locale, theme, material, setMaterial }: PageProps & Ma
   return (
     <>
       <PageHeading
-        kicker={zh ? "组件库" : "Components"}
-        title={zh ? "组件库" : "Components"}
-        description={
-          zh
-            ? "预览组件，统一调节材质。"
-            : "Try the components. Tune the material."
-        }
+        kicker={zh ? "组件库" : "Library"}
+        title={zh ? "组件" : "Components"}
+        description={zh ? "预览组件，统一调节材质。" : "Try the components. Tune the material."}
+        meta={zh ? `${catalog.length} 个组件 · ${groups.length} 个分类` : `${catalog.length} components · ${groups.length} categories`}
       />
       <div className="catalog-tools">
         <ScrollArea className="filter-scroll" orientation="horizontal" viewportProps={{ "aria-label": zh ? "分类" : "Categories" }}>
@@ -285,18 +234,12 @@ export function Catalog({ locale, theme, material, setMaterial }: PageProps & Ma
       {/* Names the grid in the outline, so specimen headings nest beneath it. */}
       <h2 className="visually-hidden">{group === "All" ? (zh ? "全部组件" : "All components") : zh ? groupZh[group] : group}</h2>
       <div className="component-grid">
-        {entries.map((entry) => (
+        {entries.map(entry => (
           <article className="component-tile" key={entry.id}>
             <Preview id={entry.id} locale={locale} theme={theme} compact />
-            <Link
-              className="component-tile__label"
-              href={`/components/${entry.id}`}
-            >
-              <span>
-                {entry.name}
-                <small>{zh ? entry.zh : entry.group}</small>
-              </span>
-              <ArrowRight size={14} />
+            <Link className="component-tile__label" href={`/components/${entry.id}`}>
+              <span>{entry.name}<small>{zh ? entry.zh : entry.group}</small></span>
+              <ArrowRight aria-hidden="true" />
             </Link>
           </article>
         ))}
@@ -309,26 +252,7 @@ export function Catalog({ locale, theme, material, setMaterial }: PageProps & Ma
     </>
   );
 }
-export function PageHeading({
-  kicker,
-  title,
-  description,
-  children,
-}: {
-  kicker?: string;
-  title: string;
-  description?: string;
-  children?: React.ReactNode;
-}) {
-  return (
-    <header className="page-heading">
-      {kicker && <span className="eyebrow">{kicker}</span>}
-      <h1>{title}</h1>
-      {description && <p>{description}</p>}
-      {children}
-    </header>
-  );
-}
+
 const keyboardNotes: Partial<Record<ComponentId, [string, string]>> = {
   "button-group": [
     "Arrow keys move focus. Home / End jump to either end; Enter / Space runs the focused action. Disabled buttons are skipped.",
@@ -359,41 +283,33 @@ const keyboardNotes: Partial<Record<ComponentId, [string, string]>> = {
     "聚焦进度条后，方向键跳转 5 秒，Home / End 跳至首尾。支持在播放器外释放拖动。",
   ],
 };
-export function ComponentPage({
-  id,
-  locale,
-  theme,
-}: PageProps & { id: ComponentId }) {
-  const entry = catalog.find((item) => item.id === id)!,
+
+export function ComponentPage({ id, locale, theme }: PageProps & { id: ComponentId }) {
+  const entry = catalog.find(item => item.id === id)!,
     index = catalog.indexOf(entry),
     zh = locale === "zh";
   const note = keyboardNotes[id];
+  const previous = catalog[index - 1], next = catalog[index + 1];
   return (
     <>
-      <div className="breadcrumb">
+      <nav className="breadcrumb" aria-label={zh ? "路径" : "Breadcrumb"}>
         <Link href="/components">{zh ? "组件" : "Components"}</Link>
-        <span>/</span>
-        <span>{entry.name}</span>
-      </div>
-      <PageHeading
-        title={entry.name}
-        description={zh ? entry.summary : entry.description}
-      >
+        <span aria-hidden="true">/</span>
+        <span>{zh ? groupZh[entry.group] : entry.group}</span>
+        <span aria-hidden="true">/</span>
+        <span aria-current="page">{entry.name}</span>
+      </nav>
+      <PageHeading title={entry.name} description={zh ? entry.summary : entry.description}>
         <Link className="text-link" href={`/playground?component=${id}`}>
-          {zh ? "在 Playground 中调整" : "Tune in playground"}
-          <ArrowRight size={14} />
+          {zh ? "在 Playground 中调整" : "Tune in playground"}<ArrowRight aria-hidden="true" />
         </Link>
       </PageHeading>
-      <section className="doc-section">
-        <div className="preview-bar">
-          <h2>{zh ? "预览" : "Preview"}</h2>
-        </div>
+      <section className="doc-section component-hero" aria-label={zh ? "预览" : "Preview"}>
         <Preview key={id} id={id} locale={locale} theme={theme} />
       </section>
       <section className="doc-section" id="usage">
         <h2>{zh ? "使用方式" : "Usage"}</h2>
         <CodeBlock code={exampleCode(id)} locale={locale} />
-
       </section>
       <section className="doc-section" id="api">
         <h2>API</h2>
@@ -410,12 +326,8 @@ export function ComponentPage({
             <tbody>
               {entry.props.map(([prop, type, fallback]) => (
                 <tr key={prop}>
-                  <td>
-                    <code>{prop}</code>
-                  </td>
-                  <td>
-                    <code>{type}</code>
-                  </td>
+                  <td><code>{prop}</code></td>
+                  <td><code>{type}</code></td>
                   <td>{fallback}</td>
                   <td className="api-description">{propNote(id, prop)?.[zh ? 1 : 0]}</td>
                 </tr>
@@ -425,28 +337,24 @@ export function ComponentPage({
         </ScrollArea>
       </section>
       {note && <section className="doc-section"><h2>{zh ? "键盘操作" : "Keyboard"}</h2><p>{note[zh ? 1 : 0]}</p></section>}
-      <nav
-        className="doc-pagination"
-        aria-label={zh ? "更多组件" : "More components"}
-      >
-        {index > 0 ? (
-          <Link href={`/components/${catalog[index - 1].id}`}>
-            <ArrowLeft size={14} />
-            {catalog[index - 1].name}
+      <nav className="doc-pagination" aria-label={zh ? "更多组件" : "More components"}>
+        {previous ? (
+          <Link href={`/components/${previous.id}`} rel="prev">
+            <small>{zh ? "上一个" : "Previous"}</small>
+            <span><ArrowLeft size={16} aria-hidden="true" />{previous.name}</span>
           </Link>
-        ) : (
-          <span />
-        )}
-        {index < catalog.length - 1 && (
-          <Link href={`/components/${catalog[index + 1].id}`}>
-            {catalog[index + 1].name}
-            <ArrowRight size={14} />
+        ) : <span />}
+        {next && (
+          <Link href={`/components/${next.id}`} rel="next">
+            <small>{zh ? "下一个" : "Next"}</small>
+            <span>{next.name}<ArrowRight size={16} aria-hidden="true" /></span>
           </Link>
         )}
       </nav>
     </>
   );
 }
+
 export function Installation({ locale }: PageProps) {
   const zh = locale === "zh";
   return (
@@ -454,47 +362,27 @@ export function Installation({ locale }: PageProps) {
       <PageHeading
         kicker={zh ? "文档" : "Documentation"}
         title={zh ? "开始使用" : "Get started"}
-        description={
-          zh
-            ? "库是一个独立的 React 包。文档站只是它的一个使用者。"
-            : "An independent React package. This documentation site is simply one of its consumers."
-        }
+        description={zh ? "库是一个独立的 React 包。文档站只是它的一个使用者。" : "An independent React package. This documentation site is simply one of its consumers."}
       />
+      <section className="doc-section">
+        <h2>{zh ? "在你的项目中使用" : "Bring it into your project"}</h2>
+        <CodeBlock label="Terminal" locale={locale} code="npm install rglass react@^19 react-dom@^19 motion@^13" />
+        <CodeBlock
+          locale={locale}
+          code={'import { GlassButton, GlassStage } from "rglass/controls";\nimport "rglass/controls.css";\n\nexport default function App() {\n  return (\n    <GlassStage style={{ padding: 48 }}>\n      <GlassButton onClick={() => alert("Hello, glass.")}>\n        Hello, glass\n      </GlassButton>\n    </GlassStage>\n  );\n}'}
+        />
+      </section>
       <section className="doc-section">
         <h2>{zh ? "从仓库开始" : "Start from the repository"}</h2>
         <p>
           {zh
-            ? "克隆仓库可在本地运行文档和示例。要在自己的 React 项目中使用，请安装 npm 包 rglass。"
-            : "Clone the repository to run the docs and examples locally. Install rglass from npm to use it in your own React project."}
+            ? "克隆仓库可在本地运行文档和示例。"
+            : "Clone the repository to run the docs and examples locally."}
         </p>
-        <CodeBlock
-          label="Terminal"
-          locale={locale}
-          code={
-            "git clone https://github.com/benis-me/react-liquid-glass.git\ncd react-liquid-glass\nnpm ci\nnpm run dev"
-          }
-        />
+        <CodeBlock label="Terminal" locale={locale} code={"git clone https://github.com/benis-me/react-liquid-glass.git\ncd react-liquid-glass\nnpm ci\nnpm run dev"} />
       </section>
       <section className="doc-section">
-        <h2>{zh ? "在你的项目中使用" : "Bring it into your project"}</h2>
-        <CodeBlock
-          label="Terminal"
-          locale={locale}
-          code={
-            "npm install rglass react@^19 react-dom@^19 motion@^13"
-          }
-        />
-        <CodeBlock
-          locale={locale}
-          code={
-            'import { GlassButton, GlassStage } from "rglass/controls";\nimport "rglass/controls.css";\n\nexport default function App() {\n  return (\n    <GlassStage style={{ padding: 48 }}>\n      <GlassButton onClick={() => alert("Hello, glass.")}>\n        Hello, glass\n      </GlassButton>\n    </GlassStage>\n  );\n}'
-          }
-        />
-      </section>
-      <section className="doc-section">
-        <h2>
-          {zh ? "材质与动态，分别使用" : "Material and motion, separately"}
-        </h2>
+        <h2>{zh ? "材质与动态，分别使用" : "Material and motion, separately"}</h2>
         <p>
           {zh
             ? "liquid-glass 负责 SDF、光学材质、融合与渲染资源。apple-motion 负责弹簧、动量与轨迹。controls 将两者组合成可直接使用的组件。"
@@ -502,21 +390,14 @@ export function Installation({ locale }: PageProps) {
         </p>
         <CodeBlock
           locale={locale}
-          code={
-            'import { LiquidGlassProvider } from "rglass/liquid-glass";\nimport { stepSpring } from "rglass/apple-motion";\nimport { GlassButton } from "rglass/controls";\n\n// An interrupted spring retains its current velocity.\nconst state = stepSpring(0, 20, 1, {\n  stiffness: 170, damping: 22, mass: 1,\n}, 1 / 60);\n\n// Empty material preserves every component’s calibrated defaults.\n<LiquidGlassProvider material={{ chromaAmount: 0.24 }}>\n  <GlassButton>Continue</GlassButton>\n</LiquidGlassProvider>;'
-          }
+          code={'import { LiquidGlassProvider } from "rglass/liquid-glass";\nimport { stepSpring } from "rglass/apple-motion";\nimport { GlassButton } from "rglass/controls";\n\n// An interrupted spring retains its current velocity.\nconst state = stepSpring(0, 20, 1, {\n  stiffness: 170, damping: 22, mass: 1,\n}, 1 / 60);\n\n// Empty material preserves every component’s calibrated defaults.\n<LiquidGlassProvider material={{ chromaAmount: 0.24 }}>\n  <GlassButton>Continue</GlassButton>\n</LiquidGlassProvider>;'}
         />
         <Link className="text-link" href="/playground">
-          {zh
-            ? "调整并复制完整的材质配置"
-            : "Tune and copy a full material configuration"}
-          <ArrowRight size={14} />
+          {zh ? "调整并复制完整的材质配置" : "Tune and copy a full material configuration"}<ArrowRight aria-hidden="true" />
         </Link>
       </section>
       <section className="doc-section">
-        <h2>
-          {zh ? "底图、主题与运行环境" : "Substrates, themes and the runtime"}
-        </h2>
+        <h2>{zh ? "底图、主题与运行环境" : "Substrates, themes and the runtime"}</h2>
         <p>
           {zh
             ? "UI 组件共用 WebGPU 材质与 DOM 底图采样，并保留 WebGL2 回退。GlassStage 只提供可见背景；视频和 Spotlight 使用媒体源。采样支持常见内容，并非完整的浏览器画面捕获。"

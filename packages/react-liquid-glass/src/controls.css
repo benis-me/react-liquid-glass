@@ -4,7 +4,6 @@
   --dg-control-surface: var(--bg-1, light-dark(#f3f3f1, #171717));
   --dg-control-border: var(--border-1, light-dark(#11111114, #ffffff16));
   --dg-control-text: var(--fg-1, light-dark(#111, #f5f5f3));
-  --dg-control-text-hover: var(--fg-2, light-dark(#4d4d4d, #c7c7c5));
   /* Meets WCAG AA on the controls' own glass, not only on the page. */
   --dg-control-text-muted: var(--fg-3, light-dark(#6b6b6b, #9b9b99));
   --dg-control-duration: var(--duration-snappy, .22s);
@@ -137,7 +136,8 @@ html:is([data-theme="dark"], :where(.dark:not([data-theme]))) .dg-switch { --dg-
   font: inherit;
   letter-spacing: inherit;
   color: var(--dg-control-text-muted);
-  transition: color var(--dg-control-duration) var(--dg-control-ease), background-color 120ms ease-out;
+  /* Selection ink crossfades; hover feedback is instant. */
+  transition: color var(--dg-control-duration) var(--dg-control-ease);
   background: transparent;
   border: 0;
   border-radius: 9999px;
@@ -150,8 +150,7 @@ html:is([data-theme="dark"], :where(.dark:not([data-theme]))) .dg-switch { --dg-
   position: relative;
   z-index: 1;
 }
-.dg-tabs__item:hover { color: var(--dg-control-text-hover); }
-.dg-tabs__item:not([data-selected]):hover { background: rgba(18, 18, 22, .035); }
+.dg-tabs__item:not([data-selected]):hover { background: rgba(18, 18, 22, .045); }
 .dg-tabs > .dg-tabs__group > .dg-tabs__item[data-selected] {
   --dg-icon-color-1: var(--dg-icon-active-1) !important;
   --dg-icon-color-2: var(--dg-icon-active-2) !important;
@@ -277,7 +276,6 @@ html:is([data-theme="dark"], :where(.dark:not([data-theme]))) .dg-tabs__item:not
   corner-shape: round;
   cursor: pointer;
   font: inherit;
-  transition: background-color .16s ease;
 }
 .dg-liquid-menu__sort-row:hover,
 .dg-liquid-menu__filter-row:hover { background: var(--border-1, rgb(0 0 0 / .05)); }
@@ -428,17 +426,17 @@ html:is([data-theme="dark"], :where(.dark:not([data-theme]))) .dg-tabs__item:not
 .dg-glass-group__optics { position: absolute; pointer-events: none; z-index: -1; }
 .dg-glass-group__items { display: flex; align-items: center; gap: 24px; }
 .dg-glass-group__items > * { position: relative; }
-.dg-glass-group__items > .dg-button > .dg-surface > .dg-surface__content { transition: background-color .15s ease, transform .18s ease; }
+.dg-glass-group__items > .dg-button > .dg-surface > .dg-surface__content { transition: transform 100ms cubic-bezier(.23, 1, .32, 1); }
 .dg-glass-group__items > .dg-button:hover:not(:disabled) > .dg-surface > .dg-surface__content { background-color: color-mix(in srgb, currentColor 6%, transparent); }
-.dg-glass-group__items > .dg-button[data-pressed] > .dg-surface > .dg-surface__content { transform: scale(.96); }
+.dg-glass-group__items > .dg-button[data-pressed] > .dg-surface > .dg-surface__content { transform: scale(.97); }
 .dg-button-group { display: inline-block; max-width: 100%; vertical-align: middle; }
 .dg-button-group__items { display: flex; align-items: stretch; padding: 4px; gap: 1px; }
 .dg-button-group[data-orientation="vertical"] > .dg-surface > .dg-surface__content > .dg-button-group__items { flex-direction: column; }
 .dg-button-group__items > :is(.dg-button, a) { flex: 1 0 auto; border-radius: 14px; }
 .dg-button-group__items > .dg-button > .dg-surface { border-radius: inherit !important; }
-.dg-button-group__items > .dg-button > .dg-surface > .dg-surface__content { border-radius: inherit; transition: background-color .15s ease, transform .18s ease; }
+.dg-button-group__items > .dg-button > .dg-surface > .dg-surface__content { border-radius: inherit; transition: transform 100ms cubic-bezier(.23, 1, .32, 1); }
 .dg-button-group__items > .dg-button:hover:not(:disabled) > .dg-surface > .dg-surface__content { background-color: color-mix(in srgb, currentColor 6%, transparent); }
-.dg-button-group__items > .dg-button[data-pressed] > .dg-surface > .dg-surface__content { transform: scale(.96); }
+.dg-button-group__items > .dg-button[data-pressed] > .dg-surface > .dg-surface__content { transform: scale(.97); }
 @media (prefers-reduced-motion: reduce) {
   .dg-button-group__items > .dg-button > .dg-surface > .dg-surface__content { transition: none; }
 }

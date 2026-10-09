@@ -1,33 +1,55 @@
+/* Design tokens. The neutral ramp steps in even OKLCH lightness, written as sRGB hex:
+   the glass backdrop adapter reads computed rgb() backgrounds, so surfaces stay in sRGB.
+   Secondary text is 8:1 and captions at least 4.9:1 on the page and on specimen stages. */
 :root {
-  --font-body: "Noto Sans SC Variable", "PingFang SC", sans-serif;
-  --font-display: "Manrope Variable", "Noto Sans SC Variable", sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
-  --bg: #f5f5f3;
-  --bg-raised: #fff;
-  --surface: #ededeb;
-  --surface-strong: #dfdfdc;
-  --text: #111;
-  --muted: #626262;
-  /* Secondary text meets WCAG AA (4.5:1) on the page, raised surfaces and glass. */
-  --soft: #6b6b6b;
-  --border: #11111114;
+  color-scheme: light;
+  --font-body: "Manrope Variable", "Noto Sans SC Variable", "PingFang SC", system-ui, sans-serif;
+  --font-display: "Manrope Variable", "Noto Sans SC Variable", "PingFang SC", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --bg: #fafaf9;
+  --bg-raised: #ffffff;
+  --surface: #f3f3f1;
+  --surface-hover: #ededeb;
+  --surface-strong: #e6e6e4;
+  --text: #141414;
+  --muted: #4d4d4d;
+  --soft: #696969;
+  --border: rgb(20 20 20 / .08);
+  --border-strong: rgb(20 20 20 / .14);
   --primary: #262626;
-  --primary-soft: #e7e7e4;
+  --primary-soft: #e6e6e4;
   --action-glass-tint: #fff;
-  --demo-bg:
-    linear-gradient(rgb(0 0 0 / .05) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(0 0 0 / .05) 1px, transparent 1px),
-    #ebebe8;
+  --page-stripe: rgba(24,24,24,.032);
+  --scrollbar: #1818183d;
+
+  /* One shadow recipe for surfaces that contain things: ring, contact, ambient. */
+  --shadow-surface: 0 0 0 1px rgb(0 0 0 / .06), 0 1px 2px -1px rgb(0 0 0 / .06), 0 2px 4px 0 rgb(0 0 0 / .04);
+  --shadow-raised: 0 0 0 1px rgb(0 0 0 / .06), 0 1px 2px -1px rgb(0 0 0 / .06), 0 8px 24px -6px rgb(0 0 0 / .08);
+  --image-outline: rgb(0 0 0 / .1);
+
+  /* Two easings and one press for the whole site. */
+  --ease-out: cubic-bezier(.23, 1, .32, 1);
+  --ease-in-out: cubic-bezier(.77, 0, .175, 1);
+  --press-scale: .97;
+
+  /* Concentric radii: inner = outer - inset. */
+  --radius-xl: 28px;
+  --radius-lg: 20px;
+  --radius-md: 12px;
+  --radius-sm: 8px;
+
+  /* Tokens the library controls read. */
   --bg-max: var(--bg-raised);
   --bg-1: #f3f3f1;
-  --bg-2: #ececea;
-  --bg-3: #e5e5e2;
+  --bg-2: #ededeb;
+  --bg-3: #e6e6e4;
   --bg-4: #dcdcd8;
   --bg-5: #cececa;
   --bg-6: #bdbdb8;
   --fg-1: var(--text);
   --fg-2: #4d4d4d;
-  --fg-3: #6b6b6b;
+  --fg-3: #696969;
   --fg-4: #999;
   --border-0: #11111108;
   --border-1: #11111114;
@@ -35,31 +57,42 @@
   --shadow-strong: #0000001f;
   --duration-snappy: .22s;
   --ease-snappy: cubic-bezier(.175, .885, .32, 1.1);
-  --body-bg: var(--bg);
+  --demo-bg:
+    linear-gradient(rgb(0 0 0 / .05) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(0 0 0 / .05) 1px, transparent 1px),
+    #ebebe8;
+
   color: var(--text);
+  /* Paint the document canvas itself, so overscroll never shows a white strip. */
   background: var(--bg);
   font-family: var(--font-body);
   font-synthesis: none;
   font-feature-settings: "kern" on;
+  font-optical-sizing: auto;
   text-rendering: optimizeLegibility;
 }
 
 :root[data-theme="dark"] {
-  --bg: #111;
-  --bg-raised: #171717;
-  --surface: #1f1f1f;
-  --surface-strong: #292929;
-  --text: #f5f5f3;
-  --muted: #aaa;
-  --soft: #8c8c8c;
-  --border: #ffffff14;
+  color-scheme: dark;
+  --bg: #111111;
+  --bg-raised: #191919;
+  --surface: #202020;
+  --surface-hover: #1e1e1e;
+  --surface-strong: #2b2b2b;
+  --text: #f2f2f0;
+  --muted: #b1b1b1;
+  --soft: #929292;
+  --border: rgb(255 255 255 / .09);
+  --border-strong: rgb(255 255 255 / .15);
   --primary: #dededb;
   --primary-soft: #30302e;
   --action-glass-tint: #4a4a46;
-  --demo-bg:
-    linear-gradient(rgb(255 255 255 / .055) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(255 255 255 / .055) 1px, transparent 1px),
-    #1a1a1a;
+  --page-stripe: rgba(255,255,255,.022);
+  --scrollbar: #ffffff38;
+  /* In the dark the edge comes from light: an inset hairline, then depth below. */
+  --shadow-surface: inset 0 1px 0 0 rgb(255 255 255 / .04), inset 0 0 0 1px rgb(255 255 255 / .05), 0 0 0 1px rgb(0 0 0 / .1), 0 2px 2px 0 rgb(0 0 0 / .1), 0 4px 4px 0 rgb(0 0 0 / .1);
+  --shadow-raised: inset 0 1px 0 0 rgb(255 255 255 / .05), inset 0 0 0 1px rgb(255 255 255 / .06), 0 0 0 1px rgb(0 0 0 / .1), 0 4px 8px 0 rgb(0 0 0 / .14), 0 12px 24px -6px rgb(0 0 0 / .2);
+  --image-outline: rgb(255 255 255 / .1);
   --bg-max: var(--bg-raised);
   --bg-1: #171717;
   --bg-2: #1e1e1e;
@@ -74,44 +107,87 @@
   --border-1: #ffffff16;
   --border-2: #ffffff3d;
   --shadow-strong: #00000080;
+  --demo-bg:
+    linear-gradient(rgb(255 255 255 / .055) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / .055) 1px, transparent 1px),
+    #1a1a1a;
 }
 
-* { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
+*, *::before, *::after { box-sizing: border-box; }
+html {
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar) transparent;
+  scrollbar-gutter: stable;
+  -webkit-text-size-adjust: 100%;
+}
+/* The page hatch participates in glass refraction: the backdrop adapter redraws
+   exactly this two-color 135deg pattern, so keep its form. */
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
   color: var(--text);
-  background: var(--bg);
+  background-color: var(--bg);
+  background-image: repeating-linear-gradient(135deg, var(--page-stripe) 0px, var(--page-stripe) 1px, transparent 1px, transparent 12px);
+  font-size: 15px;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  transition: color .2s ease, background-color .2s ease;
 }
-button, input { font: inherit; }
-button, a { -webkit-tap-highlight-color: transparent; }
-button { color: inherit; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button, a, input, select, textarea { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+button, select, summary { cursor: pointer; }
+button { -webkit-appearance: none; }
+button:disabled { cursor: not-allowed; }
 a { color: inherit; text-decoration: none; }
 img { display: block; max-width: 100%; }
 figure { margin: 0; }
+svg { flex-shrink: 0; }
+h1, h2, h3, h4, p { margin: 0; }
 ::selection { color: var(--text); background: var(--primary-soft); }
 
-:where(:focus-visible):not([tabindex="-1"]) {
-  outline: none;
-  box-shadow: none;
+/* Tighten big text, loosen small caps; balance headings, keep paragraphs pretty. */
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -.02em;
+  text-wrap: balance;
 }
-:is(a, button, summary):focus-visible { text-decoration: underline; text-underline-offset: 4px; }
-.header-tools :is(.icon-button, .locale-button):focus-visible { background: var(--surface); }
+p, li, dd, figcaption { text-wrap: pretty; }
+code, kbd, samp, pre { font-family: var(--font-mono); font-size: .9em; font-variant-ligatures: none; }
+output, time, .numeric { font-variant-numeric: tabular-nums; }
+.eyebrow {
+  display: inline-block;
+  color: var(--soft);
+  font-size: 11.5px;
+  font-weight: 650;
+  line-height: 1.4;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+
+/* Keyboard focus: quiet underlines and neutral fills, never a frame or halo. */
+:where(:focus-visible):not([tabindex="-1"]) { outline: none; box-shadow: none; }
+:is(a, button, summary):focus-visible { text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 1px; }
 main[tabindex="-1"]:focus { outline: none; box-shadow: none; }
 @media (forced-colors: active) { :focus-visible { outline: 2px solid Highlight; outline-offset: 3px; box-shadow: none; } }
 
 .skip-link {
   z-index: 100;
-  color: var(--text);
-  border-radius: 8px;
   position: fixed;
   top: 10px;
   left: 10px;
+  padding: 8px 12px;
+  color: var(--text);
+  background: var(--bg-raised);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-raised);
   transform: translateY(-160%);
 }
 .skip-link:focus { transform: translateY(0); }

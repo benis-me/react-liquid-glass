@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import type { Locale } from "../i18n";
 import { Link } from "./router";
@@ -19,13 +18,16 @@ export const docsPages = [{ id: "installation", en: "Introduction", zh: "开始�
 export function DocsPagination({ id, locale }: { id: string; locale: Locale }) {
   const zh = locale === "zh", index = docsPages.findIndex(page => page.id === id);
   const previous = docsPages[index - 1], next = docsPages[index + 1];
-  const link = (page: (typeof docsPages)[number], icon: ReactNode, after: boolean) => (
-    <Link href={`/docs/${page.id}`}>{after ? null : icon}{zh ? page.zh : page.en}{after ? icon : null}</Link>
+  const link = (page: (typeof docsPages)[number], after: boolean) => (
+    <Link href={`/docs/${page.id}`} rel={after ? "next" : "prev"}>
+      <small>{after ? (zh ? "下一页" : "Next") : (zh ? "上一页" : "Previous")}</small>
+      <span>{after ? null : <ArrowLeft size={16} aria-hidden="true" />}{zh ? page.zh : page.en}{after ? <ArrowRight size={16} aria-hidden="true" /> : null}</span>
+    </Link>
   );
   return (
     <nav className="doc-pagination" aria-label={zh ? "文档翻页" : "Documentation pages"}>
-      {previous ? link(previous, <ArrowLeft size={14} />, false) : <span />}
-      {next ? link(next, <ArrowRight size={14} />, true) : <span />}
+      {previous ? link(previous, false) : <span />}
+      {next ? link(next, true) : null}
     </nav>
   );
 }
