@@ -23,11 +23,12 @@
   color: var(--text); background: transparent; border: 0; border-radius: 10px;
   transition: transform 100ms var(--ease-out);
 }
-.icon-button:hover, .locale-button:hover, .plain-button:hover { background: var(--surface-hover); }
+.icon-button:hover, .locale-button:hover, .plain-button:hover { background: var(--fill-hover); }
 .icon-button:active, .locale-button:active, .plain-button:active { transform: scale(var(--press-scale)); }
-.header-tools :is(.icon-button, .locale-button):focus-visible { background: var(--surface-hover); }
+/* Icon-only buttons have no text to underline, so keyboard focus takes the hover fill. */
+:is(.icon-button, .locale-button, .plain-button):focus-visible { background: var(--fill-hover); }
 .locale-button { font-size: 12px; font-weight: 650; letter-spacing: .02em; }
-.header-tools .hdr-toggle[aria-pressed="true"] { background: var(--surface-hover); }
+.header-tools .hdr-toggle[aria-pressed="true"] { background: var(--fill-hover); }
 .header-tools .hdr-toggle[aria-pressed="false"] { color: var(--soft); }
 .header-tools .hdr-toggle:disabled { color: var(--soft); background: transparent; pointer-events: none; }
 .plain-button:disabled { color: var(--soft); background: transparent; transform: none; }
@@ -106,7 +107,7 @@
 .install-command code { font-size: inherit; color: var(--text); }
 .install-command code::before { content: "$ "; color: var(--soft); }
 .install-command .plain-button { width: 34px; min-width: 34px; height: 34px; padding: 0; color: var(--muted); border-radius: 8px; }
-.install-command .plain-button:hover { color: var(--text); background: var(--surface-strong); }
+.install-command .plain-button:is(:hover, :focus-visible) { color: var(--text); background: var(--surface-strong); }
 
 .page-heading { margin: 0 0 40px; max-width: 760px; }
 .page-heading .eyebrow { margin-bottom: 14px; }

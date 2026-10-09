@@ -150,7 +150,7 @@ html:is([data-theme="dark"], :where(.dark:not([data-theme]))) .dg-switch { --dg-
   position: relative;
   z-index: 1;
 }
-.dg-tabs__item:not([data-selected]):hover { background: rgba(18, 18, 22, .045); }
+.dg-tabs__item:not([data-selected]):hover { background: rgba(18, 18, 22, .035); }
 .dg-tabs > .dg-tabs__group > .dg-tabs__item[data-selected] {
   --dg-icon-color-1: var(--dg-icon-active-1) !important;
   --dg-icon-color-2: var(--dg-icon-active-2) !important;

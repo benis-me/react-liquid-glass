@@ -11,6 +11,8 @@
   --bg-raised: #ffffff;
   --surface: #f3f3f1;
   --surface-hover: #ededeb;
+  /* Translucent, so icon buttons read the same on the page, raised panels and code blocks. */
+  --fill-hover: rgb(0 0 0 / .055);
   --surface-strong: #e6e6e4;
   --text: #141414;
   --muted: #4d4d4d;
@@ -78,6 +80,7 @@
   --bg-raised: #191919;
   --surface: #202020;
   --surface-hover: #1e1e1e;
+  --fill-hover: rgb(255 255 255 / .07);
   --surface-strong: #2b2b2b;
   --text: #f2f2f0;
   --muted: #b1b1b1;
