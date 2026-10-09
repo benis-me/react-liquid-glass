@@ -60,7 +60,8 @@ export function Sequencer({ locale }: PageProps) {
     setPattern(current => current.map((value, index) => index === column ? value ^ (1 << row) : value));
   }, []);
   const audio = useRef<AudioContext | null>(null),
-    voices = useRef(new Set<OscillatorNode>()),
+    voices = useRef(new Set<AudioScheduledSourceNode>()),
+    noise = useRef<AudioBuffer | null>(null),
     values = useRef({ pattern, bpm, volume, wave });
   values.current = { pattern, bpm, volume, wave };
   useEffect(() => {
@@ -69,6 +70,51 @@ export function Sequencer({ locale }: PageProps) {
     let nextTime = context.currentTime + 0.06,
       index = 0;
     const visualTimers = new Set<number>();
+    // Every source releases its chain once it ends, so long sessions never accumulate nodes.
+    const play = (source: AudioScheduledSourceNode, chain: AudioNode[], start: number, stop: number) => {
+      source.start(start);
+      source.stop(stop);
+      voices.current.add(source);
+      source.onended = () => {
+        source.disconnect();
+        chain.forEach((node) => node.disconnect());
+        voices.current.delete(source);
+      };
+    };
+    const tone = (frequency: number, type: OscillatorType, gain: number, start: number, decay: number, detune = 0) => {
+      const oscillator = context.createOscillator(), amp = context.createGain();
+      oscillator.type = type;
+      oscillator.frequency.value = frequency;
+      oscillator.detune.value = detune;
+      amp.gain.setValueAtTime(0, start);
+      amp.gain.linearRampToValueAtTime(gain, start + 0.004);
+      amp.gain.exponentialRampToValueAtTime(0.0001, start + decay);
+      oscillator.connect(amp).connect(context.destination);
+      play(oscillator, [amp], start, start + decay + 0.05);
+    };
+    // A glass key is one cue built from short layers, each quieter than the last:
+    // the body, a slightly detuned copy for width, a bell partial and a filtered tap.
+    const strike = (frequency: number, shape: OscillatorType, level: number, start: number) => {
+      const gain = (level / 100) * 0.11;
+      tone(frequency, shape, gain, start, 0.42);
+      tone(frequency, shape === "sine" ? "triangle" : "sine", gain * 0.45, start + 0.02, 0.38, 7);
+      tone(frequency * 4.01, "sine", gain * 0.12, start, 0.12);
+      noise.current ??= (() => {
+        const buffer = context.createBuffer(1, Math.ceil(context.sampleRate * 0.03), context.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+        return buffer;
+      })();
+      const tap = context.createBufferSource(), band = context.createBiquadFilter(), amp = context.createGain();
+      tap.buffer = noise.current;
+      band.type = "bandpass";
+      band.frequency.value = 2600;
+      band.Q.value = 1.4;
+      amp.gain.setValueAtTime(gain * 0.35, start);
+      amp.gain.exponentialRampToValueAtTime(0.0001, start + 0.018);
+      tap.connect(band).connect(amp).connect(context.destination);
+      play(tap, [band, amp], start, start + 0.03);
+    };
     const schedule = () => {
       while (nextTime < context.currentTime + 0.12) {
         const {
@@ -79,28 +125,7 @@ export function Sequencer({ locale }: PageProps) {
         } = values.current;
         const activeStep = index;
         for (let note = 0; note < pitches.length; note++)
-          if (notes[index] & (1 << note)) {
-            const oscillator = context.createOscillator(),
-              gain = context.createGain();
-            oscillator.type = shape;
-            oscillator.frequency.value = pitches[note];
-            gain.gain.setValueAtTime(0, nextTime);
-            gain.gain.linearRampToValueAtTime(
-              (level / 100) * 0.13,
-              nextTime + 0.012,
-            );
-            gain.gain.exponentialRampToValueAtTime(0.0001, nextTime + 0.35);
-            oscillator.connect(gain);
-            gain.connect(context.destination);
-            oscillator.start(nextTime);
-            oscillator.stop(nextTime + 0.4);
-            voices.current.add(oscillator);
-            oscillator.onended = () => {
-              oscillator.disconnect();
-              gain.disconnect();
-              voices.current.delete(oscillator);
-            };
-          }
+          if (notes[index] & (1 << note)) strike(pitches[note], shape, level, nextTime);
         const timer = window.setTimeout(
           () => {
             step.set(activeStep);

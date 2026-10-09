@@ -266,7 +266,9 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
   let reflection = smoothstep(edgeWidth * 0.45, edgeWidth * 0.85, inside) * (1.0 - smoothstep(edgeWidth * 0.85, edgeWidth * 2.0, inside));
   let reflectionLight = smoothstep(0.75, 0.98, edgeLight);
   let edgeGain = max(p.edge.x * p.refraction.w, 0.0);
-  let contourStrength = min(0.85, edgeGain * 3.2) * mix(0.85, 0.24, edgeLight);
+  // The dark contour defines the body, so it follows edge strength alone: the lower SDR
+  // highlight an HDR display uses must not thin the edge.
+  let contourStrength = min(0.85, max(p.edge.x, 0.0) * 3.2) * mix(0.85, 0.24, edgeLight);
   let rimLight = reflection * reflectionLight * edgeGain;
   let brightnessAmount = clamp(abs(p.frost.w), 0.0, 1.0);
   var ink = vec4f(0.0);
@@ -286,8 +288,11 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
   let luminance = dot(refracted, vec3f(0.299, 0.587, 0.114));
   let shine = specular * p.refraction.w * (127.0 / 255.0);
   refracted = mix(refracted + vec3f(shine), refracted * (1.0 - shine), smoothstep(0.3, 0.7, luminance));
-  refracted *= 1.0 - contour * contourStrength;
-  refracted += vec3f(rimLight * 0.22);
+  // A dark hairline vanishes on dark content. Like the highlight above, the same contour
+  // lightens dark substrates and darkens bright ones, so the edge reads in both themes.
+  let contourAmount = contour * contourStrength;
+  refracted = mix(refracted + vec3f(contourAmount * 0.18), refracted * (1.0 - contourAmount), smoothstep(0.2, 0.5, luminance));
+  refracted += vec3f(rimLight * 0.3);
   let brightnessTarget = select(vec3f(0.0), vec3f(1.0), p.frost.w >= 0.0);
   refracted = mix(refracted, brightnessTarget, brightnessAmount);
   refracted = mix(refracted, p.tint.xyz, clamp(p.edge.w, 0.0, 1.0));
@@ -302,9 +307,15 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
   let c = clamp(shade(v.uv, v.position.xy, false), vec4f(0.0), vec4f(1.0));
   return vec4f(c.rgb * c.a, c.a);
 }
+// Extra light above SDR white: red is contact, green is the static rim. Both share one
+// soft cap, so a press lands near 1.5x SDR white and overlapping light never stacks
+// into a glare. Keep in step with highlight-hdr.ts.
+fn hdrLight(light: vec2f) -> vec4f {
+  let lift = 0.85 * tanh((light.r * 0.7 + light.g * 0.85) / 0.85);
+  return vec4f(vec3f(lift), light.r * 0.1 + light.g * 0.03);
+}
 @fragment fn highlight(v: Vertex) -> @location(0) vec4f {
   // Match the existing 8-bit mask calibration, directly on the same device.
   let light = floor(clamp(shade(v.uv, v.position.xy, true).rg, vec2f(0.0), vec2f(1.0)) * 255.0 + 0.5) / 255.0;
-  let edge = light.g * 0.26;
-  return vec4f(vec3f(light.r * 2.4 + edge * 4.0), light.r * 0.35 + edge * 0.12);
+  return hdrLight(light);
 }

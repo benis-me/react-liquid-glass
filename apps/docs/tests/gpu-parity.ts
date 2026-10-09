@@ -38,6 +38,8 @@ function drawPixels(renderer: { draw(p: LiquidGlassFrame): boolean }, canvas: HT
     renderer.draw(p);
   });
 }
+// Open-source Chromium builds cannot decode H.264; the site ships the same clip as VP9 WebM.
+const fixtureVideo=()=>document.createElement('video').canPlayType('video/mp4; codecs="avc1.42E01E"')?'/assets/flowers.mp4':'/assets/flowers.webm';
 async function setup() {
   const glCanvas=document.querySelector<HTMLCanvasElement>('#gl')!,gpuCanvas=document.querySelector<HTMLCanvasElement>('#gpu')!;
   let failure: Error | undefined;
@@ -53,7 +55,7 @@ document.querySelector('#run')!.addEventListener('click', async()=> {
     const base: LiquidGlassFrame={source:source(),width:320,height:240,blobs:[{x:.46,y:.43,radius:29,halfWidth:85,halfHeight:70}],hdr:false};
     const cases: [string,Partial<LiquidGlassFrame>][]=[['clear',{blurStrength:0}],['fine',{blurStrength:.2}],['fine endpoint',{blurStrength:.5}],['frost blend',{blurStrength:.62}],['menu frost',{blurStrength:1.6}],['broad frost',{blurStrength:4}],['deep frost',{blurStrength:12}],['angle',{specularRotation:37}],['opaque rest',{tintStrength:1}],['transparent',{transparentOutside:true}],['partial opacity',{transparentOutside:true,opacity:.43}],['debug',{debug:true}],['foreground',{content:ink(),contentOpacity:.7,contentBlur:1.8,contentRefraction:.8}],['source ink',{content:sourceInk(),contentOpacity:1,contentSpace:'source',blurStrength:1.6}],['source ink bevel',{content:sourceInk(),contentOpacity:.8,contentSpace:'source',blurStrength:4,refractionModel:'bevel'}],['fusion',{blobs:[{x:.45,y:.44,radius:26,halfWidth:69,halfHeight:57},{x:.69,y:.72,radius:31}],mergeDistance:38}],['contact',{blobs:[{x:.42,y:.53,radius:24,halfWidth:62,halfHeight:83,contactStrength:.8,contactX:.55,contactY:-.4,pullX:16,pullY:-12,velocityX:550,velocityY:-140}],specularRotation:123}]];
     const picture=new Image();picture.src=(base.source as HTMLCanvasElement).toDataURL();await picture.decode();
-    const video=document.createElement('video');video.muted=true;video.preload='auto';video.src='/assets/flowers.mp4';
+    const video=document.createElement('video');video.muted=true;video.preload='auto';video.src=fixtureVideo();
     await new Promise<void>((resolve,reject)=>{video.onloadeddata=()=>resolve();video.onerror=()=>reject(new Error('Video fixture failed to load'));video.load()});
     video.currentTime=3;await new Promise<void>(resolve=>video.onseeked=()=>resolve());
     cases.push(['background only',{blobs:[]}],['image source',{source:picture,blurStrength:1.6}],['paused video',{source:video,blurStrength:.5}]);
@@ -245,14 +247,15 @@ async function checkHDRPipeline(backend: 'webgpu' | 'webgl2') {
     const image=source(),p:LiquidGlassFrame={...baseFrame(image),hdr:true,tintStrength:0,blobs:[{x:.5,y:.5,radius:24,contactStrength:1,contactX:0,contactY:0}]};
     renderer=createLiquidGlassRenderer(newCanvas(host),{backend});await renderer.ready;
     capture=true;renderer.draw(p);await until(()=>readbacks.length>0,'HDR surface did not render');const values=await readbacks[0];
-    const peak=values.reduce((max,n,i)=>i%4===3?max:Math.max(max,n),0);assert(peak>1,'HDR did not preserve above-white values');
+    // Composite over SDR white (lift + base * (1 - alpha)): above white, but under the soft cap.
+    const peak=values.reduce((max,n,i)=>i%4===3?max:Math.max(max,n+1-values[i-i%4+3]),0);assert(peak>1&&peak<1.6,`HDR light over white left the soft-capped range (${peak})`);
     const emissions=renderer.stats.emissionDraws;renderer.draw({...p,sourceRevision:2});await nextPaint();assert(renderer.stats.emissionDraws===emissions,'Background-only changes redrew HDR');
     const cover=document.createElement('canvas');cover.width=64;cover.height=64;cover.getContext('2d')!.fillRect(0,0,64,64);
     capture=true;renderer.draw({...p,sourceRevision:2,content:cover,contentOpacity:1});await until(()=>readbacks.length>1,'Foreground did not refresh HDR');
     const covered=await readbacks[1],w=renderer.canvas.width,h=renderer.canvas.height,center=(Math.floor(h/2)*w+Math.floor(w/2))*4;
     assert(covered[center]===0&&covered[center+3]===0,'Opaque foreground did not occlude HDR');
     renderer.draw({...p,hdr:false});await nextPaint();assert(host.querySelector<HTMLCanvasElement>('[data-dg-highlight-hdr]')?.style.opacity==='0','HDR disable did not hide its presentation');
-    return {backend,floatingPointPeak:peak,sourceChangeRetainsLight:true,foregroundOcclusion:true,disable:true,physicalDisplayHDR:match.call(window,'(dynamic-range: high)').matches};
+    return {backend,compositePeakOverWhite:+peak.toFixed(3),sourceChangeRetainsLight:true,foregroundOcclusion:true,disable:true,physicalDisplayHDR:match.call(window,'(dynamic-range: high)').matches};
   }finally{stop();renderer?.dispose();host.remove();window.matchMedia=match;GPUCanvasContext.prototype.configure=configure}
 }
 document.querySelector('#hdr')!.addEventListener('click',()=>report(()=>checkHDRPipeline('webgpu')));
@@ -264,7 +267,7 @@ document.querySelector('#switching')!.addEventListener('click', () => report(asy
   const host = fixture(), root = createRoot(host), image = source();
   host.style.width = '420px';
   const sourceRef = { current: image };
-  function Fixture({ backend, shared = false, videoSrc = '/assets/flowers.mp4' }: { backend: GlassRendererBackend; shared?: boolean; videoSrc?: string }) {
+  function Fixture({ backend, shared = false, videoSrc = fixtureVideo() }: { backend: GlassRendererBackend; shared?: boolean; videoSrc?: string }) {
     const [checked, setChecked] = useState(false);
     return h(LiquidGlassProvider, { backend, material: { hdr: false }, children: h('div', null,
       h(GlassSwitch, { checked, onCheckedChange: setChecked, ariaLabel: 'Backend switch' }),
@@ -285,7 +288,7 @@ document.querySelector('#switching')!.addEventListener('click', () => report(asy
     old.getContext('webgpu')!.getConfiguration()!.device.destroy();
     await ready('webgl2');
     root.render(h(Fixture, { backend: 'webgl2' })); await ready('webgl2');
-    root.render(h(Fixture, { backend: 'webgl2', videoSrc: '/assets/flowers.mp4?source-change' })); await ready('webgl2');
+    root.render(h(Fixture, { backend: 'webgl2', videoSrc: fixtureVideo() + '?source-change' })); await ready('webgl2');
     root.render(h(Fixture, { backend: 'webgpu' })); await ready('webgpu');
     assert(host.querySelector<HTMLInputElement>('input[role="switch"]')!.checked, 'Switch state changed during backend recovery');
     root.render(h(Fixture, { backend: 'webgl2' })); await ready('webgl2');

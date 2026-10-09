@@ -339,8 +339,10 @@ export async function checkShowcasePerformance() {
     const x=handles[0].getBoundingClientRect().x;handles[0].dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}));
     await until(()=>handles[0].getBoundingClientRect().x>x+3,'Keyboard body movement failed');
     await wait(1400);const idle=orbitFrames;await wait(150);assert(orbitFrames===idle,'Settled Orbit still renders');
-    click('input[aria-label="Orbit motion"]');await until(()=>orbitFrames>idle+8,'Orbit animation did not start');
-    click('input[aria-label="Orbit motion"]');
+    // The switch is named by its visible label, so reach it through that association.
+    const orbitSwitch='#'+CSS.escape(document.querySelector('.orbit-toolbar label[for]').htmlFor);
+    click(orbitSwitch);await until(()=>orbitFrames>idle+8,'Orbit animation did not start');
+    click(orbitSwitch);
     assert(document.documentElement.scrollWidth<=document.documentElement.clientWidth+1,'Showcase overflows the viewport');
     return {notes,playheadColumns:columns.size,steadyKeyFrames:0,orbit:'gather, scatter, keyboard, idle and orbit passed'};
   }finally{stop();AudioContext.prototype.createOscillator=create;await go('/showcase')}
@@ -858,9 +860,10 @@ export async function checkContactHDR() {
     try {
       const commands = device.createCommandEncoder(); commands.copyTextureToBuffer({texture:context.getCurrentTexture()},{buffer,bytesPerRow},[240,140]); device.queue.submit([commands.finish()]);
       await buffer.mapAsync(GPUMapMode.READ);
+      // Composite over SDR white (lift + white * (1 - alpha)): above white, but under the soft cap.
       const values = new Float16Array(buffer.getMappedRange()); let peak = 0;
-      for(let y=0;y<140;y++) for(let x=0;x<240;x++) peak=Math.max(peak,values[y*bytesPerRow/2+x*4]);
-      assert(peak > 1, `HDR contact never exceeded SDR white (peak ${peak})`);
+      for(let y=0;y<140;y++) for(let x=0;x<240;x++) { const offset=y*bytesPerRow/2+x*4; peak=Math.max(peak,values[offset]+1-values[offset+3]); }
+      assert(peak > 1 && peak < 1.6, `HDR contact left the soft-capped range above SDR white (peak ${peak})`);
       assert(configuration.toneMapping.mode === 'extended', 'HDR output was tone mapped to SDR');
       assert(renderer.stats.emissionDraws === 1 && renderer.stats.sourceUploads === 1, 'HDR duplicated source capture or material work');
       buffer.unmap();
@@ -893,8 +896,9 @@ export async function checkContactHDR() {
       assert(rim[70*bytesPerRow/2+120*4] === 0, 'HDR washed over the clear center');
       assert(rim[70*bytesPerRow/2+41*4] === 0, 'HDR reflection leaked down a straight sidewall');
       buffer.unmap();
-      // Pin the independent channel gains: green is rim, red is contact.
-      for (const [color, gain, alpha] of [['#0f0', 4*.26, .12*.26], ['#f00', 2.4, .35]]) {
+      // Pin the channel gains under their shared soft cap: green is rim, red is contact.
+      // A full press stays near 1.5x SDR white instead of the former 3x glare.
+      for (const [color, gain, alpha] of [['#0f0', .85*Math.tanh(1), .03], ['#f00', .85*Math.tanh(.7/.85), .1]]) {
         ctx.fillStyle=color;ctx.fillRect(0,0,240,140);hdr.draw(source);
         const copy=device.createCommandEncoder();copy.copyTextureToBuffer({texture:context.getCurrentTexture()},{buffer,bytesPerRow},[240,140]);device.queue.submit([copy.finish()]);
         await buffer.mapAsync(GPUMapMode.READ);

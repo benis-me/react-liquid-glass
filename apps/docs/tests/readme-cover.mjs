@@ -41,6 +41,9 @@ try {
   // Open the Morph Menu through its real trigger and let the morph settle.
   await evaluate(`document.querySelector(".cover-menu .dg-liquid-menu__trigger").click()`);
   await sleep(1500);
+  // A scripted click is not a pointer press, so the focus the menu moves inside would show as keyboard focus.
+  await evaluate(`document.activeElement?.blur()`);
+  await sleep(300);
   const cover = await send("Page.captureScreenshot", { format: "png" });
   const og = await send("Page.captureScreenshot", { format: "jpeg", quality: 90, clip: { x: 0, y: 0, width: 1200, height: 630, scale: 0.5 } });
   writeFileSync(join(repo, ".github/assets/readme-hero.png"), Buffer.from(cover.data, "base64"));

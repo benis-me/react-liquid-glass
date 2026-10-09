@@ -357,7 +357,9 @@ void main() {
   // Confine the fine reflection to the upper/lower arcs, not the sidewalls.
   float reflectionLight = smoothstep(.75, .98, edgeLight);
   float edgeGain = max(uEdgeStrength * uSpecular, 0.);
-  float contourStrength = min(.85, edgeGain * 3.2) * mix(.85, .24, edgeLight);
+  // The dark contour defines the body, so it follows edge strength alone: the lower SDR
+  // highlight an HDR display uses must not thin the edge.
+  float contourStrength = min(.85, max(uEdgeStrength, 0.) * 3.2) * mix(.85, .24, edgeLight);
   float rimLight = reflection * reflectionLight * edgeGain;
   float brightnessAmount = clamp(abs(uBrightness), 0., 1.);
   vec4 ink = vec4(0.);
@@ -382,8 +384,11 @@ void main() {
   float luminance = dot(refracted, vec3(.299, .587, .114));
   float shine = specular * uSpecular * (127. / 255.);
   refracted = mix(refracted + vec3(shine), refracted * (1. - shine), smoothstep(.3, .7, luminance));
-  refracted *= 1. - contour * contourStrength;
-  refracted += vec3(rimLight * .22);
+  // A dark hairline vanishes on dark content. Like the highlight above, the same contour
+  // lightens dark substrates and darkens bright ones, so the edge reads in both themes.
+  float contourAmount = contour * contourStrength;
+  refracted = mix(refracted + vec3(contourAmount * .18), refracted * (1. - contourAmount), smoothstep(.2, .5, luminance));
+  refracted += vec3(rimLight * .3);
   vec3 brightnessTarget = uBrightness >= 0. ? vec3(1.) : vec3(0.);
   refracted = mix(refracted, brightnessTarget, brightnessAmount);
   refracted = mix(refracted, uTintColor, clamp(uTint, 0., 1.));

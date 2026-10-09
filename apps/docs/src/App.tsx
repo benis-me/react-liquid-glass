@@ -1,45 +1,25 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import {
-  ArrowLeft,
-  ArrowUpRight,
-  Menu,
-  Moon,
-  Sun,
-} from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Menu, Moon, Sun } from "lucide-react";
 import { GlassTabs, GlassSheet, ScrollArea } from "rglass/controls";
 import { LiquidGlassProvider, type GlassMaterial, type GlassRendererBackend } from "rglass/liquid-glass";
 import { sanitizeMaterial } from "./site/material";
 import { catalog, groups, groupZh, componentAliases, type ComponentId } from "./site/catalog";
-import {
-  Catalog,
-  ComponentPage,
-  Home,
-  Installation,
-  PageHeading,
-  scenes,
-  ShowcaseCards,
-} from "./site/Pages";
+import { Catalog, ComponentPage, Home, Installation, scenes, ShowcaseCards } from "./site/Pages";
+import { IconSwap, PageHeading } from "./site/ui";
 import { docsPages, guideList, DocsPagination } from "./site/docs-index";
-const Playground = lazy(() =>
-  import("./site/Playground").then((module) => ({ default: module.Playground })),
-);
-const GuidePage = lazy(() =>
-  import("./site/Guides").then((module) => ({ default: module.GuidePage })),
-);
 import { Link, navigate, usePath, useScrollRestoration } from "./site/router";
 import type { Locale } from "./i18n";
 import { loadChineseFont } from "./fonts";
-const Focus = lazy(() =>
-  import("./showcases/Focus").then((module) => ({ default: module.Focus })),
-);
-const Sequencer = lazy(() =>
-  import("./showcases/Sequencer").then((module) => ({
-    default: module.Sequencer,
-  })),
-);
-const Orbit = lazy(() =>
-  import("./showcases/Orbit").then((module) => ({ default: module.Orbit })),
-);
+import docsPackage from "../package.json";
+const Playground = lazy(() => import("./site/Playground").then(module => ({ default: module.Playground })));
+const GuidePage = lazy(() => import("./site/Guides").then(module => ({ default: module.GuidePage })));
+const Focus = lazy(() => import("./showcases/Focus").then(module => ({ default: module.Focus })));
+const Sequencer = lazy(() => import("./showcases/Sequencer").then(module => ({ default: module.Sequencer })));
+const Orbit = lazy(() => import("./showcases/Orbit").then(module => ({ default: module.Orbit })));
+
+const REPOSITORY = "https://github.com/benis-me/react-liquid-glass";
+const LIBRARY_VERSION = docsPackage.dependencies.rglass;
+
 function saved(key: string) {
   try {
     return localStorage.getItem(key);
@@ -55,6 +35,20 @@ const subscribeScheme = (notify: () => void) => {
   return () => query.removeEventListener("change", notify);
 };
 const systemDark = () => matchMedia(DARK_SCHEME).matches;
+
+/** A lens over a half-filled disc: the mark reads at 16px and stays one color. */
+function Wordmark({ zh, className = "" }: { zh: boolean; className?: string }) {
+  return (
+    <Link className={`wordmark ${className}`} href="/" aria-label={zh ? "React Liquid Glass 首页" : "React Liquid Glass home"}>
+      <svg className="wordmark-mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.75" />
+        <path d="M3 12a9 9 0 0 0 18 0Z" fill="currentColor" transform="rotate(-35 12 12)" />
+      </svg>
+      <span>liquid glass<span className="wordmark-react"> / react</span></span>
+    </Link>
+  );
+}
+
 export function App({ backend }: { backend?: GlassRendererBackend } = {}) {
   const requestedPath = usePath();
   const path = requestedPath.replace(/^\/components\/([^/]+)$/, (_, id: string) => `/components/${componentAliases[id] ?? id}`);
@@ -68,9 +62,7 @@ export function App({ backend }: { backend?: GlassRendererBackend } = {}) {
   });
   const prefersDark = useSyncExternalStore(subscribeScheme, systemDark, () => false);
   const theme = themeChoice ?? (prefersDark ? "dark" : "light");
-  const [locale, setLocale] = useState<Locale>(() =>
-    saved("glass-locale") === "zh" ? "zh" : "en",
-  );
+  const [locale, setLocale] = useState<Locale>(() => saved("glass-locale") === "zh" ? "zh" : "en");
   const [mobileOpen, setMobileOpen] = useState(false);
   // A shared link applies to this visit only; the saved material changes once the user edits it.
   const linkedMaterial = useRef<GlassMaterial | null>(null);
@@ -142,20 +134,12 @@ export function App({ backend }: { backend?: GlassRendererBackend } = {}) {
   }, [theme]);
   useEffect(() => {
     if (!themeChoice) return;
-    try {
-      localStorage.setItem("glass-theme", themeChoice);
-    } catch {
-      /* Theme still applies without persistence. */
-    }
+    try { localStorage.setItem("glass-theme", themeChoice); } catch { /* Theme still applies without persistence. */ }
   }, [themeChoice]);
   useEffect(() => {
     if (zh) void loadChineseFont();
     document.documentElement.lang = zh ? "zh-CN" : "en";
-    try {
-      localStorage.setItem("glass-locale", locale);
-    } catch {
-      /* Locale still applies without persistence. */
-    }
+    try { localStorage.setItem("glass-locale", locale); } catch { /* Locale still applies without persistence. */ }
   }, [locale, zh]);
   useEffect(() => {
     if (previousPath.current !== path) {
@@ -165,9 +149,7 @@ export function App({ backend }: { backend?: GlassRendererBackend } = {}) {
     }
   }, [path]);
   useEffect(() => {
-    const close = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMobileOpen(false);
-    };
+    const close = (event: KeyboardEvent) => { if (event.key === "Escape") setMobileOpen(false); };
     window.addEventListener("keydown", close);
     return () => window.removeEventListener("keydown", close);
   }, []);
@@ -178,56 +160,37 @@ export function App({ backend }: { backend?: GlassRendererBackend } = {}) {
     { href: "/docs/installation", en: "Docs", zh: "文档" },
   ], []);
   const navigationItems = useMemo(() => nav.map(item => ({ value: item.href, href: item.href, label: zh ? item.zh : item.en })), [nav, zh]);
+  const current = (href: string) => path === href ? "page" as const : undefined;
   const sidebar = (
     <>
-      <div className="sidebar-intro">
-        <Link
-          aria-current={path === "/docs/installation" ? "page" : undefined}
-          href="/docs/installation"
-        >
-          {zh ? "开始使用" : "Introduction"}
-        </Link>
-        <Link
-          aria-current={path === "/playground" ? "page" : undefined}
-          href="/playground"
-        >
-          Playground
-        </Link>
-        <Link
-          aria-current={path === "/showcase" ? "page" : undefined}
-          href="/showcase"
-        >
-          {zh ? "应用展示" : "Showcase"}
-        </Link>
+      <div className="sidebar-group">
+        <h2>{zh ? "开始" : "Start here"}</h2>
+        <div className="sidebar-links">
+          <Link aria-current={current("/docs/installation")} href="/docs/installation">{zh ? "开始使用" : "Introduction"}</Link>
+          <Link aria-current={current("/playground")} href="/playground">Playground</Link>
+          <Link aria-current={current("/showcase")} href="/showcase">{zh ? "应用展示" : "Showcase"}</Link>
+        </div>
       </div>
       <div className="sidebar-group">
         <h2>{zh ? "指南" : "Guides"}</h2>
         <div className="sidebar-links">
           {guideList.map(guide => (
-            <Link key={guide.id} aria-current={path === `/docs/${guide.id}` ? "page" : undefined} href={`/docs/${guide.id}`}>
-              {zh ? guide.zh : guide.en}
-            </Link>
+            <Link key={guide.id} aria-current={current(`/docs/${guide.id}`)} href={`/docs/${guide.id}`}>{zh ? guide.zh : guide.en}</Link>
           ))}
         </div>
       </div>
-      {groups.map((group) => {
+      {groups.map(group => {
         const items = catalog.filter(item => item.group === group);
         return items.length ? (
           <div className="sidebar-group" key={group}>
             <h2>{zh ? groupZh[group] : group}</h2>
             <div className="sidebar-links">
-            {items.map((item) => (
-              <Link
-                key={item.id}
-                aria-current={
-                  path === `/components/${item.id}` ? "page" : undefined
-                }
-                href={`/components/${item.id}`}
-              >
-                {item.name}
-                {zh && <span>{item.zh}</span>}
-              </Link>
-            ))}
+              {items.map(item => (
+                <Link key={item.id} aria-current={current(`/components/${item.id}`)} href={`/components/${item.id}`}>
+                  {item.name}
+                  {zh && <span>{item.zh}</span>}
+                </Link>
+              ))}
             </div>
           </div>
         ) : null;
@@ -237,11 +200,7 @@ export function App({ backend }: { backend?: GlassRendererBackend } = {}) {
   let page;
   if (isHome) page = <Home {...pageProps} />;
   else if (path === "/components") page = <Catalog {...pageProps} material={material} setMaterial={setMaterial} />;
-  else if (
-    path.startsWith("/components/") &&
-    catalog.some((item) => item.id === componentId) &&
-    path === `/components/${componentId}`
-  )
+  else if (path.startsWith("/components/") && catalog.some(item => item.id === componentId) && path === `/components/${componentId}`)
     page = <ComponentPage key={componentId} id={componentId} {...pageProps} />;
   else if (path === "/playground") page = <Playground {...pageProps} material={material} setMaterial={setMaterial} />;
   else if (path === "/docs/installation")
@@ -252,55 +211,32 @@ export function App({ backend }: { backend?: GlassRendererBackend } = {}) {
     page = (
       <>
         <PageHeading
-          kicker="Showcase"
+          kicker={zh ? "小小的实验" : "Small experiments"}
           title={zh ? "应用展示" : "Showcase"}
-          description={
-            zh
-              ? "用玻璃组件搭建的小应用。"
-              : "Small apps built with glass components."
-          }
+          description={zh ? "用玻璃组件搭建的小应用。" : "Small apps built with glass components."}
         />
         <ShowcaseCards locale={locale} headingLevel={2} />
       </>
     );
-  else if (
-    path.startsWith("/showcase/") &&
-    scenes.some((scene) => path === `/showcase/${scene.id}`)
-  ) {
-    const scene = scenes.find((scene) => path === `/showcase/${scene.id}`)!;
+  else if (path.startsWith("/showcase/") && scenes.some(scene => path === `/showcase/${scene.id}`)) {
+    const scene = scenes.find(scene => path === `/showcase/${scene.id}`)!;
     page = (
       <>
         <Link className="text-link back-link" href="/showcase">
-          <ArrowLeft size={14} />
+          <ArrowLeft aria-hidden="true" />
           {zh ? "所有展示" : "All experiments"}
         </Link>
         <PageHeading
-          kicker={`Experiment ${scene.number}`}
+          kicker={`${zh ? "实验" : "Experiment"} ${scene.number}`}
           title={zh ? scene.zh : scene.name}
           description={zh ? scene.summary : scene.description}
         />
-        <Suspense
-          fallback={
-            <div className="scene-loading" role="status">
-              {zh ? "正在准备玻璃…" : "Preparing the glass…"}
-            </div>
-          }
-        >
-          {scene.id === "focus" ? (
-            <Focus {...pageProps} />
-          ) : scene.id === "sequencer" ? (
-            <Sequencer {...pageProps} />
-          ) : (
-            <Orbit {...pageProps} />
-          )}
+        <Suspense fallback={<div className="scene-loading" role="status">{zh ? "正在准备玻璃…" : "Preparing the glass…"}</div>}>
+          {scene.id === "focus" ? <Focus {...pageProps} /> : scene.id === "sequencer" ? <Sequencer {...pageProps} /> : <Orbit {...pageProps} />}
         </Suspense>
         <div className="scene-credits">
-          <span>
-            {zh ? "使用本项目核心构建" : "Built with the project’s own cores"}
-          </span>
-          <Link href="/docs/installation">
-            liquid-glass + apple-motion <ArrowUpRight size={12} />
-          </Link>
+          <span>{zh ? "使用本项目核心构建" : "Built with the project’s own cores"}</span>
+          <Link href="/docs/installation">liquid-glass + apple-motion <ArrowUpRight size={13} aria-hidden="true" /></Link>
         </div>
       </>
     );
@@ -310,9 +246,7 @@ export function App({ backend }: { backend?: GlassRendererBackend } = {}) {
         <span className="eyebrow">404</span>
         <h1>{zh ? "页面不存在" : "Page not found"}</h1>
         <p>{zh ? "这里还没有玻璃。" : "Nothing through this lens."}</p>
-        <Link className="link-button" href="/components">
-          {zh ? "返回组件库" : "Back to components"}
-        </Link>
+        <Link className="button" href="/components">{zh ? "返回组件库" : "Back to components"}</Link>
       </div>
     );
   const component = catalog.find(item => path === `/components/${item.id}`);
@@ -327,142 +261,122 @@ export function App({ backend }: { backend?: GlassRendererBackend } = {}) {
     : doc ? (zh ? doc.zh : doc.en)
     : (zh ? "未找到" : "Not found");
   useEffect(() => { document.title = title ? `${title} · React Liquid Glass` : "React Liquid Glass"; }, [title]);
+  const external = (href: string, label: string) => (
+    <a href={href} target="_blank" rel="noreferrer">{label}<ArrowUpRight size={13} aria-hidden="true" /></a>
+  );
   return (
     <LiquidGlassProvider material={displayMaterial} backend={backend}>
       <div className="site-shell">
-      <Link className="skip-link" href="#main-content">
-        {zh ? "跳到内容" : "Skip to content"}
-      </Link>
-      <header className="site-header">
-        <div className="header-inner">
-          <Link
-            className="wordmark"
-            href="/"
-            aria-label={
-              zh ? "React Liquid Glass 首页" : "React Liquid Glass home"
-            }
-          >
-            <span className="wordmark-symbol" aria-hidden="true">
-              ◒
-            </span>
-            <span>
-              liquid glass<span className="wordmark-react"> / react</span>
-            </span>
-          </Link>
-          <nav
-            className="top-nav"
-            aria-label={zh ? "主导航" : "Main navigation"}
-          >
-            <GlassTabs
-              label={zh ? "主导航" : "Main navigation"}
-              value={nav.find(item => path.startsWith(item.href.split("/installation")[0]))?.href ?? ""}
-              items={navigationItems}
-              onNavigate={navigate}
-            />
-          </nav>
-          <div className="header-tools">
-            <div className="display-settings" role="group" aria-label={zh ? "显示设置" : "Display settings"}>
-            <span className="hdr-control" title={hdrTitle}>
-            <button type="button" className="icon-button hdr-toggle" aria-label="HDR" aria-pressed={displayMaterial.hdr}
-              disabled={!hdrSupported} title={hdrTitle}
-              onClick={() => setHDR(current => !current)}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
-                <path d="M21,11.5V10.5C21,9.7 20.3,9 19.5,9H16V15H17.5V13H18.6L19.5,15H21L20.1,12.9C20.6,12.6 21,12.1 21,11.5M19.5,11.5H17.5V10.5H19.5V11.5M6.5,11H4.5V9H3V15H4.5V12.5H6.5V15H8V9H6.5V11M13,9H9.5V15H13C13.8,15 14.5,14.3 14.5,13.5V10.5C14.5,9.7 13.8,9 13,9M13,13.5H11V10.5H13V13.5Z" />
-              </svg>
-            </button>
-            </span>
-            <button type="button"
-              className="icon-button"
-              onClick={() => setThemeChoice(theme === "dark" ? "light" : "dark")}
-              aria-label={
-                theme === "dark"
-                  ? zh
-                    ? "切换到浅色"
-                    : "Switch to light mode"
-                  : zh
-                    ? "切换到深色"
-                    : "Switch to dark mode"
-              }
-            >
-              {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
-            </button>
-            <button type="button"
-              className="locale-button"
-              onClick={() => setLocale(zh ? "en" : "zh")}
-              aria-label={zh ? "Switch to English" : "切换到中文"}
-            >
-              {zh ? "中" : "EN"}
-            </button>
-            </div>
-            <Link
-              className="github-link"
-              href="https://github.com/benis-me/react-liquid-glass"
-              target="_blank"
-              rel="noreferrer"
-              aria-label="GitHub"
-            >
-              GitHub <ArrowUpRight size={12} />
-            </Link>
-            {/* A plain header button like its neighbours. The sheet morphs from the
-                focused opener, so focus it on press where browsers skip click focus. */}
-            <button type="button" className="icon-button mobile-menu-button" aria-label={zh ? "导航菜单" : "Navigation menu"}
-              aria-expanded={mobileOpen} aria-haspopup="dialog"
-              onPointerDown={event => event.currentTarget.focus({ preventScroll: true })}
-              onClick={() => setMobileOpen(true)}>
-              <Menu size={18} />
-            </button>
-            <GlassSheet
-              open={mobileOpen} onOpenChange={setMobileOpen}
-              title={zh ? "导航" : "Navigation"} closeLabel={zh ? "关闭导航" : "Close navigation"}
-            >
-              <nav id="mobile-navigation" className="mobile-navigation" aria-label={zh ? "移动导航" : "Mobile navigation"}>
-                <div className="mobile-top-links">
-                  {nav.map((item) => (
-                    <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)}>
-                      {zh ? item.zh : item.en}
-                    </Link>
-                  ))}
-                </div>
-                <div onClick={(event) => { if ((event.target as HTMLElement).closest("a")) setMobileOpen(false); }}>
-                  {sidebar}
-                </div>
-              </nav>
-            </GlassSheet>
-          </div>
-        </div>
-      </header>
-
-      <div className={isHome ? "site-container" : "site-container docs-layout"}>
-        {!isHome && (
-          <aside className="docs-sidebar">
-            <ScrollArea className="sidebar-scroll" contentClassName="sidebar-scroll__content" viewportProps={{ "aria-label": zh ? "组件导航" : "Component navigation" }}>
-            <nav aria-label={zh ? "组件导航" : "Component navigation"}>
-              {sidebar}
+        <Link className="skip-link" href="#main-content">{zh ? "跳到内容" : "Skip to content"}</Link>
+        <header className="site-header">
+          <div className="header-inner">
+            <Wordmark zh={zh} />
+            <nav className="top-nav" aria-label={zh ? "主导航" : "Main navigation"}>
+              <GlassTabs
+                label={zh ? "主导航" : "Main navigation"}
+                value={nav.find(item => path.startsWith(item.href.split("/installation")[0]))?.href ?? ""}
+                items={navigationItems}
+                onNavigate={navigate}
+              />
             </nav>
-            </ScrollArea>
-          </aside>
-        )}
-        <main
-          id="main-content"
-          ref={main}
-          tabIndex={-1}
-          className={isHome ? "home-main" : "docs-main"}
-        >
-          <Suspense fallback={<div className="page-loading" aria-busy="true" />}>{page}</Suspense>
-        </main>
-      </div>
-      <footer className="site-footer">
-        <Link href="/">React Liquid Glass</Link>
+            <div className="header-tools">
+              <div className="display-settings" role="group" aria-label={zh ? "显示设置" : "Display settings"}>
+                <span className="hdr-control" title={hdrTitle}>
+                  <button type="button" className="icon-button hdr-toggle" aria-label="HDR" aria-pressed={displayMaterial.hdr}
+                    disabled={!hdrSupported} title={hdrTitle} onClick={() => setHDR(current => !current)}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
+                      <path d="M21,11.5V10.5C21,9.7 20.3,9 19.5,9H16V15H17.5V13H18.6L19.5,15H21L20.1,12.9C20.6,12.6 21,12.1 21,11.5M19.5,11.5H17.5V10.5H19.5V11.5M6.5,11H4.5V9H3V15H4.5V12.5H6.5V15H8V9H6.5V11M13,9H9.5V15H13C13.8,15 14.5,14.3 14.5,13.5V10.5C14.5,9.7 13.8,9 13,9M13,13.5H11V10.5H13V13.5Z" />
+                    </svg>
+                  </button>
+                </span>
+                <button type="button" className="icon-button" onClick={() => setThemeChoice(theme === "dark" ? "light" : "dark")}
+                  aria-label={theme === "dark" ? (zh ? "切换到浅色" : "Switch to light mode") : (zh ? "切换到深色" : "Switch to dark mode")}>
+                  <IconSwap id={theme}>{theme === "dark" ? <Sun /> : <Moon />}</IconSwap>
+                </button>
+                <button type="button" className="locale-button" onClick={() => setLocale(zh ? "en" : "zh")}
+                  aria-label={zh ? "Switch to English" : "切换到中文"}>
+                  {zh ? "中" : "EN"}
+                </button>
+              </div>
+              <a className="github-link" href={REPOSITORY} target="_blank" rel="noreferrer" aria-label="GitHub">
+                GitHub <ArrowUpRight size={13} aria-hidden="true" />
+              </a>
+              {/* A plain header button like its neighbours. The sheet morphs from the
+                  focused opener, so focus it on press where browsers skip click focus. */}
+              <button type="button" className="icon-button mobile-menu-button" aria-label={zh ? "导航菜单" : "Navigation menu"}
+                aria-expanded={mobileOpen} aria-haspopup="dialog"
+                onPointerDown={event => event.currentTarget.focus({ preventScroll: true })}
+                onClick={() => setMobileOpen(true)}>
+                <Menu size={18} aria-hidden="true" />
+              </button>
+              <GlassSheet open={mobileOpen} onOpenChange={setMobileOpen}
+                title={zh ? "导航" : "Navigation"} closeLabel={zh ? "关闭导航" : "Close navigation"}>
+                <nav id="mobile-navigation" className="mobile-navigation" aria-label={zh ? "移动导航" : "Mobile navigation"}>
+                  <div className="mobile-top-links">
+                    {nav.map(item => (
+                      <Link key={item.href} href={item.href} aria-current={current(item.href)} onClick={() => setMobileOpen(false)}>{zh ? item.zh : item.en}</Link>
+                    ))}
+                  </div>
+                  <div onClick={event => { if ((event.target as HTMLElement).closest("a")) setMobileOpen(false); }}>
+                    {sidebar}
+                  </div>
+                </nav>
+              </GlassSheet>
+            </div>
+          </div>
+        </header>
 
-        <Link
-          href="https://github.com/benis-me/react-liquid-glass"
-          target="_blank"
-          rel="noreferrer"
-        >
-          {zh ? "源代码" : "Source code"}
-          <ArrowUpRight size={12} />
-        </Link>
-      </footer>
+        <div className={isHome ? "site-container" : "site-container docs-layout"}>
+          {!isHome && (
+            <aside className="docs-sidebar">
+              <ScrollArea className="sidebar-scroll" contentClassName="sidebar-scroll__content" viewportProps={{ "aria-label": zh ? "组件导航" : "Component navigation" }}>
+                <nav aria-label={zh ? "组件导航" : "Component navigation"}>{sidebar}</nav>
+              </ScrollArea>
+            </aside>
+          )}
+          <main id="main-content" ref={main} tabIndex={-1} className={isHome ? "home-main" : "docs-main"}>
+            <Suspense fallback={<div className="page-loading" aria-busy="true" />}>{page}</Suspense>
+          </main>
+        </div>
+        <footer className="site-footer">
+          <div className="footer-inner">
+            <div className="footer-brand">
+              <Wordmark zh={zh} />
+              <p>{zh ? "React 液态玻璃组件库：实时折射、形体融合与弹簧动态。" : "Liquid glass components for React: real refraction, shapes that fuse, and spring motion."}</p>
+            </div>
+            <nav className="footer-links" aria-label={zh ? "页脚导航" : "Footer"}>
+              <div>
+                <h2>{zh ? "组件库" : "Library"}</h2>
+                <ul>
+                  <li><Link href="/components">{zh ? "组件" : "Components"}</Link></li>
+                  <li><Link href="/playground">Playground</Link></li>
+                  <li><Link href="/showcase">{zh ? "应用展示" : "Showcase"}</Link></li>
+                </ul>
+              </div>
+              <div>
+                <h2>{zh ? "文档" : "Docs"}</h2>
+                <ul>
+                  <li><Link href="/docs/installation">{zh ? "开始使用" : "Introduction"}</Link></li>
+                  <li><Link href="/docs/material">{zh ? "材质与 HDR" : "Material & HDR"}</Link></li>
+                  <li><Link href="/docs/motion">{zh ? "动态与手势" : "Motion & gestures"}</Link></li>
+                  <li><Link href="/docs/accessibility">{zh ? "无障碍" : "Accessibility"}</Link></li>
+                </ul>
+              </div>
+              <div>
+                <h2>{zh ? "项目" : "Project"}</h2>
+                <ul>
+                  <li>{external(REPOSITORY, zh ? "源代码" : "Source code")}</li>
+                  <li>{external("https://www.npmjs.com/package/rglass", "npm")}</li>
+                  <li>{external(`${REPOSITORY}/blob/main/packages/react-liquid-glass/CHANGELOG.md`, zh ? "更新日志" : "Changelog")}</li>
+                </ul>
+              </div>
+            </nav>
+          </div>
+          <div className="footer-meta">
+            <span>{zh ? "MIT 许可证" : "MIT License"}</span>
+            <span className="numeric">rglass v{LIBRARY_VERSION}</span>
+          </div>
+        </footer>
       </div>
     </LiquidGlassProvider>
   );
