@@ -4,6 +4,11 @@ Notable changes to `rglass`. Versions follow semantic versioning; before 1.0, a 
 
 ## Unreleased
 
+### Changed
+
+- HDR light is restrained. A press now peaks near 1.5× SDR white instead of nearly 3×, the static rim near 1.2×, and overlapping light never stacks into glare: contact and rim share one soft cap, identical on WebGPU and WebGL2.
+- Glass edges follow iOS 27's more distinct border. The contour depends on edge strength alone, so it no longer thins on HDR displays; over dark content the same contour lightens instead of vanishing, so edges stay defined in dark mode; and the static top and bottom highlight is brighter.
+
 ### Fixed
 
 - Fusion necks refract continuously: a body's rim slope no longer draws straight seams or shard-like patches inside fused glass.

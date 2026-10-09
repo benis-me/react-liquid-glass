@@ -169,10 +169,12 @@ test("liquid uses the shared smooth-union compositor for its full lifecycle", ()
   assert.match(liquidCanvasSource, /float reflection = smoothstep\(edgeWidth \* \.45, edgeWidth \* \.85, inside\)/);
   assert.match(liquidCanvasSource, /1\. - smoothstep\(edgeWidth \* \.85, edgeWidth \* 2\., inside\)/);
   assert.match(liquidCanvasSource, /float reflectionLight = smoothstep\(\.75, \.98, edgeLight\)/);
-  assert.match(liquidCanvasSource, /min\(\.85, edgeGain \* 3\.2\) \* mix\(\.85, \.24, edgeLight\)/);
-  assert.match(liquidCanvasSource, /refracted \*= 1\. - contour \* contourStrength/);
+  // The dark contour follows edge strength alone, so an HDR display's lower SDR highlight keeps the edge.
+  assert.match(liquidCanvasSource, /min\(\.85, max\(uEdgeStrength, 0\.\) \* 3\.2\) \* mix\(\.85, \.24, edgeLight\)/);
+  // The same contour band darkens bright substrates and lightens dark ones (no second rim).
+  assert.match(liquidCanvasSource, /float contourAmount = contour \* contourStrength;\s*refracted = mix\(refracted \+ vec3\(contourAmount \* \.18\), refracted \* \(1\. - contourAmount\), smoothstep\(\.2, \.5, luminance\)\)/);
   assert.match(liquidCanvasSource, /float rimLight = reflection \* reflectionLight \* edgeGain/);
-  assert.match(liquidCanvasSource, /refracted \+= vec3\(rimLight \* \.22\)/);
+  assert.match(liquidCanvasSource, /refracted \+= vec3\(rimLight \* \.3\)/);
   assert.match(liquidCanvasSource, /refracted \* \(1\. - shine\)/);
   assert.doesNotMatch(liquidCanvasSource, /edgeShare/);
   assert.doesNotMatch(liquidCanvasSource, /sceneNormal|insetRim/);
@@ -186,7 +188,7 @@ test("liquid uses the shared smooth-union compositor for its full lifecycle", ()
   const specularCompositeIndex = liquidCanvasSource.indexOf("float shine = specular * uSpecular");
   const brightnessCompositeIndex = liquidCanvasSource.indexOf("refracted = mix(refracted, brightnessTarget");
   const tintCompositeIndex = liquidCanvasSource.indexOf("refracted = mix(refracted, uTintColor");
-  const contourCompositeIndex = liquidCanvasSource.indexOf("refracted *= 1. - contour * contourStrength");
+  const contourCompositeIndex = liquidCanvasSource.indexOf("refracted = mix(refracted + vec3(contourAmount");
   const reflectionCompositeIndex = liquidCanvasSource.indexOf("refracted += vec3(rimLight");
   assert.ok(specularCompositeIndex < contourCompositeIndex && contourCompositeIndex < reflectionCompositeIndex);
   assert.ok(reflectionCompositeIndex < brightnessCompositeIndex, "both edge profiles remain inside the shared material and coverage");
@@ -880,6 +882,23 @@ test("Slider's refracted fill retains a moving round cap at every progress", () 
   }
 });
 
+
+test("HDR light is soft-capped and identical on both backends", () => {
+  const wgsl = readFileSync(new URL("../packages/react-liquid-glass/src/liquid-glass/shaders/glass.wgsl", import.meta.url), "utf8");
+  const presenter = readFileSync(new URL("../packages/react-liquid-glass/src/liquid-glass/highlight-hdr.ts", import.meta.url), "utf8");
+  const curve = source => {
+    const match = source.match(/(0?\.\d+) \* tanh\(\(light\.r \* (0?\.\d+) \+ light\.g \* (0?\.\d+)\) \/ (0?\.\d+)\)[\s\S]*?light\.r \* (0?\.\d+) \+ light\.g \* (0?\.\d+)\)/);
+    assert.ok(match, "HDR light curve missing");
+    return match.slice(1).map(Number);
+  };
+  const [cap, contact, rim, knee, contactAlpha, rimAlpha] = curve(wgsl);
+  assert.deepEqual(curve(presenter), [cap, contact, rim, knee, contactAlpha, rimAlpha], "WebGPU and WebGL2 present the same HDR light");
+  // Composite over SDR white: lift + base * (1 - alpha).
+  const peak = (r, g) => cap * Math.tanh((r * contact + g * rim) / knee) + 1 - r * contactAlpha - g * rimAlpha;
+  assert.ok(peak(.92, 0) < 1.5, "a full press stays near 1.5x SDR white");
+  assert.ok(peak(1, 1) < 1 + cap, "overlapping contact and rim light never stack past the cap");
+  assert.ok(peak(0, .26) > 1.15, "the static rim still rises above SDR white");
+});
 
 test("shared motion values notify until unsubscribed", () => {
   const value = motionValue(1);
