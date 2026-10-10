@@ -445,18 +445,18 @@ void main() {
   }
   vec3 refracted = sampleGlass(vUv, bend, frost);
   if (uContentSource && uContentOpacity > .001) refracted = overlayInk(refracted, vUv, bend, length(displacement * uSourceSize));
-  // The rim's shade runs all round over dark content, as native's does, but over light
-  // content only along the long sides: at the ends it read as a thick black edge.
-  refracted *= 1. - rimShade * mix(1., longSide, smoothstep(.45, .85, dot(refracted, vec3(.299, .587, .114))));
+  // The rim's shade darkens it over dark content, as native's does. Over light content the
+  // native lens's rim is white inside its contour, so the shade fades out there.
+  refracted *= 1. - rimShade * (1. - smoothstep(.45, .85, dot(refracted, vec3(.299, .587, .114))));
   // Video's highlight response preserves contrast on both bright and dark substrates.
   float luminance = dot(refracted, vec3(.299, .587, .114));
   float shine = specular * uSpecular * (127. / 255.);
   refracted = mix(refracted + vec3(shine), refracted * (1. - shine), smoothstep(.3, .7, luminance));
   // iOS 27 darkens the edge on every substrate; a lighter contour on dark content reads as
   // a grey outline. There the crest carries the shape instead, brighter than on light.
-  // On light content the lens's side contour lightens, so it reads as the same fine line as on
-  // dark; its top and bottom keep theirs.
-  float contourAmount = contour * contourStrength * mix(1., .6, uLens ? smoothstep(.45, .85, luminance) * (1. - edgeLight) : 0.);
+  // Over light content the native lens's contour is an even grey line all round, about a fifth
+  // as dark as the content: its wide ends lighten, its narrow top and bottom darken to match.
+  float contourAmount = contour * contourStrength * (uLens ? mix(1., mix(.38, 1.3, edgeLight), smoothstep(.45, .85, luminance)) : 1.);
   refracted = refracted * (1. - contourAmount);
   vec3 crest = vec3(rimLight);
   refracted += crest * mix(.5, .3, smoothstep(.2, .5, luminance));

@@ -349,17 +349,17 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
   }
   var refracted = sampleGlass(uv, bend, frost);
   if (p.ink.x > 0.001 && p.ink.w > 0.5) { refracted = overlayInk(refracted, uv, bend, length(displacement * p.size.xy)); }
-  // The rim's shade runs all round over dark content, as native's does, but over light
-  // content only along the long sides: at the ends it read as a thick black edge.
-  refracted = refracted * (1.0 - rimShade * mix(1.0, longSide, smoothstep(0.45, 0.85, dot(refracted, vec3f(0.299, 0.587, 0.114)))));
+  // The rim's shade darkens it over dark content, as native's does. Over light content the
+  // native lens's rim is white inside its contour, so the shade fades out there.
+  refracted = refracted * (1.0 - rimShade * (1.0 - smoothstep(0.45, 0.85, dot(refracted, vec3f(0.299, 0.587, 0.114)))));
   let luminance = dot(refracted, vec3f(0.299, 0.587, 0.114));
   let shine = specular * p.refraction.w * (127.0 / 255.0);
   refracted = mix(refracted + vec3f(shine), refracted * (1.0 - shine), smoothstep(0.3, 0.7, luminance));
   // iOS 27 darkens the edge on every substrate; a lighter contour on dark content reads as
   // a grey outline. There the crest carries the shape instead, brighter than on light.
-  // On light content the lens's side contour lightens, so it reads as the same fine line as on
-  // dark; its top and bottom keep theirs.
-  let contourAmount = contour * contourStrength * mix(1.0, 0.6, select(0.0, smoothstep(0.45, 0.85, luminance) * (1.0 - edgeLight), lens));
+  // Over light content the native lens's contour is an even grey line all round, about a fifth
+  // as dark as the content: its wide ends lighten, its narrow top and bottom darken to match.
+  let contourAmount = contour * contourStrength * select(1.0, mix(1.0, mix(0.38, 1.3, edgeLight), smoothstep(0.45, 0.85, luminance)), lens);
   refracted = refracted * (1.0 - contourAmount);
   let crest = vec3f(rimLight);
   refracted += crest * mix(0.5, 0.3, smoothstep(0.2, 0.5, luminance));

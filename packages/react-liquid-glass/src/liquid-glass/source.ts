@@ -104,6 +104,15 @@ export function liquidBackground(root: HTMLElement): string {
 
 type BackgroundBounds = Pick<DOMRect, "left" | "top" | "width" | "height">;
 
+/**
+ * How much transformed ancestors scale an element on screen, as when a pressed tab bar grows.
+ * Layout sizes round to whole pixels, so a difference under one pixel reads as no scale.
+ */
+export function liquidScreenScale(element: HTMLElement, rect: Pick<DOMRect, "width" | "height"> = element.getBoundingClientRect()) {
+  const ratio = (screen: number, layout: number) => layout > 0 && Math.abs(screen - layout) >= 1 ? screen / layout : 1;
+  return { x: ratio(rect.width, element.offsetWidth), y: ratio(rect.height, element.offsetHeight) };
+}
+
 /** Match a thin 135deg CSS hatch, with its phase anchored to the background box. Returns whether it matched. */
 export function paintLiquidHatch(ctx: CanvasRenderingContext2D, css: CSSStyleDeclaration, rect: BackgroundBounds, bounds: BackgroundBounds) {
   // ponytail: only this two-color repeating gradient is supported; other CSS backgrounds need an explicit source.
@@ -220,10 +229,13 @@ export async function captureLiquidSource(root: HTMLElement, width: number, heig
     background?.(ctx);
   }
   if (layers === "base") return canvas;
-  const bounds = root.getBoundingClientRect();
+  const bounds = root.getBoundingClientRect(), scale = liquidScreenScale(root, bounds);
+  // Ink is measured in the root's own pixels, so a scaled ancestor leaves it in place.
+  const local = (rect: DOMRect) => scale.x === 1 && scale.y === 1 ? rect
+    : new DOMRect(bounds.left + (rect.left - bounds.left) / scale.x, bounds.top + (rect.top - bounds.top) / scale.y, rect.width / scale.x, rect.height / scale.y);
   for (const element of root.querySelectorAll<HTMLElement>("div, span, button, img")) {
     if (element.closest("svg")) continue;
-    const rect = element.getBoundingClientRect();
+    const rect = local(element.getBoundingClientRect());
     if (!rect.width || !rect.height) continue;
     const css = getComputedStyle(element);
     if (css.display === "none" || css.visibility === "hidden") continue;
@@ -248,7 +260,7 @@ export async function captureLiquidSource(root: HTMLElement, width: number, heig
     const text = node.textContent ?? "";
     if (!text.trim() || !node.parentElement || node.parentElement.closest("svg")) continue;
     range.selectNodeContents(node);
-    const rect = range.getBoundingClientRect();
+    const rect = local(range.getBoundingClientRect());
     if (!rect.width || !rect.height) continue;
     const css = getComputedStyle(node.parentElement);
     ctx.font = `${css.fontWeight} ${css.fontSize} ${css.fontFamily}`;
@@ -259,7 +271,7 @@ export async function captureLiquidSource(root: HTMLElement, width: number, heig
     ctx.fillText(text, rect.left - bounds.left, baseline);
   }
   await Promise.all([...root.querySelectorAll("svg")].map(async svg => {
-    const rect = svg.getBoundingClientRect();
+    const rect = local(svg.getBoundingClientRect());
     if (!rect.width || !rect.height) return;
     const image = await rasterSvg(svg);
     ctx.drawImage(image, rect.left - bounds.left, rect.top - bounds.top, rect.width, rect.height);

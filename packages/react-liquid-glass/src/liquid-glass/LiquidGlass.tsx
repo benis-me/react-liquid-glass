@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExter
 import { cancelFrame, frame } from "motion";
 import { LiquidGlassCanvas } from "./LiquidGlassCanvas.js";
 import { LIQUID_GLASS_MATERIAL, type LiquidGlassFrame, type LiquidGlassBlob } from "./renderer.js";
-import { captureLiquidSource, liquidRgb, liquidTheme, subscribeLiquidTheme, type LiquidSourceFactory, type LiquidSourcePainter } from "./source.js";
+import { captureLiquidSource, liquidRgb, liquidScreenScale, liquidTheme, subscribeLiquidTheme, type LiquidSourceFactory, type LiquidSourcePainter } from "./source.js";
 import { isMotionValue, motionValue, readMotion, type MotionInput } from "../shared/values.js";
 import { DEFAULT_MATERIAL, useGlassMaterialOverrides } from "./provider.js";
 import { createLiquidBackdrop } from "./backdrop.js";
@@ -219,8 +219,9 @@ export function LiquidGlass(props: LiquidGlassProps) {
     if (!owner || !measured) return;
     const visible = () => readMotion(config.current.tintOpacity ?? 0) < 1;
     const backdrop = createLiquidBackdrop(props.backdropRoot?.current ?? owner, () => {
-      const rect = owner.getBoundingClientRect(), bleed = bleedRef.current;
-      return { left: rect.left - bleed, top: rect.top - bleed, width: sizeRef.current.width + bleed * 2, height: sizeRef.current.height + bleed * 2 };
+      // On screen, so glass under a scaled ancestor still samples what lies behind it.
+      const rect = owner.getBoundingClientRect(), bleed = bleedRef.current, scale = liquidScreenScale(owner, rect);
+      return { left: rect.left - bleed * scale.x, top: rect.top - bleed * scale.y, width: (sizeRef.current.width + bleed * 2) * scale.x, height: (sizeRef.current.height + bleed * 2) * scale.y };
     }, canvas => {
       backdropRef.current = canvas;
       const { width, height } = sizeRef.current, bleed = bleedRef.current;
