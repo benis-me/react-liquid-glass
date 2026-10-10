@@ -1,7 +1,7 @@
 import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentType, type ReactNode } from "react";
 import { animate, motion, useMotionValue, useReducedMotion, useTransform } from "motion/react";
 import { LiquidGlass } from "../liquid-glass/LiquidGlass.js";
-import { liftedLens, useLiftedOptics } from "./use-thumb-motion.js";
+import { LIFT_SHADOW, LIFT_SHADOW_BLUR, LIFT_SHADOW_OFFSET, liftedLens, useLiftedOptics } from "./use-thumb-motion.js";
 import { GlassSurface } from "./GlassSurface.js";
 import { liquidScreenScale, liquidTheme, subscribeLiquidTheme } from "../liquid-glass/source.js";
 import { springTo, useGlassContact, usePointerReleaseFallback, waitForRest, useDerivedMotion2, useVelocityDeformation, type SpringRun } from "../apple-motion/react.js";
@@ -35,11 +35,6 @@ const SEGMENTED_PAD_Y = 80;
 // The lifted lens magnifies what lies under it for the whole press, held or dragged, as both
 // iOS 27 screenshots show, while its rim pulls in the bar. It never shrinks back mid-drag.
 const LIFT_MAGNIFICATION = 1.155;
-// The native light-mode lens's soft shadow: about 5% darker at most, offset and blurred by a
-// fifth and a quarter of its half-height (8pt and 10pt on its 36.5pt half-height).
-const LIFT_SHADOW = .06;
-const LIFT_SHADOW_OFFSET = 8 / 36.5;
-const LIFT_SHADOW_BLUR = 10 / 36.5;
 // While a finger is down, iOS 27 grows the whole bar about its centre, tabs and all: 3.5% on
 // the native 399pt bar, so 7pt a side, which wider bars do not exceed.
 const PRESS_SCALE = 1.035;
@@ -365,7 +360,10 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
     const travel = settle ? updateGeometry(selectedRef.current, false) : travelSettled.current;
     if (settle) travelSettled.current = travel;
     // The lens stays lifted until it reaches its tab, then lands in one motion: it shrinks back
-    // and dissolves over the solid thumb, which is already in place beneath it.
+    // and dissolves over the solid thumb, which is already in place beneath it. It dissolves once
+    // it has sunk most of the way, so the label it magnifies is close to its own size by the time
+    // the solid thumb's label shows through; dissolving from the start of the landing faded a
+    // large label out over a small one.
     void waitForRest([impactX, x], () => Math.abs(impactX.get() - impactTargetX.current) * impactWidth.current, SEGMENTED_HANDOFF.arrivalPixels)
       .then(() => {
         if (token !== transitionToken.current) return;
@@ -378,6 +376,10 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
         updateSolidThumb(selectedRef.current, true);
         solidOpacity.set(1);
         rootRef.current?.setAttribute("data-crossfading", "");
+        return waitForRest([interaction], () => interaction.get(), SEGMENTED_HANDOFF.dissolveLift, 600, 0);
+      })
+      .then(() => {
+        if (token !== transitionToken.current) return;
         const fade = animate(glassOpacity, 0, SEGMENTED_HANDOFF.dissolve);
         glassAnimation.current = fade;
         return fade.then(() => {

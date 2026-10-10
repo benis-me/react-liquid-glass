@@ -282,6 +282,7 @@ void main() {
   vec2 bevelRatio = vec2(0.);
   vec2 lensOffset = vec2(0.);
   vec2 lensAxis = vec2(0.);
+  float lensShort = 0.;
   for (int index = 0; index < 8; index++) {
     if (index >= uBlobCount) break;
     if (min(uHalfSize[index].x, uHalfSize[index].y) <= .001) continue;
@@ -322,6 +323,7 @@ void main() {
       bevelRatio += uBlobRefractionRatio[index] * weight;
       lensOffset += (point - uBlobs[index].xy - uContactOffset[index]) * weight;
       lensAxis += (uHalfSize[index].x >= uHalfSize[index].y ? vec2(0., 1.) : vec2(1., 0.)) * weight;
+      lensShort += min(uHalfSize[index].x, uHalfSize[index].y) * weight;
     }
     materialUv += normalizedLocal * weight;
     materialWeight += weight;
@@ -348,11 +350,24 @@ void main() {
     float swell = rise * (1. - band);
     // The band pulls in its surroundings all round, ends included, as the native lens's does: the
     // end of a bar it overhangs is drawn in as an arc concentric with the rim, where a pull on the
-    // long sides alone left that end showing as a smaller, off-centre half circle. Only the rim's
-    // shade (below) keeps to the long sides.
+    // long sides alone left that end showing as a smaller, off-centre half circle. The ends pull
+    // differently, though. A dragged lens slides across labels there, and the long sides' bulge,
+    // flush at the rim and folded by the mirror below, turned the letters it caught into reversed
+    // fragments and smears. At the ends the band squeezes instead, as a glass edge does: its pull is
+    // strongest at the rim and eases off over 2 depths, so what lies there is compressed toward
+    // the rim in order. Its strength, 1.5, draws a bar's end in as deep as the long sides draw in
+    // its top and bottom, so the end keeps the same gap to the rim; it reaches no further past
+    // the rim than 0.22 of the lens's half-height, so what lies beyond it stays out.
     longSide = smoothstep(.3, .9, abs(dot(lensNormal, lensAxis / max(length(lensAxis), .0001))));
-    displacement = -lensNormal * (swell * sqrt(swell) * 4.1877) * (bevelRatio / max(materialWeight, .001)) * (uRefraction * .5);
-    lensZoom = lensOffset / max(materialWeight, .001) / uSourceSize * (1. - 1. / max(uLensZoom, 1.)) * (1. - rise) * coverage;
+    float squeeze = 1.5 * clamp(1. - inside / max(2. * uDepth, .001), 0., 1.);
+    displacement = -lensNormal * mix(squeeze, swell * sqrt(swell) * 4.1877, longSide) * (bevelRatio / max(materialWeight, .001)) * (uRefraction * .5);
+    // The magnification centres on the lens's middle, so it pushed what the ends' band shows
+    // further out than the sides', by how much further the ends lie: across the ends' band it
+    // centres on the end's own round instead, and the ends' gap matches the sides'.
+    vec2 fromMiddle = lensOffset / max(materialWeight, .001);
+    float excess = max(dot(fromMiddle, lensNormal) - max(lensShort / max(materialWeight, .001) - inside, 0.), 0.)
+      * (1. - smoothstep(.7, 1.2, inside / max(uDepth, .001))) * (1. - longSide);
+    lensZoom = (fromMiddle - lensNormal * excess) / uSourceSize * (1. - 1. / max(uLensZoom, 1.)) * (1. - rise) * coverage;
     // Only the outer band scatters; the refracted edge and magnified middle stay clear.
     frost *= smoothstep(.45, .9, band);
   } else if (uBevel) {
@@ -378,8 +393,8 @@ void main() {
     float redReach = (.1 + .5 * diagonal) * uChroma;
     float blueReach = (.02 + .6 * diagonal) * uChroma;
     float rimDepth = inside / max(.22 * uDepth, .001);
-    // Like the pull, the mirror runs all round, so the ends carry native's pastel fringes too.
-    vec2 mirror = lensNormal * (.45 * uRefraction) * (bevelRatio / max(materialWeight, .001)) * coverage * uZoom * uRefractionRatio;
+    // The mirror keeps to the long sides; at the ends the squeeze would fold back on it.
+    vec2 mirror = lensNormal * (.45 * uRefraction * longSide) * (bevelRatio / max(materialWeight, .001)) * coverage * uZoom * uRefractionRatio;
     bend = Bend(
       lensZoom + displacement * (1. + spread) + mirror * max(1. + redReach - rimDepth, 0.),
       lensZoom + displacement + mirror * max(1. - rimDepth, 0.),

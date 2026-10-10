@@ -246,13 +246,23 @@ test("the lifted lens model is the same on WebGPU and WebGL2", () => {
   // (sqrt(band) * (1 - band))^1.5 normalised to peak at 1, flush at the rim.
   assert.match(wgsl, /let rise = sqrt\(band\);\s*let swell = rise \* \(1\.0 - band\);/);
   assert.match(liquidCanvasSource, /float rise = sqrt\(band\);\s*float swell = rise \* \(1\. - band\);/);
-  // The band pulls in and mirrors its surroundings all round, ends included, as native's does, so
-  // the end of a bar the lens overhangs is drawn in concentric with its rim.
-  assert.match(wgsl, /displacement = -lensNormal \* \(swell \* sqrt\(swell\) \* 4\.1877\) \* \(bevelRatio \/ max\(materialWeight, 0\.001\)\) \* \(p\.refraction\.y \* 0\.5\)/);
-  assert.match(liquidCanvasSource, /displacement = -lensNormal \* \(swell \* sqrt\(swell\) \* 4\.1877\) \* \(bevelRatio \/ max\(materialWeight, \.001\)\) \* \(uRefraction \* \.5\)/);
-  assert.doesNotMatch(wgsl, /4\.1877 \* longSide|refraction\.y \* longSide|band\) \* longSide/);
-  assert.doesNotMatch(liquidCanvasSource, /4\.1877 \* longSide|uRefraction \* longSide|band\) \* longSide/);
-  // Only the rim's shade keeps to the long sides.
+  // The band pulls in its surroundings all round, ends included, as native's does, so the end of a
+  // bar the lens overhangs is drawn in concentric with its rim. The long sides bulge; the ends
+  // squeeze, strongest at the rim and easing off over two depths, as deep as the long sides, so
+  // labels a dragged lens slides across are compressed in order rather than folded.
+  assert.match(wgsl, /let squeeze = 1\.5 \* clamp\(1\.0 - inside \/ max\(2\.0 \* p\.frost\.y, 0\.001\), 0\.0, 1\.0\);/);
+  assert.match(liquidCanvasSource, /float squeeze = 1\.5 \* clamp\(1\. - inside \/ max\(2\. \* uDepth, \.001\), 0\., 1\.\);/);
+  assert.match(wgsl, /displacement = -lensNormal \* mix\(squeeze, swell \* sqrt\(swell\) \* 4\.1877, longSide\) \* \(bevelRatio \/ max\(materialWeight, 0\.001\)\) \* \(p\.refraction\.y \* 0\.5\)/);
+  assert.match(liquidCanvasSource, /displacement = -lensNormal \* mix\(squeeze, swell \* sqrt\(swell\) \* 4\.1877, longSide\) \* \(bevelRatio \/ max\(materialWeight, \.001\)\) \* \(uRefraction \* \.5\)/);
+  assert.doesNotMatch(wgsl, /4\.1877 \* longSide|band\) \* longSide/);
+  assert.doesNotMatch(liquidCanvasSource, /4\.1877 \* longSide|band\) \* longSide/);
+  // Across the ends' band the magnification centres on the end's own round, by how much further
+  // than the lens's half-height that end lies, so the ends' gap to the rim matches the sides'.
+  assert.match(wgsl, /lensShort \+= min\(b\.sizeVelocity\.x, b\.sizeVelocity\.y\) \* weight;/);
+  assert.match(liquidCanvasSource, /lensShort \+= min\(uHalfSize\[index\]\.x, uHalfSize\[index\]\.y\) \* weight;/);
+  assert.match(wgsl, /let excess = max\(dot\(fromMiddle, lensNormal\) - max\(lensShort \/ max\(materialWeight, 0\.001\) - inside, 0\.0\), 0\.0\)\s*\* \(1\.0 - smoothstep\(0\.7, 1\.2, inside \/ max\(p\.frost\.y, 0\.001\)\)\) \* \(1\.0 - longSide\);\s*lensZoom = \(fromMiddle - lensNormal \* excess\) \/ p\.size\.xy/);
+  assert.match(liquidCanvasSource, /float excess = max\(dot\(fromMiddle, lensNormal\) - max\(lensShort \/ max\(materialWeight, \.001\) - inside, 0\.\), 0\.\)\s*\* \(1\. - smoothstep\(\.7, 1\.2, inside \/ max\(uDepth, \.001\)\)\) \* \(1\. - longSide\);\s*lensZoom = \(fromMiddle - lensNormal \* excess\) \/ uSourceSize/);
+  // The rim's shade and its mirror keep to the long sides.
   assert.match(wgsl, /lensAxis \+= select\(vec2f\(1\.0, 0\.0\), vec2f\(0\.0, 1\.0\), b\.sizeVelocity\.x >= b\.sizeVelocity\.y\) \* weight;/);
   assert.match(liquidCanvasSource, /lensAxis \+= \(uHalfSize\[index\]\.x >= uHalfSize\[index\]\.y \? vec2\(0\., 1\.\) : vec2\(1\., 0\.\)\) \* weight;/);
   assert.match(wgsl, /longSide = smoothstep\(0\.3, 0\.9, abs\(dot\(lensNormal, lensAxis \/ max\(length\(lensAxis\), 0\.0001\)\)\)\);/);
@@ -265,8 +275,8 @@ test("the lifted lens model is the same on WebGPU and WebGL2", () => {
   assert.match(liquidCanvasSource, /float diagonal = 2\. \* lensNormal\.x \* lensNormal\.y;/);
   assert.match(wgsl, /let redReach = \(0\.1 \+ 0\.5 \* diagonal\) \* p\.refraction\.z;\s*let blueReach = \(0\.02 \+ 0\.6 \* diagonal\) \* p\.refraction\.z;\s*let rimDepth = inside \/ max\(0\.22 \* p\.frost\.y, 0\.001\);/);
   assert.match(liquidCanvasSource, /float redReach = \(\.1 \+ \.5 \* diagonal\) \* uChroma;\s*float blueReach = \(\.02 \+ \.6 \* diagonal\) \* uChroma;\s*float rimDepth = inside \/ max\(\.22 \* uDepth, \.001\);/);
-  assert.match(wgsl, /let mirror = lensNormal \* \(0\.45 \* p\.refraction\.y\) \* \(bevelRatio \/ max\(materialWeight, 0\.001\)\) \* coverage \* p\.tint\.w \* p\.ratio\.xy;/);
-  assert.match(liquidCanvasSource, /vec2 mirror = lensNormal \* \(\.45 \* uRefraction\) \* \(bevelRatio \/ max\(materialWeight, \.001\)\) \* coverage \* uZoom \* uRefractionRatio;/);
+  assert.match(wgsl, /let mirror = lensNormal \* \(0\.45 \* p\.refraction\.y \* longSide\) \* \(bevelRatio \/ max\(materialWeight, 0\.001\)\) \* coverage \* p\.tint\.w \* p\.ratio\.xy;/);
+  assert.match(liquidCanvasSource, /vec2 mirror = lensNormal \* \(\.45 \* uRefraction \* longSide\) \* \(bevelRatio \/ max\(materialWeight, \.001\)\) \* coverage \* uZoom \* uRefractionRatio;/);
   assert.match(wgsl, /lensZoom \+ displacement \+ mirror \* max\(1\.0 - rimDepth, 0\.0\),/);
   assert.match(liquidCanvasSource, /lensZoom \+ displacement \+ mirror \* max\(1\. - rimDepth, 0\.\),/);
   assert.match(wgsl, /lensZoom \+ displacement \* \(1\.0 \+ spread\) \+ mirror \* max\(1\.0 \+ redReach - rimDepth, 0\.0\)/);
@@ -770,8 +780,10 @@ test("segmented glass attenuation overlaps the low-amplitude travel tail", () =>
   assert.match(componentSource, /\.then\(\(\) => \{\s*if \(token !== transitionToken\.current\) return;\s*interactionStop\.current\?\.stop\(\);\s*interactionStop\.current = springTo\(interaction, 0, SEGMENTED_RELEASE_SPRING\)/, "the lens stays lifted until it lands");
   assert.match(componentSource, /epsilon = 1, timeoutMs = 900, holdMs = 32/);
   assert.match(componentSource, /restTimer = window\.setTimeout\(finish, holdMs\)/);
-  assert.match(componentSource, /animate\(glassOpacity, 0, SEGMENTED_HANDOFF\.dissolve\)/);
-  assert.match(componentSource, /SEGMENTED_HANDOFF = \{ arrivalPixels: 4, dissolve: \{ duration: 0\.32/);
+  // It dissolves only once it has sunk most of the way, so the label it magnifies is close to
+  // its own size when the solid thumb's label shows through.
+  assert.match(componentSource, /return waitForRest\(\[interaction\], \(\) => interaction\.get\(\), SEGMENTED_HANDOFF\.dissolveLift, 600, 0\);\s*\}\)\s*\.then\(\(\) => \{\s*if \(token !== transitionToken\.current\) return;\s*const fade = animate\(glassOpacity, 0, SEGMENTED_HANDOFF\.dissolve\);/);
+  assert.match(componentSource, /SEGMENTED_HANDOFF = \{ arrivalPixels: 4, dissolveLift: 0\.4, dissolve: \{ duration: 0\.32/);
   assert.doesNotMatch(componentSource, /setTimeout\(\(\) => \{\s*rootRef\.current\?\.removeAttribute\("data-interacting"\)/);
   assert.doesNotMatch(libraryStylesSource, /\.dg-tabs__solid-thumb\s*\{[^}]*opacity 90ms/s);
 });
@@ -935,7 +947,11 @@ test("control optics retain size-independent pixel gain and the approved menu ma
   assert.match(componentSource, /chromaAmount: 1\.5, blurAmount: \.7, edgeWidth: 1\.2, edgeStrength: \.81, specularStrength: 1,\s*glowStrength: 0, brightness: 0, tint: 0, \.\.\.lens,/);
   assert.match(componentSource, /const band = useTransform\(\(\) => 2\.5 \+ \(Math\.min\(lensW\.get\(\), lensH\.get\(\)\) \* \.33 - 2\.5\) \* unit\(lift\.get\(\)\)\)/);
   assert.match(componentSource, /const bulge = useTransform\(\(\) => Math\.min\(lensW\.get\(\), lensH\.get\(\)\) \* \.147 \* unit\(lift\.get\(\)\)\)/);
-  assert.equal((componentSource.match(/refractionPixels=\{1\}\s*zoom=\{bulge\}\s*depth=\{band\}\s*material=\{LIFTED_MODEL\}/g) ?? []).length, 2);
+  assert.equal((componentSource.match(/refractionPixels=\{1\}\s*zoom=\{bulge\}\s*depth=\{band\}\s*material=\{\{ \.\.\.LIFTED_MODEL, shadowStrength: liftShadow\.strength, shadowOffset: liftShadow\.offset, shadowBlur: liftShadow\.blur \}\}/g) ?? []).length, 2);
+  // Held, a thumb casts the lifted lens's shadow, as a pressed tab does, and keeps its own at rest.
+  assert.equal((componentSource.match(/const liftShadow = useLiftedShadow\(lensH, held, dark, \{ strength: \.04, offset: Math\.min\(18, filterHeight \* \.12\), blur: Math\.min\(26, filterHeight \* \.2\) \}\);/g) ?? []).length, 2);
+  assert.match(componentSource, /const strength = useTransform\(\(\) => mix\(resting\.current\.strength, LIFT_SHADOW \* light\.get\(\)\)\);/);
+  assert.doesNotMatch(componentSource, /shadowOpacity/);
   assert.match(componentSource, /const LIFT_MAGNIFICATION = 1\.155;/);
   // The lens magnifies what lies under it for the whole press, held or dragged, as both iOS 27
   // screenshots show: it never shrinks back while a drag moves and grows again when it rests.
@@ -946,17 +962,24 @@ test("control optics retain size-independent pixel gain and the approved menu ma
   // Dragged or held, the tab is the same lifted lens in both themes, as iOS 27's is; in light mode
   // it casts a soft shadow, scaled with its height, and on dark pages none.
   assert.match(componentSource, /refractionPixels=\{1\}\s*zoom=\{bulge\}\s*material=\{\{ refractionModel: "lens", lensMagnification: magnify, shadowStrength: liftShadow, shadowOffset: liftShadowOffset, shadowBlur: liftShadowBlur \}\}\s*lens=\{lens\}/);
-  assert.match(componentSource, /const LIFT_SHADOW = \.06;\s*const LIFT_SHADOW_OFFSET = 8 \/ 36\.5;\s*const LIFT_SHADOW_BLUR = 10 \/ 36\.5;/);
+  assert.match(componentSource, /export const LIFT_SHADOW = \.06;\s*export const LIFT_SHADOW_OFFSET = 8 \/ 36\.5;\s*export const LIFT_SHADOW_BLUR = 10 \/ 36\.5;/);
   assert.match(componentSource, /const liftShadow = useTransform\(\(\) => LIFT_SHADOW \* Math\.min\(1, Math\.max\(0, interaction\.get\(\)\)\) \* lightTheme\.get\(\)\);/);
   assert.match(componentSource, /const liftShadowOffset = useTransform\(\(\) => renderedLensH\.get\(\) \* LIFT_SHADOW_OFFSET\);/);
   assert.match(componentSource, /const renderedLensW = useDerivedMotion2\(stretchedLensW, liftOutset,/);
   assert.match(componentSource, /const expandedLensH = useDerivedMotion2\(stretchedLensH, liftOutset,/);
   assert.match(componentSource, /useLiftedOptics\(renderedLensW, renderedLensH, interaction\)/);
   assert.doesNotMatch(componentSource, /PILL_COLOR|PILL_TINT|pillTint|rimStrength|const flat = /);
-  assert.equal((componentSource.match(/strength => strength \* \.3/g) ?? []).length, 2, "held thumbs barely light where they are touched");
-  // A held tab lights barely; once the press drags the glass does not light up, and the
-  // selection's ink shows only through the moving lens, as on iOS 27.
-  assert.match(componentSource, /const touchLight = useTransform\(\(\) => contact\.contactStrength\.get\(\) \* \.3 \* still\.get\(\)\);/);
+  // A held tab or thumb lights barely; once the press drags the glass does not light up, and the
+  // tab's selection ink shows only through the moving lens, as on iOS 27.
+  assert.equal((componentSource.match(/const touchLight = useTransform\(\(\) => contact\.contactStrength\.get\(\) \* \.3 \* still\.get\(\)\);/g) ?? []).length, 3, "held tabs and thumbs barely light where they are touched");
+  assert.match(componentSource, /const expand = \(\) => \{\s*still\.jump\(1\);/);
+  assert.match(componentSource, /const drag = \(\) => to\(still, 0, \{ duration: 0\.2, ease: \[0\.4, 0, 0\.2, 1\] \}\);/);
+  assert.match(componentSource, /if \(mode\.current !== "hold"\) \{ mode\.current = "hold"; expand\(\); \}\s*drag\(\);/);
+  assert.match(componentSource, /offsetStart\.current = offset\.get\(\);\s*drag\(\);/);
+  // Released, a thumb's white fills back in quickly while its lens sinks, so what the lens showed
+  // of the track never lingers inside a half-white thumb.
+  assert.match(componentSource, /const fillTransition = \{ ease: \[0\.22, 1, 0\.36, 1\] as const, duration: 0\.24 \};/);
+  assert.match(componentSource, /to\(tintOpacity, 1, fillTransition\);\s*to\(tintBlur, restTintBlur, fillTransition\);/);
   assert.match(componentSource, /stillStop\.current = springTo\(still, 0, SEGMENTED_PRESS_SPRING\);\s*setDragging\(true\);/);
   assert.match(componentSource, /const releaseInteraction = \(delay = 0, settle = true\) => \{\s*setDragging\(false\);/);
   assert.match(componentSource, /data-dragging=\{dragging \? "" : undefined\}/);

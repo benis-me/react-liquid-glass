@@ -19,8 +19,11 @@ export const SEGMENTED_DEFORMATION = { perSpeed: 0.00024, stiffness: 760, dampin
  * share of its height as iOS 27's, so the bar's edge meets its rim band where native's does.
  */
 export const SEGMENTED_LIFT_OUTSET = 0.17;
-/** Landing: once the lens is this close to its tab, it shrinks and dissolves over the solid thumb. */
-export const SEGMENTED_HANDOFF = { arrivalPixels: 4, dissolve: { duration: 0.32, ease: [0.4, 0, 0.2, 1] as const } };
+/**
+ * Landing: once the lens is this close to its tab it sinks back, and once its lift has fallen to
+ * `dissolveLift` it dissolves over the solid thumb, so what it magnifies is near its own size by then.
+ */
+export const SEGMENTED_HANDOFF = { arrivalPixels: 4, dissolveLift: 0.4, dissolve: { duration: 0.32, ease: [0.4, 0, 0.2, 1] as const } };
 export const SEGMENTED_HOLD_IMPACT_SCRIPT = {
   stiffness: 360,
   damping: 24,

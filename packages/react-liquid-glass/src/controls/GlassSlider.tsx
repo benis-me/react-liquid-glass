@@ -4,7 +4,7 @@ import { animate, motion, useMotionValue, useReducedMotion, useTransform } from 
 import { LiquidGlass } from "../liquid-glass/LiquidGlass.js";
 import { liquidTheme, liquidTrackSource, subscribeLiquidTheme } from "../liquid-glass/source.js";
 import { usePointerReleaseFallback, useGlassContact, rubberBand, type SpringRun } from "../apple-motion/react.js";
-import { LIFTED_MODEL, liftedLens, settleThumb, useLiftedOptics, useThumbMotion } from "./use-thumb-motion.js";
+import { LIFTED_MODEL, liftedLens, settleThumb, useLiftedOptics, useLiftedShadow, useThumbMotion } from "./use-thumb-motion.js";
 
 /** Native input attributes (id, aria-*, required, form, onBlur…) pass through to the slider's range input. */
 type NativeSliderProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "min" | "max" | "step" | "value" | "defaultValue" | "disabled" | "name" | "onChange" | "size" | "children" | "className" | "style">;
@@ -82,17 +82,19 @@ export function GlassSlider({
 
   const offset = useMotionValue(toOffset(current));
   const x = useTransform(offset, (position) => (padding + thumbWidth / 2 + position) / filterWidth);
-  const { lensW, lensH, radius, tintOpacity, targetScaleX, targetScaleY, tintBlur, shadowOpacity, setDeformationBoost, expand, collapse } = useThumbMotion(offset, halfThumbWidth, halfThumbHeight, restTintBlur, reduce);
+  const { lensW, lensH, radius, tintOpacity, targetScaleX, targetScaleY, tintBlur, still, setDeformationBoost, expand, collapse, drag } = useThumbMotion(offset, halfThumbWidth, halfThumbHeight, restTintBlur, reduce);
   // Held, the thumb is iOS 27's lifted lens; its refracted track already magnifies.
   const held = useTransform(tintOpacity, opacity => 1 - opacity);
   const { band, bulge } = useLiftedOptics(lensW, lensH, held);
+  // Held, the thumb casts the lifted lens's shadow, as a pressed tab does; at rest it keeps its own.
+  const liftShadow = useLiftedShadow(lensH, held, dark, { strength: .04, offset: Math.min(18, filterHeight * .12), blur: Math.min(26, filterHeight * .2) });
 
   const wrapperRef = useRef<HTMLDivElement>(null);
   const contact = useGlassContact(wrapperRef, { deform: false, enabled: !disabled });
   const contactX = useTransform(() => ((contact.contactX.get() + 1) * width / 2 - halfThumbWidth - offset.get()) / lensW.get());
   const contactY = useTransform(() => contact.contactY.get() * thumbHeight / 2 / lensH.get());
-  // The lifted lens barely lights where it is touched.
-  const touchLight = useTransform(contact.contactStrength, strength => strength * .3);
+  // The lifted lens barely lights where it is touched, and not at all once the press drags.
+  const touchLight = useTransform(() => contact.contactStrength.get() * .3 * still.get());
   const trackRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const pointerId = useRef<number | null>(null);
@@ -154,7 +156,7 @@ export function GlassSlider({
         refractionPixels={1}
         zoom={bulge}
         depth={band}
-        material={LIFTED_MODEL}
+        material={{ ...LIFTED_MODEL, shadowStrength: liftShadow.strength, shadowOffset: liftShadow.offset, shadowBlur: liftShadow.blur }}
         lens={lens}
         x={x}
         y={0.5}
@@ -164,7 +166,6 @@ export function GlassSlider({
         tintColor="white"
         tintOpacity={tintOpacity}
         tintBlur={tintBlur}
-        shadowOpacity={shadowOpacity}
         shadowBleed
         pixelRatio={2}
         pixelAlign
@@ -232,6 +233,7 @@ export function GlassSlider({
                 pointerMoved.current = true;
                 pointerStart.current = event.clientX;
                 offsetStart.current = offset.get();
+                drag();
               }
               let next = offsetStart.current + (event.clientX - pointerStart.current);
               if (next < 0) next = -rubberBand(-next, overshoot, overshoot * 30);
