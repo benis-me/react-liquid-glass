@@ -239,11 +239,14 @@ test("WebGPU darkens the edge and brightens the dark crest exactly as WebGL2 doe
 test("the lifted lens model is the same on WebGPU and WebGL2", () => {
   const wgsl = readFileSync(new URL("../packages/react-liquid-glass/src/liquid-glass/shaders/glass.wgsl", import.meta.url), "utf8");
   const gpu = readFileSync(new URL("../packages/react-liquid-glass/src/liquid-glass/webgpu-renderer.ts", import.meta.url), "utf8");
-  // Magnified middle, outward bulge in the band, flush at the rim.
-  assert.match(wgsl, /displacement = -lensNormal \* \(4\.0 \* band \* \(1\.0 - band\)\) \* \(bevelRatio \/ max\(materialWeight, 0\.001\)\) \* \(p\.refraction\.y \* 0\.5\)/);
-  assert.match(liquidCanvasSource, /displacement = -lensNormal \* \(4\. \* band \* \(1\. - band\)\) \* \(bevelRatio \/ max\(materialWeight, \.001\)\) \* \(uRefraction \* \.5\)/);
-  assert.match(wgsl, /\(1\.0 - 1\.0 \/ max\(p\.ratio\.z, 1\.0\)\) \* \(1\.0 - sqrt\(band\)\) \* coverage/);
-  assert.match(liquidCanvasSource, /\(1\. - 1\. \/ max\(uLensZoom, 1\.\)\) \* \(1\. - sqrt\(band\)\) \* coverage/);
+  // Magnified middle fading as the square root of the band, and an outward bulge,
+  // (sqrt(band) * (1 - band))^1.5 normalised to peak at 1, flush at the rim.
+  assert.match(wgsl, /let rise = sqrt\(band\);\s*let swell = rise \* \(1\.0 - band\);/);
+  assert.match(liquidCanvasSource, /float rise = sqrt\(band\);\s*float swell = rise \* \(1\. - band\);/);
+  assert.match(wgsl, /displacement = -lensNormal \* \(swell \* sqrt\(swell\) \* 4\.1877\) \* \(bevelRatio \/ max\(materialWeight, 0\.001\)\) \* \(p\.refraction\.y \* 0\.5\)/);
+  assert.match(liquidCanvasSource, /displacement = -lensNormal \* \(swell \* sqrt\(swell\) \* 4\.1877\) \* \(bevelRatio \/ max\(materialWeight, \.001\)\) \* \(uRefraction \* \.5\)/);
+  assert.match(wgsl, /\(1\.0 - 1\.0 \/ max\(p\.ratio\.z, 1\.0\)\) \* \(1\.0 - rise\) \* coverage/);
+  assert.match(liquidCanvasSource, /\(1\. - 1\. \/ max\(uLensZoom, 1\.\)\) \* \(1\. - rise\) \* coverage/);
   // Red holds back on one diagonal, blue on the other and green half as much on both;
   // only the outer band frosts.
   assert.match(wgsl, /let diagonal = 2\.0 \* lensNormal\.x \* lensNormal\.y;/);
@@ -880,12 +883,12 @@ test("control optics retain size-independent pixel gain and the approved menu ma
   assert.match(componentSource, /\.\.\.LIQUID_LENS/);
   assert.equal((componentSource.match(/chromaAmount: \.24, edgeWidth: \.9/g) ?? []).length, 1);
   // Held thumbs and the pressed tab are one lifted lens, iOS 27's, calibrated against a native
-  // screenshot: clear glass whose rim band (0.39 of its radius) bulges out by 0.138 of its radius
+  // screenshot: clear glass whose rim band (0.33 of its radius) bulges out by 0.147 of its radius
   // as it lifts. Only the tab magnifies; the thumbs' refracted track already does.
   assert.equal((componentSource.match(/liftedLens\(dark, \{/g) ?? []).length, 3, "Switch, Slider and Segmented share one lifted lens");
   assert.match(componentSource, /chromaAmount: 1\.5, blurAmount: \.7, edgeWidth: 1\.2, edgeStrength: \.81, specularStrength: 1,\s*glowStrength: 0, brightness: 0, tint: 0, \.\.\.lens,/);
-  assert.match(componentSource, /const band = useTransform\(\(\) => 2\.5 \+ \(Math\.min\(lensW\.get\(\), lensH\.get\(\)\) \* \.39 - 2\.5\) \* unit\(lift\.get\(\)\)\)/);
-  assert.match(componentSource, /const bulge = useTransform\(\(\) => Math\.min\(lensW\.get\(\), lensH\.get\(\)\) \* \.138 \* unit\(lift\.get\(\)\)\)/);
+  assert.match(componentSource, /const band = useTransform\(\(\) => 2\.5 \+ \(Math\.min\(lensW\.get\(\), lensH\.get\(\)\) \* \.33 - 2\.5\) \* unit\(lift\.get\(\)\)\)/);
+  assert.match(componentSource, /const bulge = useTransform\(\(\) => Math\.min\(lensW\.get\(\), lensH\.get\(\)\) \* \.147 \* unit\(lift\.get\(\)\)\)/);
   assert.equal((componentSource.match(/refractionPixels=\{1\}\s*zoom=\{bulge\}\s*depth=\{band\}\s*material=\{LIFTED_MODEL\}/g) ?? []).length, 2);
   assert.match(componentSource, /const LIFT_MAGNIFICATION = 1\.155;/);
   assert.match(componentSource, /refractionPixels=\{1\}\s*zoom=\{bulge\}\s*material=\{\{ refractionModel: "lens", lensMagnification: magnify, shadowStrength: 0 \}\}/);

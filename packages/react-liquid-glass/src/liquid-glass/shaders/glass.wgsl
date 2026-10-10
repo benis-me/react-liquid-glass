@@ -255,8 +255,13 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
     // before meeting the surface flush at the rim.
     let band = clamp(1.0 - inside / max(p.frost.y, 0.001), 0.0, 1.0);
     lensNormal = bevelNormal / max(length(bevelNormal), 0.0001);
-    displacement = -lensNormal * (4.0 * band * (1.0 - band)) * (bevelRatio / max(materialWeight, 0.001)) * (p.refraction.y * 0.5);
-    lensZoom = lensOffset / max(materialWeight, 0.001) / p.size.xy * (1.0 - 1.0 / max(p.ratio.z, 1.0)) * (1.0 - sqrt(band)) * coverage;
+    // The magnification fades as the square root of the band, and the bulge,
+    // (sqrt(band) * (1 - band))^1.5, peaks at 1 a third of the way out, so the middle
+    // stays magnified close to the band before the rim pulls in its surroundings.
+    let rise = sqrt(band);
+    let swell = rise * (1.0 - band);
+    displacement = -lensNormal * (swell * sqrt(swell) * 4.1877) * (bevelRatio / max(materialWeight, 0.001)) * (p.refraction.y * 0.5);
+    lensZoom = lensOffset / max(materialWeight, 0.001) / p.size.xy * (1.0 - 1.0 / max(p.ratio.z, 1.0)) * (1.0 - rise) * coverage;
     // Only the outer band scatters; the refracted edge and magnified middle stay clear.
     frost *= smoothstep(0.45, 0.9, band);
   } else if (p.flags.w > 0.5) {

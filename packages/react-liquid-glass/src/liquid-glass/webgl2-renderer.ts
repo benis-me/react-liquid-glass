@@ -338,8 +338,13 @@ void main() {
     // before meeting the surface flush at the rim.
     float band = clamp(1. - inside / max(uDepth, .001), 0., 1.);
     lensNormal = bevelNormal / max(length(bevelNormal), .0001);
-    displacement = -lensNormal * (4. * band * (1. - band)) * (bevelRatio / max(materialWeight, .001)) * (uRefraction * .5);
-    lensZoom = lensOffset / max(materialWeight, .001) / uSourceSize * (1. - 1. / max(uLensZoom, 1.)) * (1. - sqrt(band)) * coverage;
+    // The magnification fades as the square root of the band, and the bulge,
+    // (sqrt(band) * (1 - band))^1.5, peaks at 1 a third of the way out, so the middle
+    // stays magnified close to the band before the rim pulls in its surroundings.
+    float rise = sqrt(band);
+    float swell = rise * (1. - band);
+    displacement = -lensNormal * (swell * sqrt(swell) * 4.1877) * (bevelRatio / max(materialWeight, .001)) * (uRefraction * .5);
+    lensZoom = lensOffset / max(materialWeight, .001) / uSourceSize * (1. - 1. / max(uLensZoom, 1.)) * (1. - rise) * coverage;
     // Only the outer band scatters; the refracted edge and magnified middle stay clear.
     frost *= smoothstep(.45, .9, band);
   } else if (uBevel) {

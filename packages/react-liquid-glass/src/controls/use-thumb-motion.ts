@@ -25,13 +25,13 @@ const unit = (value: number) => Math.min(1, Math.max(0, value));
 export const LIFTED_MODEL = { refractionModel: "lens" } as const;
 /**
  * The lifted lens's optics as it lifts from resting glass (0) to a held lens (1): its rim band,
- * 0.39 of its radius wide, bulges out by 0.138 of its radius, pulling in what surrounds it, and
+ * 0.33 of its radius wide, bulges out by 0.147 of its radius, pulling in what surrounds it, and
  * its middle magnifies by `magnification`. Give `band` to the edge depth, `bulge` to the zoom
  * with one refraction pixel, and `magnify` to the lens model's magnification.
  */
 export function useLiftedOptics(lensW: Readable, lensH: Readable, lift: Readable, magnification = 1) {
-  const band = useTransform(() => 2.5 + (Math.min(lensW.get(), lensH.get()) * .39 - 2.5) * unit(lift.get()));
-  const bulge = useTransform(() => Math.min(lensW.get(), lensH.get()) * .138 * unit(lift.get()));
+  const band = useTransform(() => 2.5 + (Math.min(lensW.get(), lensH.get()) * .33 - 2.5) * unit(lift.get()));
+  const bulge = useTransform(() => Math.min(lensW.get(), lensH.get()) * .147 * unit(lift.get()));
   const magnify = useTransform(() => 1 + (magnification - 1) * unit(lift.get()));
   return { band, bulge, magnify };
 }
