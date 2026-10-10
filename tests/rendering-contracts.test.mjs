@@ -271,13 +271,14 @@ test("the lifted lens model is the same on WebGPU and WebGL2", () => {
   assert.match(liquidCanvasSource, /lensZoom \+ displacement \* \(1\. - spread\) \+ mirror \* max\(1\. - blueReach - rimDepth, 0\.\)/);
   assert.doesNotMatch(wgsl, /tilt \* abs\(diagonal\)/);
   assert.doesNotMatch(liquidCanvasSource, /tilt \* abs\(diagonal\)/);
-  // The shade is the same in every channel, so bright content is never tinted.
+  // The shade is the same in every channel, so bright content is never tinted. Over light
+  // content it keeps to the long sides; over dark content it runs all round, as native's does.
   assert.match(wgsl, /var rimShade = 0\.0;/);
   assert.match(liquidCanvasSource, /float rimShade = 0\.;/);
-  assert.match(wgsl, /rimShade = 0\.4 \* max\(1\.0 - rimDepth, 0\.0\) \* longSide;/);
-  assert.match(liquidCanvasSource, /rimShade = \.4 \* max\(1\. - rimDepth, 0\.\) \* longSide;/);
-  assert.match(wgsl, /refracted = refracted \* \(1\.0 - rimShade\);/);
-  assert.match(liquidCanvasSource, /refracted \*= 1\. - rimShade;/);
+  assert.match(wgsl, /rimShade = 0\.4 \* max\(1\.0 - rimDepth, 0\.0\);/);
+  assert.match(liquidCanvasSource, /rimShade = \.4 \* max\(1\. - rimDepth, 0\.\);/);
+  assert.match(wgsl, /refracted = refracted \* \(1\.0 - rimShade \* mix\(1\.0, longSide, smoothstep\(0\.45, 0\.85, dot\(refracted, vec3f\(0\.299, 0\.587, 0\.114\)\)\)\)\);/);
+  assert.match(liquidCanvasSource, /refracted \*= 1\. - rimShade \* mix\(1\., longSide, smoothstep\(\.45, \.85, dot\(refracted, vec3\(\.299, \.587, \.114\)\)\)\);/);
   assert.match(wgsl, /frost \*= smoothstep\(0\.45, 0\.9, band\) \* longSide;/);
   assert.match(liquidCanvasSource, /frost \*= smoothstep\(\.45, \.9, band\) \* longSide;/);
   // Every glass body wears the lens's edge: a fine dark contour at its edge and a white rim line

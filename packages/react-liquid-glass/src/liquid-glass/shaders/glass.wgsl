@@ -301,7 +301,7 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
       lensZoom + displacement * (1.0 - spread) + mirror * max(1.0 - blueReach - rimDepth, 0.0));
     // The shade is the same in every channel: shading one channel more than another would
     // tint bright content.
-    rimShade = 0.4 * max(1.0 - rimDepth, 0.0) * longSide;
+    rimShade = 0.4 * max(1.0 - rimDepth, 0.0);
   }
   if (debug) { return vec4f(mix(vec3f(0.5), vec3f(vec2f(0.5) + (displacement + lensZoom) * 4.0, coverage), coverage), 1.0); }
   let theta = radians(p.glow.x);
@@ -339,7 +339,9 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
   }
   var refracted = sampleGlass(uv, bend, frost);
   if (p.ink.x > 0.001 && p.ink.w > 0.5) { refracted = overlayInk(refracted, uv, bend, length(displacement * p.size.xy)); }
-  refracted = refracted * (1.0 - rimShade);
+  // The rim's shade runs all round over dark content, as native's does, but over light
+  // content only along the long sides: at the ends it read as a thick black edge.
+  refracted = refracted * (1.0 - rimShade * mix(1.0, longSide, smoothstep(0.45, 0.85, dot(refracted, vec3f(0.299, 0.587, 0.114)))));
   let luminance = dot(refracted, vec3f(0.299, 0.587, 0.114));
   let shine = specular * p.refraction.w * (127.0 / 255.0);
   refracted = mix(refracted + vec3f(shine), refracted * (1.0 - shine), smoothstep(0.3, 0.7, luminance));

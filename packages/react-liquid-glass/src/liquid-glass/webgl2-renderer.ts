@@ -384,7 +384,7 @@ void main() {
       lensZoom + displacement * (1. - spread) + mirror * max(1. - blueReach - rimDepth, 0.));
     // The shade is the same in every channel: shading one channel more than another would
     // tint bright content.
-    rimShade = .4 * max(1. - rimDepth, 0.) * longSide;
+    rimShade = .4 * max(1. - rimDepth, 0.);
   }
   if (uDebug) {
     outputColor = vec4(mix(vec3(.5), vec3(.5 + (displacement + lensZoom) * 4., coverage), coverage), 1.);
@@ -435,7 +435,9 @@ void main() {
   }
   vec3 refracted = sampleGlass(vUv, bend, frost);
   if (uContentSource && uContentOpacity > .001) refracted = overlayInk(refracted, vUv, bend, length(displacement * uSourceSize));
-  refracted *= 1. - rimShade;
+  // The rim's shade runs all round over dark content, as native's does, but over light
+  // content only along the long sides: at the ends it read as a thick black edge.
+  refracted *= 1. - rimShade * mix(1., longSide, smoothstep(.45, .85, dot(refracted, vec3(.299, .587, .114))));
   // Video's highlight response preserves contrast on both bright and dark substrates.
   float luminance = dot(refracted, vec3(.299, .587, .114));
   float shine = specular * uSpecular * (127. / 255.);
