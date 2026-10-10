@@ -999,7 +999,7 @@ test("a pressed tab bar grows about its centre and its glass stays registered", 
   assert.match(segmented, /const halfW = itemRect\.width \/ 2 \/ expanded\.scale\.x, halfH = itemRect\.height \/ 2 \/ expanded\.scale\.y;/);
   assert.equal((segmented.match(/impactWidth\.current = expanded\.width \/ expanded\.scale\.x;/g) ?? []).length, 2);
   // Glass under a scaled ancestor samples what lies behind it on screen and keeps its ink in place.
-  assert.match(source, /export function liquidScreenScale\(element: HTMLElement, rect: Pick<DOMRect, "width" \| "height"> = element\.getBoundingClientRect\(\)\) \{\s*const ratio = \(screen: number, layout: number\) => layout > 0 && Math\.abs\(screen - layout\) >= 1 \? screen \/ layout : 1;/);
+  assert.match(source, /export function liquidScreenScale\(element: HTMLElement, rect: Pick<DOMRect, "width" \| "height"> = element\.getBoundingClientRect\(\)\) \{\s*const width = element\.offsetWidth, height = element\.offsetHeight;\s*const ratio = \(screen: number, layout: number\) => layout > 0 && Math\.abs\(screen - layout\) >= 1 \? screen \/ layout : 1;/);
   assert.equal((source.match(/const rect = local\((?:element|range|svg)\.getBoundingClientRect\(\)\);/g) ?? []).length, 3);
   assert.match(liquidAdapterSource, /return \{ left: rect\.left - bleed \* scale\.x, top: rect\.top - bleed \* scale\.y, width: \(sizeRef\.current\.width \+ bleed \* 2\) \* scale\.x, height: \(sizeRef\.current\.height \+ bleed \* 2\) \* scale\.y \};/);
   assert.match(surface, /return \{ left: rect\.left - 40 \* scale\.x, top: rect\.top - 40 \* scale\.y, width: \(element\.offsetWidth \+ 80\) \* scale\.x, height: \(element\.offsetHeight \+ 80\) \* scale\.y \};/);
@@ -1007,11 +1007,15 @@ test("a pressed tab bar grows about its centre and its glass stays registered", 
   assert.match(pageStylesSource, /\.filter-scroll \{ margin: -18px -16px; \}/);
   assert.match(pageStylesSource, /\.filter-scroll > \.dg-scroll-area__viewport > div > \.dg-scroll-area__content \{ padding: 18px 16px; overflow: clip; \}/);
   assert.match(pageStylesSource, /\.preset-list \{ margin: 6px -16px 10px; \}/);
-  // Scaled screen boxes map back to the element's own pixels; whole-pixel rounding is no scale.
+  // Scaled screen boxes map back to the element's own pixels; whole-pixel rounding is no scale,
+  // and a compact side that agrees with the other side's scale takes it.
   const scaleOf = new Function(`${stripTypeScriptTypes(source.slice(source.indexOf("export function liquidScreenScale"), source.indexOf("\n}\n", source.indexOf("export function liquidScreenScale")) + 2)).replace("export function", "function")}\nreturn liquidScreenScale;`)();
   assert.deepEqual(scaleOf({ offsetWidth: 211, offsetHeight: 40 }, { width: 211.16, height: 40 }), { x: 1, y: 1 });
   assert.deepEqual(scaleOf({ offsetWidth: 211, offsetHeight: 40 }, { width: 211 * 1.035, height: 40 * 1.035 }), { x: 1.035, y: 1.035 });
   assert.deepEqual(scaleOf({ offsetWidth: 0, offsetHeight: 0 }, { width: 10, height: 10 }), { x: 1, y: 1 });
+  assert.deepEqual(scaleOf({ offsetWidth: 100, offsetHeight: 34 }, { width: 102.5, height: 34.85 }), { x: 1.025, y: 1.025 }, "a 34px side under scale(1.025) changes by 0.85px");
+  assert.deepEqual(scaleOf({ offsetWidth: 211, offsetHeight: 40 }, { width: 212.5, height: 40.28 }), { x: 212.5 / 211, y: 212.5 / 211 }, "early in the press spring");
+  assert.deepEqual(scaleOf({ offsetWidth: 100, offsetHeight: 34 }, { width: 110, height: 34 }), { x: 1.1, y: 1 }, "a horizontal-only scale stays horizontal");
 });
 
 test("ordinary glass resolves defaults < instance < provider without freezing animated values", () => {

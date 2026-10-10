@@ -106,11 +106,16 @@ type BackgroundBounds = Pick<DOMRect, "left" | "top" | "width" | "height">;
 
 /**
  * How much transformed ancestors scale an element on screen, as when a pressed tab bar grows.
- * Layout sizes round to whole pixels, so a difference under one pixel reads as no scale.
+ * Layout sizes round to whole pixels, so a side that differs by under a pixel reads as unscaled,
+ * unless it agrees with the other side's scale: a compact side under a uniform scale takes it.
  */
 export function liquidScreenScale(element: HTMLElement, rect: Pick<DOMRect, "width" | "height"> = element.getBoundingClientRect()) {
+  const width = element.offsetWidth, height = element.offsetHeight;
   const ratio = (screen: number, layout: number) => layout > 0 && Math.abs(screen - layout) >= 1 ? screen / layout : 1;
-  return { x: ratio(rect.width, element.offsetWidth), y: ratio(rect.height, element.offsetHeight) };
+  let x = ratio(rect.width, width), y = ratio(rect.height, height);
+  if (x !== 1 && y === 1 && height > 0 && Math.abs(rect.height / x - height) <= .5) y = x;
+  else if (y !== 1 && x === 1 && width > 0 && Math.abs(rect.width / y - width) <= .5) x = y;
+  return { x, y };
 }
 
 /** Match a thin 135deg CSS hatch, with its phase anchored to the background box. Returns whether it matched. */
