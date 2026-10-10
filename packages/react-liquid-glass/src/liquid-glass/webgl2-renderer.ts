@@ -384,11 +384,11 @@ void main() {
   float luminance = dot(refracted, vec3(.299, .587, .114));
   float shine = specular * uSpecular * (127. / 255.);
   refracted = mix(refracted + vec3(shine), refracted * (1. - shine), smoothstep(.3, .7, luminance));
-  // A dark hairline vanishes on dark content. Like the highlight above, the same contour
-  // lightens dark substrates and darkens bright ones, so the edge reads in both themes.
+  // iOS 27 darkens the edge on every substrate; a lighter contour on dark content reads as
+  // a grey outline. There the crest carries the shape instead, brighter than on light.
   float contourAmount = contour * contourStrength;
-  refracted = mix(refracted + vec3(contourAmount * .18), refracted * (1. - contourAmount), smoothstep(.2, .5, luminance));
-  refracted += vec3(rimLight * .3);
+  refracted = refracted * (1. - contourAmount);
+  refracted += vec3(rimLight * mix(.5, .3, smoothstep(.2, .5, luminance)));
   vec3 brightnessTarget = uBrightness >= 0. ? vec3(1.) : vec3(0.);
   refracted = mix(refracted, brightnessTarget, brightnessAmount);
   refracted = mix(refracted, uTintColor, clamp(uTint, 0., 1.));

@@ -288,11 +288,11 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
   let luminance = dot(refracted, vec3f(0.299, 0.587, 0.114));
   let shine = specular * p.refraction.w * (127.0 / 255.0);
   refracted = mix(refracted + vec3f(shine), refracted * (1.0 - shine), smoothstep(0.3, 0.7, luminance));
-  // A dark hairline vanishes on dark content. Like the highlight above, the same contour
-  // lightens dark substrates and darkens bright ones, so the edge reads in both themes.
+  // iOS 27 darkens the edge on every substrate; a lighter contour on dark content reads as
+  // a grey outline. There the crest carries the shape instead, brighter than on light.
   let contourAmount = contour * contourStrength;
-  refracted = mix(refracted + vec3f(contourAmount * 0.18), refracted * (1.0 - contourAmount), smoothstep(0.2, 0.5, luminance));
-  refracted += vec3f(rimLight * 0.3);
+  refracted = refracted * (1.0 - contourAmount);
+  refracted += vec3f(rimLight * mix(0.5, 0.3, smoothstep(0.2, 0.5, luminance)));
   let brightnessTarget = select(vec3f(0.0), vec3f(1.0), p.frost.w >= 0.0);
   refracted = mix(refracted, brightnessTarget, brightnessAmount);
   refracted = mix(refracted, p.tint.xyz, clamp(p.edge.w, 0.0, 1.0));

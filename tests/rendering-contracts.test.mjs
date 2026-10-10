@@ -171,10 +171,12 @@ test("liquid uses the shared smooth-union compositor for its full lifecycle", ()
   assert.match(liquidCanvasSource, /float reflectionLight = smoothstep\(\.75, \.98, edgeLight\)/);
   // The dark contour follows edge strength alone, so an HDR display's lower SDR highlight keeps the edge.
   assert.match(liquidCanvasSource, /min\(\.85, max\(uEdgeStrength, 0\.\) \* 3\.2\) \* mix\(\.85, \.24, edgeLight\)/);
-  // The same contour band darkens bright substrates and lightens dark ones (no second rim).
-  assert.match(liquidCanvasSource, /float contourAmount = contour \* contourStrength;\s*refracted = mix\(refracted \+ vec3\(contourAmount \* \.18\), refracted \* \(1\. - contourAmount\), smoothstep\(\.2, \.5, luminance\)\)/);
+  // iOS 27's edge darkens on every substrate: no grey outline on dark content. The crest is
+  // brighter there instead, and unchanged on light substrates.
+  assert.match(liquidCanvasSource, /float contourAmount = contour \* contourStrength;\s*refracted = refracted \* \(1\. - contourAmount\);/);
+  assert.doesNotMatch(liquidCanvasSource, /vec3\(contourAmount/);
   assert.match(liquidCanvasSource, /float rimLight = reflection \* reflectionLight \* edgeGain/);
-  assert.match(liquidCanvasSource, /refracted \+= vec3\(rimLight \* \.3\)/);
+  assert.match(liquidCanvasSource, /refracted \+= vec3\(rimLight \* mix\(\.5, \.3, smoothstep\(\.2, \.5, luminance\)\)\)/);
   assert.match(liquidCanvasSource, /refracted \* \(1\. - shine\)/);
   assert.doesNotMatch(liquidCanvasSource, /edgeShare/);
   assert.doesNotMatch(liquidCanvasSource, /sceneNormal|insetRim/);
@@ -188,7 +190,7 @@ test("liquid uses the shared smooth-union compositor for its full lifecycle", ()
   const specularCompositeIndex = liquidCanvasSource.indexOf("float shine = specular * uSpecular");
   const brightnessCompositeIndex = liquidCanvasSource.indexOf("refracted = mix(refracted, brightnessTarget");
   const tintCompositeIndex = liquidCanvasSource.indexOf("refracted = mix(refracted, uTintColor");
-  const contourCompositeIndex = liquidCanvasSource.indexOf("refracted = mix(refracted + vec3(contourAmount");
+  const contourCompositeIndex = liquidCanvasSource.indexOf("refracted = refracted * (1. - contourAmount)");
   const reflectionCompositeIndex = liquidCanvasSource.indexOf("refracted += vec3(rimLight");
   assert.ok(specularCompositeIndex < contourCompositeIndex && contourCompositeIndex < reflectionCompositeIndex);
   assert.ok(reflectionCompositeIndex < brightnessCompositeIndex, "both edge profiles remain inside the shared material and coverage");
@@ -220,6 +222,13 @@ test("liquid uses the shared smooth-union compositor for its full lifecycle", ()
   assert.doesNotMatch(liquidCanvasSource, /uTrail|movingTrail|tailBlob/i);
   assert.match(libraryIndexSource, /LiquidGlassCanvas/);
   assert.match(libraryIndexSource, /LiquidGlassBlob/);
+});
+
+test("WebGPU darkens the edge and brightens the dark crest exactly as WebGL2 does", () => {
+  const wgsl = readFileSync(new URL("../packages/react-liquid-glass/src/liquid-glass/shaders/glass.wgsl", import.meta.url), "utf8");
+  assert.match(wgsl, /let contourAmount = contour \* contourStrength;\s*refracted = refracted \* \(1\.0 - contourAmount\);/);
+  assert.doesNotMatch(wgsl, /vec3f\(contourAmount/);
+  assert.match(wgsl, /refracted \+= vec3f\(rimLight \* mix\(0\.5, 0\.3, smoothstep\(0\.2, 0\.5, luminance\)\)\)/);
 });
 
 test("popups thicken with size under the same rule as the Morph Menu", () => {
