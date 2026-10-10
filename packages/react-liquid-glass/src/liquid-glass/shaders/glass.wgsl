@@ -313,16 +313,23 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
   let specular = min(1.0, glow);
   let edgeLight = pow(clamp(abs(dot(edgeGradient, light)) / max(length(edgeGradient), 0.001), 0.0, 1.0), p.edge.z);
   let edgeWidth = max(p.edge.y, 0.001);
-  // Every glass body wears the lifted lens's edge: a fine dark contour at its very edge, and
-  // just inside it a white rim line that reaches round to the sides, faint there. Plain glass
-  // keeps its full top and bottom crest; the lens's own comes mostly from what its rim mirrors.
-  let contour = 1.0 - smoothstep(0.0, edgeWidth * 0.5, inside);
-  let reflection = smoothstep(0.0, edgeWidth * 0.45, inside) * (1.0 - smoothstep(edgeWidth * 0.45, edgeWidth * 1.3, inside));
+  // Plain glass: a fine dark contour, then an inset crest. The crest's band covers the rim's
+  // inner falloff, so over light content the edge reads as a lit bevel; a line hugging the edge
+  // left the falloff showing there as an inner shadow.
+  var contour = 1.0 - smoothstep(0.0, edgeWidth * mix(0.48, 0.65, edgeLight), inside);
+  var reflection = smoothstep(edgeWidth * 0.45, edgeWidth * 0.85, inside) * (1.0 - smoothstep(edgeWidth * 0.85, edgeWidth * 2.0, inside));
+  if (lens) {
+    // The lifted lens's contour is a fine dark line at its very edge, and its rim line hugs it.
+    contour = 1.0 - smoothstep(0.0, edgeWidth * 0.5, inside);
+    reflection = smoothstep(0.0, edgeWidth * 0.45, inside) * (1.0 - smoothstep(edgeWidth * 0.45, edgeWidth * 1.3, inside));
+  }
+  // Every rim line reaches round toward the sides, faint there, as the native lens's does. Plain
+  // glass keeps its full top and bottom crest; the lens's own comes mostly from what it mirrors.
   let reflectionLight = 0.42 * smoothstep(0.25, 0.8, edgeLight) + select(0.58, 0.15, lens) * smoothstep(0.8, 0.98, edgeLight);
   let edgeGain = max(p.edge.x * p.refraction.w, 0.0);
   // The dark contour defines the body, so it follows edge strength alone: the lower SDR
   // highlight an HDR display uses must not thin the edge.
-  let contourStrength = min(0.95, max(p.edge.x, 0.0) * 3.2) * mix(0.85, 0.24, edgeLight);
+  let contourStrength = min(select(0.85, 0.95, lens), max(p.edge.x, 0.0) * 3.2) * mix(0.85, 0.24, edgeLight);
   let rimLight = reflection * reflectionLight * edgeGain;
   let brightnessAmount = clamp(abs(p.frost.w), 0.0, 1.0);
   var ink = vec4f(0.0);
@@ -347,9 +354,9 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
   refracted = mix(refracted + vec3f(shine), refracted * (1.0 - shine), smoothstep(0.3, 0.7, luminance));
   // iOS 27 darkens the edge on every substrate; a lighter contour on dark content reads as
   // a grey outline. There the crest carries the shape instead, brighter than on light.
-  // On light content the side contour lightens, so it reads as the same fine line as on dark;
-  // the top and bottom keep theirs.
-  let contourAmount = contour * contourStrength * mix(1.0, 0.6, smoothstep(0.45, 0.85, luminance) * (1.0 - edgeLight));
+  // On light content the lens's side contour lightens, so it reads as the same fine line as on
+  // dark; its top and bottom keep theirs.
+  let contourAmount = contour * contourStrength * mix(1.0, 0.6, select(0.0, smoothstep(0.45, 0.85, luminance) * (1.0 - edgeLight), lens));
   refracted = refracted * (1.0 - contourAmount);
   let crest = vec3f(rimLight);
   refracted += crest * mix(0.5, 0.3, smoothstep(0.2, 0.5, luminance));

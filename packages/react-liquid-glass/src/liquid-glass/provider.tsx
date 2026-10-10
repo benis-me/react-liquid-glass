@@ -16,6 +16,7 @@ export type GlassMaterial = Partial<
     | "edgeStrength"
     | "tintStrength"
     | "magnification"
+    | "lensMagnification"
     | "brightness"
     | "glowSpread"
     | "glowExponent"
@@ -29,7 +30,7 @@ export type GlassMaterial = Partial<
     number
   >
 > & {
-  debug?: boolean; hdr?: boolean; refractionModel?: "dome" | "bevel"; lightSource?: LiquidLightSource;
+  debug?: boolean; hdr?: boolean; refractionModel?: "dome" | "bevel" | "lens"; lightSource?: LiquidLightSource;
   /** Publish `data-dg-tone="light" | "dark"` on surfaces from their backdrop luminance. Off by default. */
   tone?: boolean;
 };

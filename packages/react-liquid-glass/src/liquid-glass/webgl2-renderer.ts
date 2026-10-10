@@ -403,18 +403,25 @@ void main() {
   // Reuse the SDF's screen derivatives: straight sidewalls must not inherit
   // a bright rim from their position above/below the body's center.
   float edgeLight = pow(clamp(abs(dot(edgeGradient, light)) / max(length(edgeGradient), .001), 0., 1.), uEdgeExponent);
-  // One SDF, two edge profiles: a fine dark contour, then a bright rim line just inside it.
+  // One SDF, two edge profiles: a fine dark contour, then an inset bright crest.
   float edgeWidth = max(uEdgeWidth, .001);
-  // Every glass body wears the lifted lens's edge: a fine dark contour at its very edge, and
-  // just inside it a white rim line that reaches round to the sides, faint there. Plain glass
-  // keeps its full top and bottom crest; the lens's own comes mostly from what its rim mirrors.
-  float contour = 1. - smoothstep(0., edgeWidth * .5, inside);
-  float reflection = smoothstep(0., edgeWidth * .45, inside) * (1. - smoothstep(edgeWidth * .45, edgeWidth * 1.3, inside));
+  // The crest's band covers the rim's inner falloff, so over light content the edge reads as a
+  // lit bevel; a line hugging the edge left the falloff showing there as an inner shadow.
+  float contour = 1. - smoothstep(0., edgeWidth * mix(.48, .65, edgeLight), inside);
+  float reflection = smoothstep(edgeWidth * .45, edgeWidth * .85, inside)
+    * (1. - smoothstep(edgeWidth * .85, edgeWidth * 2., inside));
+  if (uLens) {
+    // The lifted lens's contour is a fine dark line at its very edge, and its rim line hugs it.
+    contour = 1. - smoothstep(0., edgeWidth * .5, inside);
+    reflection = smoothstep(0., edgeWidth * .45, inside) * (1. - smoothstep(edgeWidth * .45, edgeWidth * 1.3, inside));
+  }
+  // Every rim line reaches round toward the sides, faint there, as the native lens's does. Plain
+  // glass keeps its full top and bottom crest; the lens's own comes mostly from what it mirrors.
   float reflectionLight = .42 * smoothstep(.25, .8, edgeLight) + (uLens ? .15 : .58) * smoothstep(.8, .98, edgeLight);
   float edgeGain = max(uEdgeStrength * uSpecular, 0.);
   // The dark contour defines the body, so it follows edge strength alone: the lower SDR
   // highlight an HDR display uses must not thin the edge.
-  float contourStrength = min(.95, max(uEdgeStrength, 0.) * 3.2) * mix(.85, .24, edgeLight);
+  float contourStrength = min(uLens ? .95 : .85, max(uEdgeStrength, 0.) * 3.2) * mix(.85, .24, edgeLight);
   float rimLight = reflection * reflectionLight * edgeGain;
   float brightnessAmount = clamp(abs(uBrightness), 0., 1.);
   vec4 ink = vec4(0.);
@@ -444,9 +451,9 @@ void main() {
   refracted = mix(refracted + vec3(shine), refracted * (1. - shine), smoothstep(.3, .7, luminance));
   // iOS 27 darkens the edge on every substrate; a lighter contour on dark content reads as
   // a grey outline. There the crest carries the shape instead, brighter than on light.
-  // On light content the side contour lightens, so it reads as the same fine line as on dark;
-  // the top and bottom keep theirs.
-  float contourAmount = contour * contourStrength * mix(1., .6, smoothstep(.45, .85, luminance) * (1. - edgeLight));
+  // On light content the lens's side contour lightens, so it reads as the same fine line as on
+  // dark; its top and bottom keep theirs.
+  float contourAmount = contour * contourStrength * mix(1., .6, uLens ? smoothstep(.45, .85, luminance) * (1. - edgeLight) : 0.);
   refracted = refracted * (1. - contourAmount);
   vec3 crest = vec3(rimLight);
   refracted += crest * mix(.5, .3, smoothstep(.2, .5, luminance));
@@ -852,7 +859,7 @@ export function createWebGL2GlassRenderer(
         const record = (value: number) => { if (!Object.is(highlightState[index], value)) changed = true; highlightState[index++] = value; };
         for (const values of [blobs, sizes, corners, velocities, contacts, contactInverses, contactOffsets, domes, refractionRatios]) for (const value of values) record(value);
         for (const key of scalarKeys) record(readMotion(p[key] ?? LIQUID_GLASS_MATERIAL[key]));
-        for (const value of [width, height, p.width, p.height, count, ...refraction, readMotion(p.contentOpacity ?? 0), readMotion(p.contentRefraction ?? 0), readMotion(p.contentBlur ?? 0), Number(p.contentSpace === "source")]) record(value);
+        for (const value of [width, height, p.width, p.height, count, ...refraction, readMotion(p.contentOpacity ?? 0), readMotion(p.contentRefraction ?? 0), readMotion(p.contentBlur ?? 0), Number(p.contentSpace === "source"), p.refractionModel === "lens" ? 2 : Number(p.refractionModel === "bevel")]) record(value);
         if (changed) {
           gl.uniform1i(u.uEmissionOnly, 1); gl.drawArrays(gl.TRIANGLES, 0, 6);
           presentHighlightHDR(device.canvas, { x: 0, y: sourceTop, width, height }); stats.emissionDraws++;

@@ -165,17 +165,17 @@ test("liquid uses the shared smooth-union compositor for its full lifecycle", ()
   assert.match(liquidCanvasSource, /float specular = min\(1\., glow\)/);
   assert.match(liquidCanvasSource, /vec2 edgeGradient = vec2\(dFdx\(distance\), dFdy\(distance\)\)/);
   assert.match(liquidCanvasSource, /float edgeLight = pow\(clamp\(abs\(dot\(edgeGradient, light\)\) \/ max\(length\(edgeGradient\), \.001\), 0\., 1\.\), uEdgeExponent\)/);
-  // Every glass body wears the lifted lens's edge: a fine dark contour at its very edge and a
-  // white rim line just inside it that reaches round to the sides, faint there.
-  assert.match(liquidCanvasSource, /float contour = 1\. - smoothstep\(0\., edgeWidth \* \.5, inside\)/);
-  assert.match(liquidCanvasSource, /float reflection = smoothstep\(0\., edgeWidth \* \.45, inside\) \* \(1\. - smoothstep\(edgeWidth \* \.45, edgeWidth \* 1\.3, inside\)\)/);
+  // Plain glass keeps its fine contour and inset crest: the crest's band covers the rim's inner
+  // falloff, which a line hugging the edge left showing over light content as an inner shadow.
+  assert.match(liquidCanvasSource, /float contour = 1\. - smoothstep\(0\., edgeWidth \* mix\(\.48, \.65, edgeLight\), inside\)/);
+  assert.match(liquidCanvasSource, /float reflection = smoothstep\(edgeWidth \* \.45, edgeWidth \* \.85, inside\)\s*\* \(1\. - smoothstep\(edgeWidth \* \.85, edgeWidth \* 2\., inside\)\)/);
+  // Every rim line reaches round toward the sides, faint there, as the lifted lens's does.
   assert.match(liquidCanvasSource, /float reflectionLight = \.42 \* smoothstep\(\.25, \.8, edgeLight\) \+ \(uLens \? \.15 : \.58\) \* smoothstep\(\.8, \.98, edgeLight\)/);
-  assert.doesNotMatch(liquidCanvasSource, /edgeWidth \* mix\(\.48, \.65, edgeLight\)|edgeWidth \* 2\., inside/);
   // The dark contour follows edge strength alone, so an HDR display's lower SDR highlight keeps the edge.
-  assert.match(liquidCanvasSource, /min\(\.95, max\(uEdgeStrength, 0\.\) \* 3\.2\) \* mix\(\.85, \.24, edgeLight\)/);
+  assert.match(liquidCanvasSource, /min\(uLens \? \.95 : \.85, max\(uEdgeStrength, 0\.\) \* 3\.2\) \* mix\(\.85, \.24, edgeLight\)/);
   // iOS 27's edge darkens on every substrate: no grey outline on dark content. On light content
-  // its sides lighten, so they read as the same fine line; the top and bottom keep theirs.
-  assert.match(liquidCanvasSource, /float contourAmount = contour \* contourStrength \* mix\(1\., \.6, smoothstep\(\.45, \.85, luminance\) \* \(1\. - edgeLight\)\);\s*refracted = refracted \* \(1\. - contourAmount\);/);
+  // only the lens's sides lighten, so they read as the same fine line as on dark.
+  assert.match(liquidCanvasSource, /float contourAmount = contour \* contourStrength \* mix\(1\., \.6, uLens \? smoothstep\(\.45, \.85, luminance\) \* \(1\. - edgeLight\) : 0\.\);\s*refracted = refracted \* \(1\. - contourAmount\);/);
   assert.doesNotMatch(liquidCanvasSource, /vec3\(contourAmount/);
   assert.match(liquidCanvasSource, /float rimLight = reflection \* reflectionLight \* edgeGain/);
   assert.match(liquidCanvasSource, /vec3 crest = vec3\(rimLight\);/);
@@ -232,7 +232,7 @@ test("liquid uses the shared smooth-union compositor for its full lifecycle", ()
 
 test("WebGPU darkens the edge and brightens the dark crest exactly as WebGL2 does", () => {
   const wgsl = readFileSync(new URL("../packages/react-liquid-glass/src/liquid-glass/shaders/glass.wgsl", import.meta.url), "utf8");
-  assert.match(wgsl, /let contourAmount = contour \* contourStrength \* mix\(1\.0, 0\.6, smoothstep\(0\.45, 0\.85, luminance\) \* \(1\.0 - edgeLight\)\);\s*refracted = refracted \* \(1\.0 - contourAmount\);/);
+  assert.match(wgsl, /let contourAmount = contour \* contourStrength \* mix\(1\.0, 0\.6, select\(0\.0, smoothstep\(0\.45, 0\.85, luminance\) \* \(1\.0 - edgeLight\), lens\)\);\s*refracted = refracted \* \(1\.0 - contourAmount\);/);
   assert.doesNotMatch(wgsl, /vec3f\(contourAmount/);
   assert.match(wgsl, /let crest = vec3f\(rimLight\);/);
   assert.match(wgsl, /refracted \+= crest \* mix\(0\.5, 0\.3, smoothstep\(0\.2, 0\.5, luminance\)\)/);
@@ -281,16 +281,24 @@ test("the lifted lens model is the same on WebGPU and WebGL2", () => {
   assert.match(liquidCanvasSource, /refracted \*= 1\. - rimShade \* mix\(1\., longSide, smoothstep\(\.45, \.85, dot\(refracted, vec3\(\.299, \.587, \.114\)\)\)\);/);
   assert.match(wgsl, /frost \*= smoothstep\(0\.45, 0\.9, band\) \* longSide;/);
   assert.match(liquidCanvasSource, /frost \*= smoothstep\(\.45, \.9, band\) \* longSide;/);
-  // Every glass body wears the lens's edge: a fine dark contour at its edge and a white rim line
-  // that reaches round to the sides, faint there; plain glass keeps a full top and bottom crest.
-  assert.match(wgsl, /let contour = 1\.0 - smoothstep\(0\.0, edgeWidth \* 0\.5, inside\);/);
-  assert.match(wgsl, /let reflection = smoothstep\(0\.0, edgeWidth \* 0\.45, inside\) \* \(1\.0 - smoothstep\(edgeWidth \* 0\.45, edgeWidth \* 1\.3, inside\)\);/);
+  // Plain glass keeps its inset crest; the lens's contour and rim line hug its edge. Every rim
+  // line reaches round toward the sides, faint there; plain glass keeps a full top and bottom crest.
+  assert.match(wgsl, /var contour = 1\.0 - smoothstep\(0\.0, edgeWidth \* mix\(0\.48, 0\.65, edgeLight\), inside\);/);
+  assert.match(wgsl, /var reflection = smoothstep\(edgeWidth \* 0\.45, edgeWidth \* 0\.85, inside\) \* \(1\.0 - smoothstep\(edgeWidth \* 0\.85, edgeWidth \* 2\.0, inside\)\);/);
+  assert.match(wgsl, /if \(lens\) \{[^}]*contour = 1\.0 - smoothstep\(0\.0, edgeWidth \* 0\.5, inside\);\s*reflection = smoothstep\(0\.0, edgeWidth \* 0\.45, inside\) \* \(1\.0 - smoothstep\(edgeWidth \* 0\.45, edgeWidth \* 1\.3, inside\)\);\s*\}/);
+  assert.match(liquidCanvasSource, /if \(uLens\) \{[^}]*contour = 1\. - smoothstep\(0\., edgeWidth \* \.5, inside\);\s*reflection = smoothstep\(0\., edgeWidth \* \.45, inside\) \* \(1\. - smoothstep\(edgeWidth \* \.45, edgeWidth \* 1\.3, inside\)\);\s*\}/);
   assert.match(wgsl, /let reflectionLight = 0\.42 \* smoothstep\(0\.25, 0\.8, edgeLight\) \+ select\(0\.58, 0\.15, lens\) \* smoothstep\(0\.8, 0\.98, edgeLight\);/);
-  assert.match(wgsl, /let contourStrength = min\(0\.95, max\(p\.edge\.x, 0\.0\) \* 3\.2\) \* mix\(0\.85, 0\.24, edgeLight\);/);
+  assert.match(wgsl, /let contourStrength = min\(select\(0\.85, 0\.95, lens\), max\(p\.edge\.x, 0\.0\) \* 3\.2\) \* mix\(0\.85, 0\.24, edgeLight\);/);
   assert.match(gpu, /p\.refractionModel === "lens" \? 2 : Number\(p\.refractionModel === "bevel"\)/);
   assert.match(gpu, /number\(p, "lensMagnification"\), 0\], 40\)/);
   assert.match(liquidCanvasSource, /gl\.uniform1i\(u\.uLens, p\.refractionModel === "lens" \? 1 : 0\)/);
   assert.match(liquidCanvasSource, /lensMagnification: "uLensZoom"/);
+  // The lens draws its own rim light, so a model change must refresh the retained HDR mask.
+  assert.match(liquidCanvasSource, /Number\(p\.contentSpace === "source"\), p\.refractionModel === "lens" \? 2 : Number\(p\.refractionModel === "bevel"\)\]\) record\(value\);/);
+  // Providers can choose the lens model too.
+  const provider = readFileSync(new URL("../packages/react-liquid-glass/src/liquid-glass/provider.tsx", import.meta.url), "utf8");
+  assert.match(provider, /refractionModel\?: "dome" \| "bevel" \| "lens";/);
+  assert.match(provider, /\| "lensMagnification"/);
 });
 
 test("popups thicken with size under the same rule as the Morph Menu", () => {
