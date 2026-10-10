@@ -82,7 +82,7 @@ export function createLiquidGlassRenderer(initialCanvas: HTMLCanvasElement, opti
     if (backend === "webgpu") {
       return (engine as WebGPURenderer).draw(frame);
     }
-    const lit = (readMotion(frame.specularStrength ?? LIQUID_GLASS_MATERIAL.specularStrength) * (frame.edgeStrength ?? LIQUID_GLASS_MATERIAL.edgeStrength) > .001 || frame.blobs.some(blob => readMotion(blob.contactStrength ?? 0) > .001))
+    const lit = (readMotion(frame.specularStrength ?? LIQUID_GLASS_MATERIAL.specularStrength) * readMotion(frame.edgeStrength ?? LIQUID_GLASS_MATERIAL.edgeStrength) > .001 || frame.blobs.some(blob => readMotion(blob.contactStrength ?? 0) > .001))
       && readMotion(frame.tintStrength ?? 0) < .999 && readMotion(frame.opacity ?? 1) > .001;
     const highRange = frame.hdr !== false && !frame.debug && lit && dynamicRange?.matches && !(engine as WebGLRenderer).context.isContextLost();
     if (highRange && !requestedHDR) {

@@ -2,13 +2,15 @@
 
 Notable changes to `rglass`. Versions follow semantic versioning; before 1.0, a minor version may include breaking changes.
 
-## 0.3.0 — 2026-10-09
+## 0.3.0 — 2026-10-10
 
 ### Changed
 
 - HDR light is restrained. A press now peaks near 1.5× SDR white instead of nearly 3×, the static rim near 1.2×, and overlapping light never stacks into glare: contact and rim share one soft cap, identical on WebGPU and WebGL2.
 - Glass edges follow iOS 27's more distinct border. The contour depends on edge strength alone, so it no longer thins on HDR displays; over dark content the same contour lightens instead of vanishing, so edges stay defined in dark mode; and the static top and bottom highlight is brighter.
 - Pointer feedback is quieter. Tabs and Morph Menu rows fill on hover at once instead of fading, Tabs labels keep their color on hover, and `GlassGroup` and `GlassButtonGroup` buttons press to 97% over 100ms.
+- Glass thickens with size, as Apple's does. Popover, Dropdown Menu, Select, Dialog, Sheet and the Morph Menu follow one rule from a 48px control to a 320px panel: as the live body grows, its shadow deepens and softens, its rim lenses more strongly, its light softens and busy backgrounds diffuse more. The two ends are the Button's material and the open Morph Menu's, so panels of the same size now look alike whichever component opened them, and tooltips stay thin.
+- The Morph Menu's closed trigger is the same glass as a Button. It no longer magnifies the content behind it or carries the open menu's deep shadow, and pressing it lights the glass where it is touched instead of pulsing its zoom. Its open panel diffuses busy backgrounds like the other popups instead of showing them sharply magnified.
 
 ### Fixed
 
@@ -25,6 +27,7 @@ Notable changes to `rglass`. Versions follow semantic versioning; before 1.0, a 
 
 ### Added
 
+- `liquidThickness(width, height)` exposes the size-to-thickness rule, and `LiquidGlassCanvas` accepts MotionValues for every scalar material value, so custom glass can thicken as it grows.
 - The Morph Menu moves focus into its panel on opening, prefers the checked item, supports arrow keys, Home and End, and makes its closed panel inert.
 - Development builds warn once for each element the DOM backdrop cannot draw: CSS gradients and `url()` backgrounds, and cross-origin media without CORS.
 - `LiquidGlass` accepts `shadowBleed`, which lets a lens's shadow extend past the element instead of ending at its box.

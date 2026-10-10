@@ -1,41 +1,20 @@
 import { useCallback, useEffect, useId, useMemo, useRef, type ReactNode } from "react";
 import { motion, useMotionValue, useTransform } from "motion/react";
-import type { LiquidLens } from "../liquid-glass/lens.js";
 import { LiquidGlassCanvas } from "../liquid-glass/LiquidGlassCanvas.js";
-import { LIQUID_LENS } from "../liquid-glass/LiquidGlass.js";
-import { liquidContentPose, liquidContentOptics } from "../liquid-glass/geometry.js";
+import { liquidContentPose, liquidContentOptics, liquidSurfaceBlur, liquidThickness } from "../liquid-glass/geometry.js";
 import { paintLiquidMenuContent } from "../liquid-glass/menu-content.js";
 import { createLiquidBackdrop } from "../liquid-glass/backdrop.js";
 import { useMenuMotion, type MenuLayout } from "../apple-motion/use-menu-motion.js";
 import { TRIGGER_RADIUS } from "../apple-motion/menu.js";
 import { useMenuMaterial } from "./use-menu-material.js";
+import { DARK_GLASS_TINT, THIN_GLASS, glassEdgeDepth, useGlassThickness } from "./glass-thickness.js";
+import { useGlassContact } from "../apple-motion/use-glass-contact.js";
 import { ScrollArea } from "./ScrollArea.js";
 import { moveMenuFocus } from "./menu-keys.js";
 import { useGlassMaterialOverrides } from "../liquid-glass/provider.js";
 
-const BASE_MENU_LENS = LIQUID_LENS;
-
-const LIGHT_MENU_LENS: LiquidLens = {
-  ...BASE_MENU_LENS,
-  brightness: 0.015,
-  glowStrength: 0.3,
-  edgeStrength: 0.36,
-};
-
-const DARK_MENU_LENS: LiquidLens = {
-  ...BASE_MENU_LENS,
-  brightness: 0.035,
-  glowStrength: 0.38,
-  edgeStrength: 0.42,
-};
-
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
-}
-
-function blendMaterialValue(values: unknown[]) {
-  const [progress, menuValue, buttonValue] = values as number[];
-  return buttonValue + (menuValue - buttonValue) * progress;
 }
 
 function menuLayout(width: number, height: number): MenuLayout {
@@ -85,7 +64,6 @@ export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, cla
   const renderLayout = (width: number, height: number) => Object.fromEntries(
     Object.entries(menuLayout(width, height)).map(([key, value]) => [key, value * scale]),
   ) as unknown as MenuLayout;
-  const menuLens = theme === "dark" ? DARK_MENU_LENS : LIGHT_MENU_LENS;
   const menuId = useId();
   const fusionSourceRef = useRef<HTMLCanvasElement>(null);
   const contentSourceRef = useRef<HTMLCanvasElement>(null);
@@ -93,8 +71,8 @@ export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, cla
   const fusionSourceRevision = useMotionValue(0);
   const contentActive = useMotionValue(0);
   const contentRevision = useMotionValue(0);
-  const { depth, tintOpacity, zoom, buttonDepth, buttonTintOpacity, buttonZoom, closingBlur, transition, press } = useMenuMaterial();
-  // The approved menu material is calibrated; shared ordinary-glass defaults must not replace it.
+  const { depth, tintOpacity, zoom, closingBlur, transition } = useMenuMaterial();
+  // The menu follows the shared thickness rule, not the ordinary-glass defaults; explicit host values still apply.
   const materialOverrides = useGlassMaterialOverrides();
   const captureContent = useCallback(() => {
     const panel = panelRef.current;
@@ -118,7 +96,6 @@ export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, cla
     coordinateScale: scale,
     onBegin: ({ interrupted, reducedMotion }) => { if (!reducedMotion && !interrupted) contentActive.set(captureContent() ? 1 : 0); },
     onTransition: transition,
-    onPress: press,
     onRest: () => { contentActive.jump(0); closingBlur.jump(0); },
     onOpenChange,
   });
@@ -135,21 +112,22 @@ export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, cla
   stageSizeRef.current = stageSize;
   const contentOpacity = useTransform([reveal, contentActive], ([opacity, active]: number[]) => opacity * active);
   const domContentOpacity = useTransform([reveal, contentActive], ([opacity, active]: number[]) => opacity * (1 - active));
-  const materialProgress = useTransform(halfWidth, (value) => {
-    const target = renderLayout(stageSizeRef.current.width, stageSizeRef.current.height).panelWidth / 2;
-    return clamp(
-      (value - TRIGGER_RADIUS * scale) / Math.max(1, target - TRIGGER_RADIUS * scale),
-      0,
-      1,
-    );
-  });
-  const materialBlur = useTransform(materialProgress, (progress) => 0.5 + progress * 1.1);
-  const materialDepth = useTransform([materialProgress, depth, buttonDepth], blendMaterialValue);
-  const materialTintOpacity = useTransform(
-    [materialProgress, tintOpacity, buttonTintOpacity],
-    blendMaterialValue,
-  );
-  const materialZoom = useTransform([materialProgress, zoom, buttonZoom], blendMaterialValue);
+  // The live body sets the glass thickness: the closed trigger is a compact control, the open menu thick glass.
+  const thickness = useTransform([halfWidth, halfHeight], ([width, height]: number[]) => liquidThickness(width * 2, height * 2));
+  const { tintStrength: _thicknessTint, magnification: _thicknessZoom, ...material } = useGlassThickness(thickness, theme === "dark", materialOverrides, scale);
+  // Frost matches popups of the same CSS size; the canvas draws in menu units.
+  const materialBlur = useTransform([halfWidth, halfHeight], ([width, height]: number[]) => liquidSurfaceBlur(width * 2, height * 2) / scale);
+  // The morph's own depth, tint and zoom ride on the thick end, so a closed trigger rests as thin glass.
+  const thinDepth = glassEdgeDepth(TRIGGER_RADIUS * 2, 0);
+  const materialDepth = useTransform([thickness, depth], ([t, value]: number[]) => thinDepth + (value - thinDepth) * t);
+  const materialTintOpacity = useTransform([thickness, tintOpacity], ([t, value]: number[]) => THIN_GLASS.tintStrength + (value - THIN_GLASS.tintStrength) * t);
+  const materialZoom = useTransform([thickness, zoom], ([t, value]: number[]) => 1 + (value - 1) * t);
+  // Pressing the trigger lights it where it is touched, as every other glass button does.
+  const contact = useGlassContact(triggerRef, { deform: false });
+  // Refraction scales with each body's own size (the body plus 28 CSS px, as Button's does), not the stage's;
+  // the panel keeps the stage scale it was calibrated at.
+  const triggerOptics = TRIGGER_RADIUS * 2 + 28 / scale;
+  const triggerRatioX = triggerOptics / Math.max(1, stageSize.width), triggerRatioY = triggerOptics / Math.max(1, stageSize.height);
   const contentOptics = useTransform([halfWidth, halfHeight, cornerRadius], (values) =>
     liquidContentOptics(values as number[], renderLayout(stageSizeRef.current.width, stageSizeRef.current.height)));
   const contentRefraction = useTransform(contentOptics, (optics) => optics.refraction);
@@ -178,6 +156,10 @@ export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, cla
         cornerRadius: rawButtonHalf,
         velocityX: rawButtonVelocityX,
         velocityY: rawButtonVelocityY,
+        contactX: contact.contactX,
+        contactY: contact.contactY,
+        contactStrength: contact.contactStrength,
+        refractionRatio: [triggerRatioX, triggerRatioY] as const,
       },
     ],
     [
@@ -193,6 +175,11 @@ export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, cla
       rawButtonHalf,
       rawButtonVelocityX,
       rawButtonVelocityY,
+      contact.contactX,
+      contact.contactY,
+      contact.contactStrength,
+      triggerRatioX,
+      triggerRatioY,
     ],
   );
   const contentPose = useTransform(
@@ -239,21 +226,9 @@ export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, cla
           height={stageSize.height}
           blobs={fusionBlobs}
           mergeDistance={rawMergeDistance}
-          refractionStrength={menuLens.scaleX}
-          chromaAmount={menuLens.chromaAmount}
-          specularStrength={menuLens.specularStrength}
+          {...material}
           edgeDepth={materialDepth}
-          domeDepth={menuLens.domeDepth}
-          brightness={menuLens.brightness}
-          specularRotation={menuLens.specularRotation}
-          glowStrength={menuLens.glowStrength}
-          glowSpread={menuLens.glowSpread}
-          glowExponent={menuLens.glowExponent}
-          edgeStrength={menuLens.edgeStrength}
-          edgeWidth={menuLens.edgeWidth}
-          edgeExponent={menuLens.edgeExponent}
-          tintColor={theme === "dark" ? [74 / 255, 74 / 255, 70 / 255] : [1, 1, 1]}
-          shadowStrength={0.11}
+          tintColor={theme === "dark" ? DARK_GLASS_TINT : [1, 1, 1]}
           sourceRevision={fusionSourceRevision}
           pixelRatio={2 * scale}
           className="dg-liquid-menu__fusion-canvas"

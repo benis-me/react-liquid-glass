@@ -5,11 +5,12 @@ import { cancelFrame, frame as motionFrame } from "motion";
 import { usePopoverMotion, type PopoverLayout } from "../apple-motion/use-popover-motion.js";
 import { useGlassContact } from "../apple-motion/use-glass-contact.js";
 import { paintLiquidMenuContent } from "../liquid-glass/menu-content.js";
-import { liquidContentOptics, liquidSurfaceBlur } from "../liquid-glass/geometry.js";
+import { liquidContentOptics, liquidSurfaceBlur, liquidThickness } from "../liquid-glass/geometry.js";
 import { LiquidGlassCanvas } from "../liquid-glass/LiquidGlassCanvas.js";
 import { paintLiquidBackdrop, observeLiquidBackdrop, scheduleLiquidBackdrop, cancelLiquidBackdrop } from "../liquid-glass/backdrop.js";
-import { useGlassMaterial } from "../liquid-glass/provider.js";
+import { useGlassMaterial, useGlassMaterialOverrides } from "../liquid-glass/provider.js";
 import { StageContext, FusionTriggerContext, SURFACE_MATERIAL } from "./GlassSurface.js";
+import { DARK_GLASS_TINT, glassEdgeDepth, glassShadowReach, useGlassThickness, useHostDark } from "./glass-thickness.js";
 import { ScrollArea } from "./ScrollArea.js";
 
 const ClosePopoverContext = createContext<() => void>(() => undefined);
@@ -60,9 +61,11 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
   const settled = useRef(false);
   const hasOpened = useRef(false);
   const stage = useContext(StageContext);
-  const material = useGlassMaterial();
-  const padding = Math.ceil(Math.max(28, (material.shadowBlur ?? 18) * 3 + Math.abs(material.shadowOffset ?? 6)));
+  const material = useGlassMaterial(), overrides = useGlassMaterialOverrides(), dark = useHostDark();
   const model = usePopoverMotion();
+  // A closed trigger is a compact control; the panel's glass thickens as it grows, as iOS's does.
+  const thickness = useTransform(() => liquidThickness(model.w.get() * 2, model.h.get() * 2));
+  const thicknessMaterial = useGlassThickness(thickness, dark, overrides);
   const layoutRef = useRef<PopoverLayout | null>(null);
   // Relative geometry only: viewport translation moves the host, not React state.
   const [frame, setFrame] = useState({ width: 1, height: 1, tx: 0, ty: 0, tw: 1, th: 1, tr: 16, px: 0, py: 0, pw: 1, ph: 1 });
@@ -88,6 +91,7 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
   const contentRefraction = useTransform(opticalShape, shape => shape.refraction);
   const contentBlur = useTransform(() => Math.max(opticalShape.get().blur, (1 - model.reveal.get()) * 2));
   const backgroundBlur = useTransform(() => liquidSurfaceBlur(model.w.get() * 2, model.h.get() * 2) * (blurStrength ?? (modal ? 18 : 12)) / 12);
+  const edgeDepth = useTransform(thickness, t => overrides.edgeDepth ?? glassEdgeDepth(Math.min(frame.tw, frame.th), t));
   const triggerClip = useTransform(() => {
     if (!active) return "none";
     const w = Math.max(0, model.w.get()), h = Math.max(0, model.h.get());
@@ -146,6 +150,8 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
     // before Motion draws the next frame caused a one-frame closing flash.
     const pw = isShowing ? element.offsetWidth : layoutRef.current?.panelWidth ?? 1;
     const ph = isShowing ? element.offsetHeight : layoutRef.current?.panelHeight ?? 1;
+    // Reserve the soft shadow the panel casts at its full size.
+    const padding = glassShadowReach(liquidThickness(pw, ph), overrides);
     let left = Math.max(vl + 12, Math.min(vl + vw - pw - 12, tooltip ? rect.left + (rect.width - pw) / 2 : rect.left));
     const below = rect.bottom + 10, above = rect.top - ph - 10;
     let top = tooltip && above >= vt + 12 ? above : below + ph <= vt + vh - 12 ? below : Math.max(vt + 12, above);
@@ -234,7 +240,7 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
       () => liveOpen.current ? backdropBounds.current : anchor.current?.getBoundingClientRect() ?? { left: 0, top: 0, width: 0, height: 0 },
       [anchor.current, topLayer.current], refreshBackdrop, () => liveOpen.current ? undefined : anchor.current ?? undefined);
   }, [stage]);
-  useLayoutEffect(() => { mirrorDirty.current = true; measureRef.current(); }, [trigger, padding, panelRadius]);
+  useLayoutEffect(() => { mirrorDirty.current = true; measureRef.current(); }, [trigger, overrides.shadowBlur, overrides.shadowOffset, panelRadius]);
   useLayoutEffect(() => {
     const element = topLayer.current;
     if (!element) return;
@@ -357,8 +363,8 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
         ...(active ? [{ x: bodyX, y: bodyY, radius: model.radius, cornerRadius: model.radius, halfWidth: model.w, halfHeight: model.h, refractionRatio: [(frame.pw + 56) / frame.width, (frame.ph + 56) / frame.height] as const }] : []),
         { x: frame.tx / frame.width, y: frame.ty / frame.height, radius: frame.tr, cornerRadius: frame.tr, halfWidth: triggerW, halfHeight: triggerH, refractionRatio: [(frame.tw + 28) / frame.width, (frame.th + 28) / frame.height], ...contact },
       ]}
-      mergeDistance={model.merge} edgeDepth={10}
-      blurStrength={backgroundBlur} shadowStrength={.08} shadowBlur={18} shadowOffset={6}
+      {...thicknessMaterial} tintColor={dark ? DARK_GLASS_TINT : undefined}
+      mergeDistance={model.merge} edgeDepth={edgeDepth} blurStrength={backgroundBlur}
       style={{ display: "block", width: "100%", height: "100%" }} />, host)}
   </>;
 }
