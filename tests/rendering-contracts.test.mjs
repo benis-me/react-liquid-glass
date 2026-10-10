@@ -170,7 +170,7 @@ test("liquid uses the shared smooth-union compositor for its full lifecycle", ()
   assert.match(liquidCanvasSource, /float contour = 1\. - smoothstep\(0\., edgeWidth \* mix\(\.48, \.65, edgeLight\), inside\)/);
   assert.match(liquidCanvasSource, /float reflection = smoothstep\(edgeWidth \* \.45, edgeWidth \* \.85, inside\)\s*\* \(1\. - smoothstep\(edgeWidth \* \.85, edgeWidth \* 2\., inside\)\)/);
   // Every rim line reaches round toward the sides, faint there, as the lifted lens's does.
-  assert.match(liquidCanvasSource, /float reflectionLight = \.42 \* smoothstep\(\.25, \.8, edgeLight\) \+ \(uLens \? \.15 : \.58\) \* smoothstep\(\.8, \.98, edgeLight\)/);
+  assert.match(liquidCanvasSource, /float reflectionLight = \.42 \* smoothstep\(uLens \? \.12 : \.25, uLens \? \.72 : \.8, edgeLight\) \+ \(uLens \? \.15 : \.58\) \* smoothstep\(\.8, \.98, edgeLight\)/);
   // The dark contour follows edge strength alone, so an HDR display's lower SDR highlight keeps the edge.
   assert.match(liquidCanvasSource, /min\(uLens \? \.95 : \.85, max\(uEdgeStrength, 0\.\) \* 3\.2\) \* mix\(\.85, \.24, edgeLight\)/);
   // iOS 27's edge darkens on every substrate: no grey outline on dark content. On light content
@@ -275,8 +275,10 @@ test("the lifted lens model is the same on WebGPU and WebGL2", () => {
   // content it keeps to the long sides; over dark content it runs all round, as native's does.
   assert.match(wgsl, /var rimShade = 0\.0;/);
   assert.match(liquidCanvasSource, /float rimShade = 0\.;/);
-  assert.match(wgsl, /rimShade = 0\.4 \* max\(1\.0 - rimDepth, 0\.0\);/);
-  assert.match(liquidCanvasSource, /rimShade = \.4 \* max\(1\. - rimDepth, 0\.\);/);
+  // A quarter as deep at the ends, where native's edge is a crisp line with a faint tail, and
+  // following edge strength like the contour, so a lens settled flat has none.
+  assert.match(wgsl, /rimShade = 0\.4 \* max\(1\.0 - rimDepth, 0\.0\) \* mix\(0\.25, 1\.0, longSide\) \* smoothstep\(0\.0, 0\.5, p\.edge\.x\);/);
+  assert.match(liquidCanvasSource, /rimShade = \.4 \* max\(1\. - rimDepth, 0\.\) \* mix\(\.25, 1\., longSide\) \* smoothstep\(0\., \.5, uEdgeStrength\);/);
   assert.match(wgsl, /refracted = refracted \* \(1\.0 - rimShade \* mix\(1\.0, longSide, smoothstep\(0\.45, 0\.85, dot\(refracted, vec3f\(0\.299, 0\.587, 0\.114\)\)\)\)\);/);
   assert.match(liquidCanvasSource, /refracted \*= 1\. - rimShade \* mix\(1\., longSide, smoothstep\(\.45, \.85, dot\(refracted, vec3\(\.299, \.587, \.114\)\)\)\);/);
   assert.match(wgsl, /frost \*= smoothstep\(0\.45, 0\.9, band\) \* longSide;/);
@@ -285,9 +287,10 @@ test("the lifted lens model is the same on WebGPU and WebGL2", () => {
   // line reaches round toward the sides, faint there; plain glass keeps a full top and bottom crest.
   assert.match(wgsl, /var contour = 1\.0 - smoothstep\(0\.0, edgeWidth \* mix\(0\.48, 0\.65, edgeLight\), inside\);/);
   assert.match(wgsl, /var reflection = smoothstep\(edgeWidth \* 0\.45, edgeWidth \* 0\.85, inside\) \* \(1\.0 - smoothstep\(edgeWidth \* 0\.85, edgeWidth \* 2\.0, inside\)\);/);
-  assert.match(wgsl, /if \(lens\) \{[^}]*contour = 1\.0 - smoothstep\(0\.0, edgeWidth \* 0\.5, inside\);\s*reflection = smoothstep\(0\.0, edgeWidth \* 0\.45, inside\) \* \(1\.0 - smoothstep\(edgeWidth \* 0\.45, edgeWidth \* 1\.3, inside\)\);\s*\}/);
-  assert.match(liquidCanvasSource, /if \(uLens\) \{[^}]*contour = 1\. - smoothstep\(0\., edgeWidth \* \.5, inside\);\s*reflection = smoothstep\(0\., edgeWidth \* \.45, inside\) \* \(1\. - smoothstep\(edgeWidth \* \.45, edgeWidth \* 1\.3, inside\)\);\s*\}/);
-  assert.match(wgsl, /let reflectionLight = 0\.42 \* smoothstep\(0\.25, 0\.8, edgeLight\) \+ select\(0\.58, 0\.15, lens\) \* smoothstep\(0\.8, 0\.98, edgeLight\);/);
+  // The lens's contour is a little wider at its ends, and its rim line sits just inside it.
+  assert.match(wgsl, /if \(lens\) \{[^}]*contour = 1\.0 - smoothstep\(0\.0, edgeWidth \* mix\(0\.8, 0\.55, edgeLight\), inside\);\s*reflection = smoothstep\(edgeWidth \* 0\.2, edgeWidth \* 0\.6, inside\) \* \(1\.0 - smoothstep\(edgeWidth \* 0\.6, edgeWidth \* 1\.4, inside\)\);\s*\}/);
+  assert.match(liquidCanvasSource, /if \(uLens\) \{[^}]*contour = 1\. - smoothstep\(0\., edgeWidth \* mix\(\.8, \.55, edgeLight\), inside\);\s*reflection = smoothstep\(edgeWidth \* \.2, edgeWidth \* \.6, inside\) \* \(1\. - smoothstep\(edgeWidth \* \.6, edgeWidth \* 1\.4, inside\)\);\s*\}/);
+  assert.match(wgsl, /let reflectionLight = 0\.42 \* smoothstep\(select\(0\.25, 0\.12, lens\), select\(0\.8, 0\.72, lens\), edgeLight\) \+ select\(0\.58, 0\.15, lens\) \* smoothstep\(0\.8, 0\.98, edgeLight\);/);
   assert.match(wgsl, /let contourStrength = min\(select\(0\.85, 0\.95, lens\), max\(p\.edge\.x, 0\.0\) \* 3\.2\) \* mix\(0\.85, 0\.24, edgeLight\);/);
   assert.match(gpu, /p\.refractionModel === "lens" \? 2 : Number\(p\.refractionModel === "bevel"\)/);
   assert.match(gpu, /number\(p, "lensMagnification"\), 0\], 40\)/);
@@ -843,7 +846,7 @@ test("segmented stationary hold uses one explicit Q-bounce impact script", () =>
 
 test("segmented glass stays slightly taller than the tab group", () => {
   assert.match(componentSource, /const glassHeight = useMotionValue\(0\)/);
-  assert.match(componentSource, /const heightBoost = useDerivedMotion2\(glassHeight, deformation, \(active, amount\) =>\s*active \* \(0\.18 - Math\.min\(0\.10, Math\.max\(0, amount\) \* 0\.55\)\)\)/s);
+  assert.match(componentSource, /const heightBoost = useTransform\(\(\) =>\s*glassHeight\.get\(\) \* \(0\.18 - Math\.min\(0\.10, Math\.max\(0, deformation\.get\(\)\) \* 0\.55\)\) \* \(1 - flat\.get\(\)\)\);/s);
   assert.match(componentSource, /const minimumGlassH = useDerivedMotion2\(lensH, heightBoost, \(height, boost\) => height \* \(1 \+ boost\)\)/);
   assert.match(componentSource, /const renderedLensH = useDerivedMotion2\(expandedLensH, minimumGlassH, \(height, minimum\) => Math\.max\(height, minimum\)\)/);
   assert.match(componentSource, /glassHeight\.set\(1\)/);
@@ -932,17 +935,28 @@ test("control optics retain size-independent pixel gain and the approved menu ma
   // at its own size.
   assert.match(componentSource, /const magnify = useTransform\(\(\) => 1 \+ \(LIFT_MAGNIFICATION - 1\) \* Math\.min\(1, Math\.max\(0, interaction\.get\(\)\)\) \* still\.get\(\)\);/);
   assert.match(componentSource, /dragMoved\.current = true;\s*stillStop\.current\?\.stop\(\);\s*stillStop\.current = springTo\(still, 0, SEGMENTED_PRESS_SPRING\);/);
-  assert.match(componentSource, /refractionPixels=\{1\}\s*zoom=\{bulge\}\s*material=\{\{ refractionModel: "lens", lensMagnification: magnify, shadowStrength: 0 \}\}/);
+  assert.match(componentSource, /refractionPixels=\{1\}\s*zoom=\{bulge\}\s*material=\{\{ refractionModel: "lens", lensMagnification: magnify, shadowStrength: 0, edgeStrength: rimStrength, tintStrength: pillTint \}\}\s*tintColor=\{PILL_COLOR\}/);
+  // In light mode a dragged lens settles into the bar as the resting thumb's grey pill: no lift,
+  // optics, contour or rim line, and the thumb's own fill so it lands without a seam.
+  assert.match(componentSource, /const flat = useTransform\(\(\) => lightTheme\.get\(\) \* \(1 - still\.get\(\)\)\);/);
+  assert.match(componentSource, /const lift = useTransform\(\(\) => interaction\.get\(\) \* \(1 - flat\.get\(\)\)\);/);
+  assert.match(componentSource, /const renderedLensW = useDerivedMotion2\(stretchedLensW, lift,/);
+  assert.match(componentSource, /const expandedLensH = useDerivedMotion2\(stretchedLensH, lift,/);
+  assert.match(componentSource, /useLiftedOptics\(renderedLensW, renderedLensH, lift\)/);
+  assert.match(componentSource, /const rimStrength = useTransform\(\(\) => LIFTED_EDGE_STRENGTH \* \(1 - flat\.get\(\)\)\);/);
+  assert.match(componentSource, /const pillTint = useTransform\(\(\) => PILL_TINT \* flat\.get\(\)\);/);
+  assert.match(componentSource, /const PILL_COLOR = "rgb\(18, 18, 22\)";\s*const PILL_TINT = \.08;/);
   assert.equal((componentSource.match(/strength => strength \* \.3/g) ?? []).length, 2, "held thumbs barely light where they are touched");
-  // A held tab lights barely; once the press drags, neither the glass nor the tabs light up, and
-  // the selection lights on release.
+  // A held tab lights barely; once the press drags the glass does not light up, and the
+  // selection's ink shows only through the moving lens, as on iOS 27.
   assert.match(componentSource, /const touchLight = useTransform\(\(\) => contact\.contactStrength\.get\(\) \* \.3 \* still\.get\(\)\);/);
   assert.match(componentSource, /stillStop\.current = springTo\(still, 0, SEGMENTED_PRESS_SPRING\);\s*setDragging\(true\);/);
   assert.match(componentSource, /const releaseInteraction = \(delay = 0, settle = true\) => \{\s*setDragging\(false\);/);
   assert.match(componentSource, /data-dragging=\{dragging \? "" : undefined\}/);
-  assert.match(componentSource, /dragging \? "dg-tabs__group--quiet" : ""/);
+  assert.doesNotMatch(componentSource, /dg-tabs__group--quiet/);
   const controlsCss = readFileSync(new URL("../packages/react-liquid-glass/src/controls.css", import.meta.url), "utf8");
-  assert.match(controlsCss, /\.dg-tabs\[data-dragging\] > \.dg-tabs__group > \.dg-tabs__item\[data-selected\],\s*\.dg-tabs__group--quiet \.dg-tabs__item--overlay \{[^}]*color: var\(--dg-control-text-muted\);/);
+  assert.match(controlsCss, /\.dg-tabs\[data-dragging\] > \.dg-tabs__group > \.dg-tabs__item\[data-selected\] \{[^}]*color: var\(--dg-control-text-muted\);/);
+  assert.doesNotMatch(controlsCss, /dg-tabs__group--quiet/);
   const scaleCode = liquidAdapterSource.match(/const scale = props\.refractionPixels[\s\S]*?;/)?.[0];
   const ratioCode = liquidAdapterSource.match(/refractionRatio=\{([^}]+)\}/)?.[1];
   assert.ok(scaleCode && ratioCode);

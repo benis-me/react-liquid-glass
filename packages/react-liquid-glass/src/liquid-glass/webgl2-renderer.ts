@@ -383,8 +383,10 @@ void main() {
       lensZoom + displacement + mirror * max(1. - rimDepth, 0.),
       lensZoom + displacement * (1. - spread) + mirror * max(1. - blueReach - rimDepth, 0.));
     // The shade is the same in every channel: shading one channel more than another would
-    // tint bright content.
-    rimShade = .4 * max(1. - rimDepth, 0.);
+    // tint bright content. At the ends it is a quarter as deep: native's ends are a crisp dark
+    // line with only a faint tail inside it. Like the contour it belongs to the rim, so it follows
+    // edge strength: a lens settled flat into the bar has none.
+    rimShade = .4 * max(1. - rimDepth, 0.) * mix(.25, 1., longSide) * smoothstep(0., .5, uEdgeStrength);
   }
   if (uDebug) {
     outputColor = vec4(mix(vec3(.5), vec3(.5 + (displacement + lensZoom) * 4., coverage), coverage), 1.);
@@ -411,13 +413,14 @@ void main() {
   float reflection = smoothstep(edgeWidth * .45, edgeWidth * .85, inside)
     * (1. - smoothstep(edgeWidth * .85, edgeWidth * 2., inside));
   if (uLens) {
-    // The lifted lens's contour is a fine dark line at its very edge, and its rim line hugs it.
-    contour = 1. - smoothstep(0., edgeWidth * .5, inside);
-    reflection = smoothstep(0., edgeWidth * .45, inside) * (1. - smoothstep(edgeWidth * .45, edgeWidth * 1.3, inside));
+    // The lifted lens's contour is a fine dark line at its very edge, a little wider at the ends,
+    // and its rim line sits just inside it, so the line never washes out the contour.
+    contour = 1. - smoothstep(0., edgeWidth * mix(.8, .55, edgeLight), inside);
+    reflection = smoothstep(edgeWidth * .2, edgeWidth * .6, inside) * (1. - smoothstep(edgeWidth * .6, edgeWidth * 1.4, inside));
   }
   // Every rim line reaches round toward the sides, faint there, as the native lens's does. Plain
   // glass keeps its full top and bottom crest; the lens's own comes mostly from what it mirrors.
-  float reflectionLight = .42 * smoothstep(.25, .8, edgeLight) + (uLens ? .15 : .58) * smoothstep(.8, .98, edgeLight);
+  float reflectionLight = .42 * smoothstep(uLens ? .12 : .25, uLens ? .72 : .8, edgeLight) + (uLens ? .15 : .58) * smoothstep(.8, .98, edgeLight);
   float edgeGain = max(uEdgeStrength * uSpecular, 0.);
   // The dark contour defines the body, so it follows edge strength alone: the lower SDR
   // highlight an HDR display uses must not thin the edge.

@@ -35,6 +35,10 @@ const SEGMENTED_PAD_Y = 80;
 // A held tab magnifies what lies under it, as iOS 27's does, while its rim pulls in the bar.
 // Dragged, the glass shows what passes under it at its own size.
 const LIFT_MAGNIFICATION = 1.155;
+const LIFTED_EDGE_STRENGTH = liftedLens(false, {}).edgeStrength ?? .81;
+// The resting selection thumb's fill (controls.css), so a flat pill lands on it without a seam.
+const PILL_COLOR = "rgb(18, 18, 22)";
+const PILL_TINT = .08;
 export interface GlassSegmentItem { value: string; label: string; href?: string; Icon?: ComponentType<{ className?: string }>; color1?: string; color2?: string; }
 export interface GlassSegmentedProps {
   items?: readonly GlassSegmentItem[];
@@ -126,17 +130,26 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
   });
   const stretchedLensW = useDerivedMotion2(lensW, deformation, (width, amount) => width * (1 + amount * 0.75));
   const stretchedLensH = useDerivedMotion2(lensH, deformation, (height, amount) => height * (1 - amount * 0.52));
-  // Lifted glass swells by a fixed outset, so it overflows the bar like the native lens.
-  const renderedLensW = useDerivedMotion2(stretchedLensW, interaction, (width, amount) => width + amount * SEGMENTED_LIFT_OUTSET);
-  const contactX = useDerivedMotion2(contact.contactX, impactX, (fraction, position) => ((fraction + 1) * (impactWidth.current - SEGMENTED_PAD_X * 2) / 2 + SEGMENTED_PAD_X - position * impactWidth.current) / renderedLensW.get());
-  const expandedLensH = useDerivedMotion2(stretchedLensH, interaction, (height, amount) => height + amount * SEGMENTED_LIFT_OUTSET);
-  const heightBoost = useDerivedMotion2(glassHeight, deformation, (active, amount) =>
-    active * (0.18 - Math.min(0.10, Math.max(0, amount) * 0.55)));
-  const minimumGlassH = useDerivedMotion2(lensH, heightBoost, (height, boost) => height * (1 + boost));
-  const renderedLensH = useDerivedMotion2(expandedLensH, minimumGlassH, (height, minimum) => Math.max(height, minimum));
-  const { band, bulge } = useLiftedOptics(renderedLensW, renderedLensH, interaction);
   // 1 while the press stays put, easing to 0 once it drags.
   const still = useMotionValue(0);
+  // In light mode a dragged lens settles back into the bar as the resting selection's grey pill,
+  // as iOS 27's does; held still it stays the lifted lens. Dark mode keeps the lens throughout.
+  const lightTheme = useMotionValue(dark ? 0 : 1);
+  useEffect(() => { lightTheme.set(dark ? 0 : 1); }, [dark, lightTheme]);
+  const flat = useTransform(() => lightTheme.get() * (1 - still.get()));
+  const lift = useTransform(() => interaction.get() * (1 - flat.get()));
+  // Lifted glass swells by a fixed outset, so it overflows the bar like the native lens.
+  const renderedLensW = useDerivedMotion2(stretchedLensW, lift, (width, amount) => width + amount * SEGMENTED_LIFT_OUTSET);
+  const contactX = useDerivedMotion2(contact.contactX, impactX, (fraction, position) => ((fraction + 1) * (impactWidth.current - SEGMENTED_PAD_X * 2) / 2 + SEGMENTED_PAD_X - position * impactWidth.current) / renderedLensW.get());
+  const expandedLensH = useDerivedMotion2(stretchedLensH, lift, (height, amount) => height + amount * SEGMENTED_LIFT_OUTSET);
+  const heightBoost = useTransform(() =>
+    glassHeight.get() * (0.18 - Math.min(0.10, Math.max(0, deformation.get()) * 0.55)) * (1 - flat.get()));
+  const minimumGlassH = useDerivedMotion2(lensH, heightBoost, (height, boost) => height * (1 + boost));
+  const renderedLensH = useDerivedMotion2(expandedLensH, minimumGlassH, (height, minimum) => Math.max(height, minimum));
+  const { band, bulge } = useLiftedOptics(renderedLensW, renderedLensH, lift);
+  // The flat pill has no rim: its contour and rim line fade out, and it takes the resting thumb's grey.
+  const rimStrength = useTransform(() => LIFTED_EDGE_STRENGTH * (1 - flat.get()));
+  const pillTint = useTransform(() => PILL_TINT * flat.get());
   const magnify = useTransform(() => 1 + (LIFT_MAGNIFICATION - 1) * Math.min(1, Math.max(0, interaction.get())) * still.get());
   // The native lens barely lights where it is touched, and not at all once the press drags.
   const touchLight = useTransform(() => contact.contactStrength.get() * .3 * still.get());
@@ -523,7 +536,8 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
           sharpInk
           refractionPixels={1}
           zoom={bulge}
-          material={{ refractionModel: "lens", lensMagnification: magnify, shadowStrength: 0 }}
+          material={{ refractionModel: "lens", lensMagnification: magnify, shadowStrength: 0, edgeStrength: rimStrength, tintStrength: pillTint }}
+          tintColor={PILL_COLOR}
           lens={lens}
           x={impactX}
           y={y}
@@ -538,7 +552,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
             margin: `-${SEGMENTED_PAD_Y}px -${SEGMENTED_PAD_X}px`,
             boxSizing: "content-box",
           }}
-          refractionTarget={<div className="dg-tabs__overlay"><div className={["dg-tabs__group dg-tabs__group--overlay", dragging ? "dg-tabs__group--quiet" : ""].filter(Boolean).join(" ")}>{items(false, true)}</div></div>}
+          refractionTarget={<div className="dg-tabs__overlay"><div className="dg-tabs__group dg-tabs__group--overlay">{items(false, true)}</div></div>}
         >
           <div className="dg-tabs__group dg-tabs__group--glass-base">{items(false)}</div>
         </LiquidGlass>

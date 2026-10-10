@@ -300,8 +300,10 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
       lensZoom + displacement + mirror * max(1.0 - rimDepth, 0.0),
       lensZoom + displacement * (1.0 - spread) + mirror * max(1.0 - blueReach - rimDepth, 0.0));
     // The shade is the same in every channel: shading one channel more than another would
-    // tint bright content.
-    rimShade = 0.4 * max(1.0 - rimDepth, 0.0);
+    // tint bright content. At the ends it is a quarter as deep: native's ends are a crisp dark
+    // line with only a faint tail inside it. Like the contour it belongs to the rim, so it follows
+    // edge strength: a lens settled flat into the bar has none.
+    rimShade = 0.4 * max(1.0 - rimDepth, 0.0) * mix(0.25, 1.0, longSide) * smoothstep(0.0, 0.5, p.edge.x);
   }
   if (debug) { return vec4f(mix(vec3f(0.5), vec3f(vec2f(0.5) + (displacement + lensZoom) * 4.0, coverage), coverage), 1.0); }
   let theta = radians(p.glow.x);
@@ -319,13 +321,14 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
   var contour = 1.0 - smoothstep(0.0, edgeWidth * mix(0.48, 0.65, edgeLight), inside);
   var reflection = smoothstep(edgeWidth * 0.45, edgeWidth * 0.85, inside) * (1.0 - smoothstep(edgeWidth * 0.85, edgeWidth * 2.0, inside));
   if (lens) {
-    // The lifted lens's contour is a fine dark line at its very edge, and its rim line hugs it.
-    contour = 1.0 - smoothstep(0.0, edgeWidth * 0.5, inside);
-    reflection = smoothstep(0.0, edgeWidth * 0.45, inside) * (1.0 - smoothstep(edgeWidth * 0.45, edgeWidth * 1.3, inside));
+    // The lifted lens's contour is a fine dark line at its very edge, a little wider at the ends,
+    // and its rim line sits just inside it, so the line never washes out the contour.
+    contour = 1.0 - smoothstep(0.0, edgeWidth * mix(0.8, 0.55, edgeLight), inside);
+    reflection = smoothstep(edgeWidth * 0.2, edgeWidth * 0.6, inside) * (1.0 - smoothstep(edgeWidth * 0.6, edgeWidth * 1.4, inside));
   }
   // Every rim line reaches round toward the sides, faint there, as the native lens's does. Plain
   // glass keeps its full top and bottom crest; the lens's own comes mostly from what it mirrors.
-  let reflectionLight = 0.42 * smoothstep(0.25, 0.8, edgeLight) + select(0.58, 0.15, lens) * smoothstep(0.8, 0.98, edgeLight);
+  let reflectionLight = 0.42 * smoothstep(select(0.25, 0.12, lens), select(0.8, 0.72, lens), edgeLight) + select(0.58, 0.15, lens) * smoothstep(0.8, 0.98, edgeLight);
   let edgeGain = max(p.edge.x * p.refraction.w, 0.0);
   // The dark contour defines the body, so it follows edge strength alone: the lower SDR
   // highlight an HDR display uses must not thin the edge.
