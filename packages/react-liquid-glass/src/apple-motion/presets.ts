@@ -13,8 +13,12 @@ export const SEGMENTED_IMPACT_RETENTION = 0.18;
 export const SEGMENTED_TRAIL_BIAS = 0.35;
 /** Velocity stretch of the Tabs lens: tight tracking while moving, a lighter recoil once it lands. */
 export const SEGMENTED_DEFORMATION = { perSpeed: 0.00024, stiffness: 760, damping: 50, landedDamping: 30 };
-/** CSS pixels a pressed Tabs lens grows past its tab on every side; the bar's 3px inset leaves 6px of overflow. */
-export const SEGMENTED_LIFT_OUTSET = 9;
+/**
+ * How far a pressed Tabs lens grows past its tab on every side, as a fraction of the tab's height:
+ * 9px on a native-sized 53px tab. Scaled with the tab, the lens overflows any bar by the same
+ * share of its height as iOS 27's, so the bar's edge meets its rim band where native's does.
+ */
+export const SEGMENTED_LIFT_OUTSET = 0.17;
 /** Landing: once the lens is this close to its tab, it shrinks and dissolves over the solid thumb. */
 export const SEGMENTED_HANDOFF = { arrivalPixels: 4, dissolve: { duration: 0.32, ease: [0.4, 0, 0.2, 1] as const } };
 export const SEGMENTED_HOLD_IMPACT_SCRIPT = {

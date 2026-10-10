@@ -346,13 +346,15 @@ void main() {
     // stays magnified close to the band before the rim pulls in its surroundings.
     float rise = sqrt(band);
     float swell = rise * (1. - band);
-    // Only the long sides pull in their surroundings, as the native lens's top and bottom do;
-    // the ends stay clear, so what the lens slides along is never echoed inside its rim.
+    // The band pulls in its surroundings all round, ends included, as the native lens's does: the
+    // end of a bar it overhangs is drawn in as an arc concentric with the rim, where a pull on the
+    // long sides alone left that end showing as a smaller, off-centre half circle. Only the rim's
+    // shade (below) keeps to the long sides.
     longSide = smoothstep(.3, .9, abs(dot(lensNormal, lensAxis / max(length(lensAxis), .0001))));
-    displacement = -lensNormal * (swell * sqrt(swell) * 4.1877 * longSide) * (bevelRatio / max(materialWeight, .001)) * (uRefraction * .5);
+    displacement = -lensNormal * (swell * sqrt(swell) * 4.1877) * (bevelRatio / max(materialWeight, .001)) * (uRefraction * .5);
     lensZoom = lensOffset / max(materialWeight, .001) / uSourceSize * (1. - 1. / max(uLensZoom, 1.)) * (1. - rise) * coverage;
     // Only the outer band scatters; the refracted edge and magnified middle stay clear.
-    frost *= smoothstep(.45, .9, band) * longSide;
+    frost *= smoothstep(.45, .9, band);
   } else if (uBevel) {
     // Opt-in bevel: a flat slab whose quarter-circle rim (twice the edge depth)
     // refracts by Snell's law at n = 1.5. The top stays clear; the rim lenses inward.
@@ -376,8 +378,8 @@ void main() {
     float redReach = (.1 + .5 * diagonal) * uChroma;
     float blueReach = (.02 + .6 * diagonal) * uChroma;
     float rimDepth = inside / max(.22 * uDepth, .001);
-    // Like the pull, the mirror lives on the long sides; the ends stay clear.
-    vec2 mirror = lensNormal * (.45 * uRefraction * longSide) * (bevelRatio / max(materialWeight, .001)) * coverage * uZoom * uRefractionRatio;
+    // Like the pull, the mirror runs all round, so the ends carry native's pastel fringes too.
+    vec2 mirror = lensNormal * (.45 * uRefraction) * (bevelRatio / max(materialWeight, .001)) * coverage * uZoom * uRefractionRatio;
     bend = Bend(
       lensZoom + displacement * (1. + spread) + mirror * max(1. + redReach - rimDepth, 0.),
       lensZoom + displacement + mirror * max(1. - rimDepth, 0.),

@@ -263,13 +263,15 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
     // stays magnified close to the band before the rim pulls in its surroundings.
     let rise = sqrt(band);
     let swell = rise * (1.0 - band);
-    // Only the long sides pull in their surroundings, as the native lens's top and bottom do;
-    // the ends stay clear, so what the lens slides along is never echoed inside its rim.
+    // The band pulls in its surroundings all round, ends included, as the native lens's does: the
+    // end of a bar it overhangs is drawn in as an arc concentric with the rim, where a pull on the
+    // long sides alone left that end showing as a smaller, off-centre half circle. Only the rim's
+    // shade (below) keeps to the long sides.
     longSide = smoothstep(0.3, 0.9, abs(dot(lensNormal, lensAxis / max(length(lensAxis), 0.0001))));
-    displacement = -lensNormal * (swell * sqrt(swell) * 4.1877 * longSide) * (bevelRatio / max(materialWeight, 0.001)) * (p.refraction.y * 0.5);
+    displacement = -lensNormal * (swell * sqrt(swell) * 4.1877) * (bevelRatio / max(materialWeight, 0.001)) * (p.refraction.y * 0.5);
     lensZoom = lensOffset / max(materialWeight, 0.001) / p.size.xy * (1.0 - 1.0 / max(p.ratio.z, 1.0)) * (1.0 - rise) * coverage;
     // Only the outer band scatters; the refracted edge and magnified middle stay clear.
-    frost *= smoothstep(0.45, 0.9, band) * longSide;
+    frost *= smoothstep(0.45, 0.9, band);
   } else if (p.flags.w > 0.5) {
     // Opt-in bevel: a flat slab whose quarter-circle rim (twice the edge depth)
     // refracts by Snell's law at n = 1.5. The top stays clear; the rim lenses inward.
@@ -293,8 +295,8 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
     let redReach = (0.1 + 0.5 * diagonal) * p.refraction.z;
     let blueReach = (0.02 + 0.6 * diagonal) * p.refraction.z;
     let rimDepth = inside / max(0.22 * p.frost.y, 0.001);
-    // Like the pull, the mirror lives on the long sides; the ends stay clear.
-    let mirror = lensNormal * (0.45 * p.refraction.y * longSide) * (bevelRatio / max(materialWeight, 0.001)) * coverage * p.tint.w * p.ratio.xy;
+    // Like the pull, the mirror runs all round, so the ends carry native's pastel fringes too.
+    let mirror = lensNormal * (0.45 * p.refraction.y) * (bevelRatio / max(materialWeight, 0.001)) * coverage * p.tint.w * p.ratio.xy;
     bend = Bend(
       lensZoom + displacement * (1.0 + spread) + mirror * max(1.0 + redReach - rimDepth, 0.0),
       lensZoom + displacement + mirror * max(1.0 - rimDepth, 0.0),

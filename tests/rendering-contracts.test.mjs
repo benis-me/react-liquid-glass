@@ -246,10 +246,13 @@ test("the lifted lens model is the same on WebGPU and WebGL2", () => {
   // (sqrt(band) * (1 - band))^1.5 normalised to peak at 1, flush at the rim.
   assert.match(wgsl, /let rise = sqrt\(band\);\s*let swell = rise \* \(1\.0 - band\);/);
   assert.match(liquidCanvasSource, /float rise = sqrt\(band\);\s*float swell = rise \* \(1\. - band\);/);
-  assert.match(wgsl, /displacement = -lensNormal \* \(swell \* sqrt\(swell\) \* 4\.1877 \* longSide\) \* \(bevelRatio \/ max\(materialWeight, 0\.001\)\) \* \(p\.refraction\.y \* 0\.5\)/);
-  assert.match(liquidCanvasSource, /displacement = -lensNormal \* \(swell \* sqrt\(swell\) \* 4\.1877 \* longSide\) \* \(bevelRatio \/ max\(materialWeight, \.001\)\) \* \(uRefraction \* \.5\)/);
-  // Only the long sides pull in their surroundings and mirror; the ends stay clear, so what the
-  // lens slides along is never echoed inside its rim.
+  // The band pulls in and mirrors its surroundings all round, ends included, as native's does, so
+  // the end of a bar the lens overhangs is drawn in concentric with its rim.
+  assert.match(wgsl, /displacement = -lensNormal \* \(swell \* sqrt\(swell\) \* 4\.1877\) \* \(bevelRatio \/ max\(materialWeight, 0\.001\)\) \* \(p\.refraction\.y \* 0\.5\)/);
+  assert.match(liquidCanvasSource, /displacement = -lensNormal \* \(swell \* sqrt\(swell\) \* 4\.1877\) \* \(bevelRatio \/ max\(materialWeight, \.001\)\) \* \(uRefraction \* \.5\)/);
+  assert.doesNotMatch(wgsl, /4\.1877 \* longSide|refraction\.y \* longSide|band\) \* longSide/);
+  assert.doesNotMatch(liquidCanvasSource, /4\.1877 \* longSide|uRefraction \* longSide|band\) \* longSide/);
+  // Only the rim's shade keeps to the long sides.
   assert.match(wgsl, /lensAxis \+= select\(vec2f\(1\.0, 0\.0\), vec2f\(0\.0, 1\.0\), b\.sizeVelocity\.x >= b\.sizeVelocity\.y\) \* weight;/);
   assert.match(liquidCanvasSource, /lensAxis \+= \(uHalfSize\[index\]\.x >= uHalfSize\[index\]\.y \? vec2\(0\., 1\.\) : vec2\(1\., 0\.\)\) \* weight;/);
   assert.match(wgsl, /longSide = smoothstep\(0\.3, 0\.9, abs\(dot\(lensNormal, lensAxis \/ max\(length\(lensAxis\), 0\.0001\)\)\)\);/);
@@ -262,8 +265,8 @@ test("the lifted lens model is the same on WebGPU and WebGL2", () => {
   assert.match(liquidCanvasSource, /float diagonal = 2\. \* lensNormal\.x \* lensNormal\.y;/);
   assert.match(wgsl, /let redReach = \(0\.1 \+ 0\.5 \* diagonal\) \* p\.refraction\.z;\s*let blueReach = \(0\.02 \+ 0\.6 \* diagonal\) \* p\.refraction\.z;\s*let rimDepth = inside \/ max\(0\.22 \* p\.frost\.y, 0\.001\);/);
   assert.match(liquidCanvasSource, /float redReach = \(\.1 \+ \.5 \* diagonal\) \* uChroma;\s*float blueReach = \(\.02 \+ \.6 \* diagonal\) \* uChroma;\s*float rimDepth = inside \/ max\(\.22 \* uDepth, \.001\);/);
-  assert.match(wgsl, /let mirror = lensNormal \* \(0\.45 \* p\.refraction\.y \* longSide\) \* \(bevelRatio \/ max\(materialWeight, 0\.001\)\) \* coverage \* p\.tint\.w \* p\.ratio\.xy;/);
-  assert.match(liquidCanvasSource, /vec2 mirror = lensNormal \* \(\.45 \* uRefraction \* longSide\) \* \(bevelRatio \/ max\(materialWeight, \.001\)\) \* coverage \* uZoom \* uRefractionRatio;/);
+  assert.match(wgsl, /let mirror = lensNormal \* \(0\.45 \* p\.refraction\.y\) \* \(bevelRatio \/ max\(materialWeight, 0\.001\)\) \* coverage \* p\.tint\.w \* p\.ratio\.xy;/);
+  assert.match(liquidCanvasSource, /vec2 mirror = lensNormal \* \(\.45 \* uRefraction\) \* \(bevelRatio \/ max\(materialWeight, \.001\)\) \* coverage \* uZoom \* uRefractionRatio;/);
   assert.match(wgsl, /lensZoom \+ displacement \+ mirror \* max\(1\.0 - rimDepth, 0\.0\),/);
   assert.match(liquidCanvasSource, /lensZoom \+ displacement \+ mirror \* max\(1\. - rimDepth, 0\.\),/);
   assert.match(wgsl, /lensZoom \+ displacement \* \(1\.0 \+ spread\) \+ mirror \* max\(1\.0 \+ redReach - rimDepth, 0\.0\)/);
@@ -283,8 +286,8 @@ test("the lifted lens model is the same on WebGPU and WebGL2", () => {
   assert.match(liquidCanvasSource, /rimShade = \.4 \* max\(1\. - rimDepth, 0\.\) \* mix\(\.25, 1\., longSide\) \* smoothstep\(0\., \.5, uEdgeStrength\);/);
   assert.match(wgsl, /refracted = refracted \* \(1\.0 - rimShade \* \(1\.0 - smoothstep\(0\.45, 0\.85, dot\(refracted, vec3f\(0\.299, 0\.587, 0\.114\)\)\)\)\);/);
   assert.match(liquidCanvasSource, /refracted \*= 1\. - rimShade \* \(1\. - smoothstep\(\.45, \.85, dot\(refracted, vec3\(\.299, \.587, \.114\)\)\)\);/);
-  assert.match(wgsl, /frost \*= smoothstep\(0\.45, 0\.9, band\) \* longSide;/);
-  assert.match(liquidCanvasSource, /frost \*= smoothstep\(\.45, \.9, band\) \* longSide;/);
+  assert.match(wgsl, /frost \*= smoothstep\(0\.45, 0\.9, band\);/);
+  assert.match(liquidCanvasSource, /frost \*= smoothstep\(\.45, \.9, band\);/);
   // Plain glass keeps its inset crest; the lens's contour and rim line hug its edge. Every rim
   // line reaches round toward the sides, faint there; plain glass keeps a full top and bottom crest.
   assert.match(wgsl, /var contour = 1\.0 - smoothstep\(0\.0, edgeWidth \* mix\(0\.48, 0\.65, edgeLight\), inside\);/);
@@ -699,12 +702,13 @@ test("segmented click expands, travels as glass, then collapses", () => {
   assert.match(componentSource, /releaseInteraction\(0, dragMoved\.current\)/);
   assert.match(componentSource, /const releaseInteraction = \(delay = 0, settle = true\)/);
   assert.match(componentSource, /const travel = settle \? updateGeometry\(selectedRef\.current, false\) : travelSettled\.current/);
-  assert.match(componentSource, /width \+ amount \* SEGMENTED_LIFT_OUTSET/);
-  assert.match(componentSource, /height \+ amount \* SEGMENTED_LIFT_OUTSET/);
+  assert.match(componentSource, /const liftOutset = useTransform\(\(\) => interaction\.get\(\) \* SEGMENTED_LIFT_OUTSET \* 2 \* lensH\.get\(\)\);/);
+  assert.match(componentSource, /useDerivedMotion2\(stretchedLensW, liftOutset, \(width, outset\) => width \+ outset\)/);
+  assert.match(componentSource, /useDerivedMotion2\(stretchedLensH, liftOutset, \(height, outset\) => height \+ outset\)/);
 });
 
 test("segmented lens overflows the bar, refracts its edge and keeps tab text sharp", () => {
-  assert.match(componentSource, /export const SEGMENTED_LIFT_OUTSET = 9;/, "a 9px outset clears the bar's 3px inset by 6px");
+  assert.match(componentSource, /export const SEGMENTED_LIFT_OUTSET = 0\.17;/, "the lens outgrows its tab by 0.17 of the tab's height a side: 9px on a native-sized 53px tab");
   assert.match(componentSource, /backdropRoot=\{groupRef\}/, "only the native tabs leave the backdrop; the bar stays visible through the lens");
   assert.match(componentSource, /\n\s*sharpInk\n/);
   assert.match(componentSource, /const container = useMemo\(\(\) => <GlassSurface className="dg-tabs__container" radius=\{999\} \/>, \[\]\)/, "selection changes never redraw the bar");
@@ -945,8 +949,8 @@ test("control optics retain size-independent pixel gain and the approved menu ma
   assert.match(componentSource, /const LIFT_SHADOW = \.06;\s*const LIFT_SHADOW_OFFSET = 8 \/ 36\.5;\s*const LIFT_SHADOW_BLUR = 10 \/ 36\.5;/);
   assert.match(componentSource, /const liftShadow = useTransform\(\(\) => LIFT_SHADOW \* Math\.min\(1, Math\.max\(0, interaction\.get\(\)\)\) \* lightTheme\.get\(\)\);/);
   assert.match(componentSource, /const liftShadowOffset = useTransform\(\(\) => renderedLensH\.get\(\) \* LIFT_SHADOW_OFFSET\);/);
-  assert.match(componentSource, /const renderedLensW = useDerivedMotion2\(stretchedLensW, interaction,/);
-  assert.match(componentSource, /const expandedLensH = useDerivedMotion2\(stretchedLensH, interaction,/);
+  assert.match(componentSource, /const renderedLensW = useDerivedMotion2\(stretchedLensW, liftOutset,/);
+  assert.match(componentSource, /const expandedLensH = useDerivedMotion2\(stretchedLensH, liftOutset,/);
   assert.match(componentSource, /useLiftedOptics\(renderedLensW, renderedLensH, interaction\)/);
   assert.doesNotMatch(componentSource, /PILL_COLOR|PILL_TINT|pillTint|rimStrength|const flat = /);
   assert.equal((componentSource.match(/strength => strength \* \.3/g) ?? []).length, 2, "held thumbs barely light where they are touched");

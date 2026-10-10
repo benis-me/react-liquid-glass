@@ -143,10 +143,13 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
   });
   const stretchedLensW = useDerivedMotion2(lensW, deformation, (width, amount) => width * (1 + amount * 0.75));
   const stretchedLensH = useDerivedMotion2(lensH, deformation, (height, amount) => height * (1 - amount * 0.52));
-  // Lifted glass swells by a fixed outset, so it overflows the bar like the native lens.
-  const renderedLensW = useDerivedMotion2(stretchedLensW, interaction, (width, amount) => width + amount * SEGMENTED_LIFT_OUTSET);
+  // Lifted glass swells past its tab by a share of the tab's height, so it overflows the bar by the
+  // native lens's share at any size: a fixed 9px outset made a small bar's lens too tall for it,
+  // its edge fell deep in the rim band and was pulled in with a dip at each end.
+  const liftOutset = useTransform(() => interaction.get() * SEGMENTED_LIFT_OUTSET * 2 * lensH.get());
+  const renderedLensW = useDerivedMotion2(stretchedLensW, liftOutset, (width, outset) => width + outset);
   const contactX = useDerivedMotion2(contact.contactX, impactX, (fraction, position) => ((fraction + 1) * (impactWidth.current - SEGMENTED_PAD_X * 2) / 2 + SEGMENTED_PAD_X - position * impactWidth.current) / renderedLensW.get());
-  const expandedLensH = useDerivedMotion2(stretchedLensH, interaction, (height, amount) => height + amount * SEGMENTED_LIFT_OUTSET);
+  const expandedLensH = useDerivedMotion2(stretchedLensH, liftOutset, (height, outset) => height + outset);
   const heightBoost = useDerivedMotion2(glassHeight, deformation, (active, amount) =>
     active * (0.18 - Math.min(0.10, Math.max(0, amount) * 0.55)));
   const minimumGlassH = useDerivedMotion2(lensH, heightBoost, (height, boost) => height * (1 + boost));
