@@ -32,16 +32,14 @@ const DEFAULT_SEGMENTS = [
 
 const SEGMENTED_PAD_X = 80;
 const SEGMENTED_PAD_Y = 80;
-// A held tab magnifies what lies under it, as iOS 27's does, while its rim pulls in the bar.
-// Dragged, the glass shows what passes under it at its own size.
+// The lifted lens magnifies what lies under it for the whole press, held or dragged, as both
+// iOS 27 screenshots show, while its rim pulls in the bar. It never shrinks back mid-drag.
 const LIFT_MAGNIFICATION = 1.155;
 // The native light-mode lens's soft shadow: about 5% darker at most, offset and blurred by a
 // fifth and a quarter of its half-height (8pt and 10pt on its 36.5pt half-height).
 const LIFT_SHADOW = .06;
 const LIFT_SHADOW_OFFSET = 8 / 36.5;
 const LIFT_SHADOW_BLUR = 10 / 36.5;
-// How long a drag must rest before the lens magnifies what it rests on.
-const REST_DELAY = 140;
 // While a finger is down, iOS 27 grows the whole bar about its centre, tabs and all: 3.5% on
 // the native 399pt bar, so 7pt a side, which wider bars do not exceed.
 const PRESS_SCALE = 1.035;
@@ -156,9 +154,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
   const { band, bulge } = useLiftedOptics(renderedLensW, renderedLensH, interaction);
   // 1 while the press stays put, easing to 0 once it drags.
   const still = useMotionValue(0);
-  // 1 while a drag rests on a tab: the native lens magnifies what it rests on, not what it slides over.
-  const resting = useMotionValue(0);
-  const magnify = useTransform(() => 1 + (LIFT_MAGNIFICATION - 1) * Math.min(1, Math.max(0, interaction.get())) * Math.max(still.get(), resting.get()));
+  const magnify = useTransform(() => 1 + (LIFT_MAGNIFICATION - 1) * Math.min(1, Math.max(0, interaction.get())));
   // The native lens barely lights where it is touched, and not at all once the press drags.
   const touchLight = useTransform(() => contact.contactStrength.get() * .3 * still.get());
   // In light mode the lifted lens casts a soft shadow below it, as iOS 27's does; on dark pages
@@ -171,21 +167,6 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
   const stops = useRef<SpringRun[]>([]);
   const interactionStop = useRef<SpringRun | null>(null);
   const stillStop = useRef<SpringRun | null>(null);
-  const restStop = useRef<SpringRun | null>(null);
-  const restTimer = useRef<number | null>(null);
-  const stopResting = () => {
-    if (restTimer.current !== null) { window.clearTimeout(restTimer.current); restTimer.current = null; }
-    if (resting.get() > 0) { restStop.current?.stop(); restStop.current = springTo(resting, 0, SEGMENTED_PRESS_SPRING); }
-  };
-  // Every move restarts the wait; a drag that rests magnifies what lies under the lens.
-  const armResting = () => {
-    stopResting();
-    restTimer.current = window.setTimeout(() => {
-      restTimer.current = null;
-      restStop.current?.stop();
-      restStop.current = springTo(resting, 1, SEGMENTED_PRESS_SPRING);
-    }, REST_DELAY);
-  };
   const heightStop = useRef<SpringRun | null>(null);
   const barStop = useRef<SpringRun | null>(null);
   const pressBar = (pressed: boolean) => {
@@ -279,8 +260,6 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
     transitionToken.current++;
     stops.current.forEach((run) => run.stop());
     interactionStop.current?.stop();
-    restStop.current?.stop();
-    if (restTimer.current !== null) window.clearTimeout(restTimer.current);
     heightStop.current?.stop();
     barStop.current?.stop();
     glassAnimation.current?.stop();
@@ -370,7 +349,6 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
   };
   const releaseInteraction = (delay = 0, settle = true) => {
     setDragging(false);
-    stopResting();
     pressBar(false);
     if (releaseTimer.current !== null) window.clearTimeout(releaseTimer.current);
     if (delay > 0) {
@@ -517,7 +495,6 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
             startDragCatchup(event.clientX);
           }
           if (!dragMoved.current) return;
-          armResting();
           moveDrag(event.clientX);
           event.preventDefault();
         }}

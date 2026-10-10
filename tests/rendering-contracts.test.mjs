@@ -933,13 +933,12 @@ test("control optics retain size-independent pixel gain and the approved menu ma
   assert.match(componentSource, /const bulge = useTransform\(\(\) => Math\.min\(lensW\.get\(\), lensH\.get\(\)\) \* \.147 \* unit\(lift\.get\(\)\)\)/);
   assert.equal((componentSource.match(/refractionPixels=\{1\}\s*zoom=\{bulge\}\s*depth=\{band\}\s*material=\{LIFTED_MODEL\}/g) ?? []).length, 2);
   assert.match(componentSource, /const LIFT_MAGNIFICATION = 1\.155;/);
-  // A press that stays put magnifies, and so does a drag once it rests on a tab; while it slides,
-  // the glass shows what passes under it at its own size.
-  assert.match(componentSource, /const magnify = useTransform\(\(\) => 1 \+ \(LIFT_MAGNIFICATION - 1\) \* Math\.min\(1, Math\.max\(0, interaction\.get\(\)\)\) \* Math\.max\(still\.get\(\), resting\.get\(\)\)\);/);
+  // The lens magnifies what lies under it for the whole press, held or dragged, as both iOS 27
+  // screenshots show: it never shrinks back while a drag moves and grows again when it rests.
+  assert.match(componentSource, /const magnify = useTransform\(\(\) => 1 \+ \(LIFT_MAGNIFICATION - 1\) \* Math\.min\(1, Math\.max\(0, interaction\.get\(\)\)\)\);/);
+  assert.doesNotMatch(componentSource, /REST_DELAY|armResting|stopResting|resting\.get/);
   assert.match(componentSource, /dragMoved\.current = true;\s*stillStop\.current\?\.stop\(\);\s*stillStop\.current = springTo\(still, 0, SEGMENTED_PRESS_SPRING\);/);
-  assert.match(componentSource, /const REST_DELAY = 140;/);
-  assert.match(componentSource, /if \(!dragMoved\.current\) return;\s*armResting\(\);\s*moveDrag\(event\.clientX\);/);
-  assert.match(componentSource, /restTimer\.current = window\.setTimeout\(\(\) => \{\s*restTimer\.current = null;\s*restStop\.current\?\.stop\(\);\s*restStop\.current = springTo\(resting, 1, SEGMENTED_PRESS_SPRING\);\s*\}, REST_DELAY\);/);
+  assert.match(componentSource, /if \(!dragMoved\.current\) return;\s*moveDrag\(event\.clientX\);/);
   // Dragged or held, the tab is the same lifted lens in both themes, as iOS 27's is; in light mode
   // it casts a soft shadow, scaled with its height, and on dark pages none.
   assert.match(componentSource, /refractionPixels=\{1\}\s*zoom=\{bulge\}\s*material=\{\{ refractionModel: "lens", lensMagnification: magnify, shadowStrength: liftShadow, shadowOffset: liftShadowOffset, shadowBlur: liftShadowBlur \}\}\s*lens=\{lens\}/);
@@ -989,7 +988,7 @@ test("a pressed tab bar grows about its centre and its glass stays registered", 
   assert.match(segmented, /const PRESS_SCALE = 1\.035;\s*const PRESS_OUTSET = 7;/);
   assert.match(segmented, /springTo\(barScale, pressed && width \? 1 \+ Math\.min\(PRESS_SCALE - 1, PRESS_OUTSET \* 2 \/ width\) : 1, SEGMENTED_PRESS_SPRING\)/);
   assert.match(segmented, /interactionStop\.current = springTo\(interaction, 1, SEGMENTED_PRESS_SPRING\);\s*pressBar\(true\);/);
-  assert.match(segmented, /const releaseInteraction = \(delay = 0, settle = true\) => \{\s*setDragging\(false\);\s*stopResting\(\);\s*pressBar\(false\);/);
+  assert.match(segmented, /const releaseInteraction = \(delay = 0, settle = true\) => \{\s*setDragging\(false\);\s*pressBar\(false\);/);
   assert.match(segmented, /<motion\.div ref=\{rootRef\} style=\{\{ scale: barScale \}\}/);
   // The lens is laid out in the bar's own pixels: fractions of its padded frame on screen, and
   // sizes divided by the bar's current scale.
@@ -1002,6 +1001,10 @@ test("a pressed tab bar grows about its centre and its glass stays registered", 
   assert.match(source, /export function liquidScreenScale\(element: HTMLElement, rect: Pick<DOMRect, "width" \| "height"> = element\.getBoundingClientRect\(\)\) \{\s*const width = element\.offsetWidth, height = element\.offsetHeight;\s*const ratio = \(screen: number, layout: number\) => layout > 0 && Math\.abs\(screen - layout\) >= 1 \? screen \/ layout : 1;/);
   assert.equal((source.match(/const rect = local\((?:element|range|svg)\.getBoundingClientRect\(\)\);/g) ?? []).length, 3);
   assert.match(liquidAdapterSource, /return \{ left: rect\.left - bleed \* scale\.x, top: rect\.top - bleed \* scale\.y, width: \(sizeRef\.current\.width \+ bleed \* 2\) \* scale\.x, height: \(sizeRef\.current\.height \+ bleed \* 2\) \* scale\.y \};/);
+  // That backdrop is larger than the glass's own pixels while scaled, so the glass takes its share
+  // by proportion: fixed pixels shifted everything seen through a held lens down and to the right.
+  assert.match(liquidAdapterSource, /const sx = backdrop\.width \/ \(width \+ bleed \* 2\), sy = backdrop\.height \/ \(height \+ bleed \* 2\);\s*ctx\.drawImage\(backdrop, bleed \* sx, bleed \* sy, width \* sx, height \* sy, 0, 0, width, height\);/);
+  assert.doesNotMatch(liquidAdapterSource, /drawImage\(backdropRef\.current, bleed \* 2, bleed \* 2, width \* 2, height \* 2/);
   assert.match(surface, /return \{ left: rect\.left - 40 \* scale\.x, top: rect\.top - 40 \* scale\.y, width: \(element\.offsetWidth \+ 80\) \* scale\.x, height: \(element\.offsetHeight \+ 80\) \* scale\.y \};/);
   // Scrollers that hold tab bars leave 16px a side, so the grown bar and its lifted lens are never cut.
   assert.match(pageStylesSource, /\.filter-scroll \{ margin: -18px -16px; \}/);

@@ -164,7 +164,13 @@ export function LiquidGlass(props: LiquidGlassProps) {
         const retained = props.sharpInk && reuseInk ? inkRef.current : null;
         void Promise.all([
           captureLiquidSource(root, width, height, ctx => {
-            if (backdropRef.current) ctx.drawImage(backdropRef.current, bleed * 2, bleed * 2, width * 2, height * 2, 0, 0, width, height);
+            // The backdrop covers the glass and its bleed on screen, so under a scaled ancestor it is
+            // larger than the glass's own pixels: take the glass's share of it, not fixed pixels.
+            const backdrop = backdropRef.current;
+            if (backdrop) {
+              const sx = backdrop.width / (width + bleed * 2), sy = backdrop.height / (height + bleed * 2);
+              ctx.drawImage(backdrop, bleed * sx, bleed * sy, width * sx, height * sy, 0, 0, width, height);
+            }
             background?.(ctx);
           }, props.sharpInk ? "base" : "all"),
           // Sharp ink is a separate layer, so the material's frost never reaches it.
