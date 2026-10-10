@@ -275,14 +275,22 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
   }
   displacement *= coverage * p.tint.w * p.ratio.xy;
   var bend = bendOf(displacement);
+  var rimShade = 0.0;
   if (lens) {
-    // Red bends furthest, as in the dome, but around the rim red holds back where the rim
-    // faces the top-left and bottom-right, blue where it faces the other diagonal, and green
-    // half as much on both, so warm and cool glows gather at opposite ends of each band.
+    // The band disperses a little, red pulling furthest. The rim's outer slope, 0.15 of the
+    // band wide, bends inward instead, mirroring what lies just inside it, and shades it. Its
+    // reach disperses: red's furthest where the rim faces the top-left and bottom-right, blue's
+    // on the other diagonal, so warm and cool crescents gather at opposite ends of each band.
     let spread = 0.04 * p.refraction.z;
-    let tilt = 0.6 * p.refraction.z;
     let diagonal = 2.0 * lensNormal.x * lensNormal.y;
-    bend = Bend(lensZoom + displacement * (1.0 + spread - tilt * max(diagonal, 0.0)), lensZoom + displacement * (1.0 - 0.5 * tilt * abs(diagonal)), lensZoom + displacement * (1.0 - spread - tilt * max(-diagonal, 0.0)));
+    let reach = (0.133 + 0.4 * diagonal) * p.refraction.z;
+    let rimDepth = inside / max(0.15 * p.frost.y, 0.001);
+    let mirror = lensNormal * (0.45 * p.refraction.y) * (bevelRatio / max(materialWeight, 0.001)) * coverage * p.tint.w * p.ratio.xy;
+    bend = Bend(
+      lensZoom + displacement * (1.0 + spread) + mirror * max(1.0 + reach - rimDepth, 0.0),
+      lensZoom + displacement + mirror * max(1.0 - rimDepth, 0.0),
+      lensZoom + displacement * (1.0 - spread) + mirror * max(1.0 - reach - rimDepth, 0.0));
+    rimShade = 0.4 * max(1.0 - rimDepth, 0.0);
   }
   if (debug) { return vec4f(mix(vec3f(0.5), vec3f(vec2f(0.5) + (displacement + lensZoom) * 4.0, coverage), coverage), 1.0); }
   let theta = radians(p.glow.x);
@@ -296,16 +304,19 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
   let edgeWidth = max(p.edge.y, 0.001);
   var contour = 1.0 - smoothstep(0.0, edgeWidth * mix(0.48, 0.65, edgeLight), inside);
   var reflection = smoothstep(edgeWidth * 0.45, edgeWidth * 0.85, inside) * (1.0 - smoothstep(edgeWidth * 0.85, edgeWidth * 2.0, inside));
+  var reflectionLight = smoothstep(0.75, 0.98, edgeLight);
   if (lens) {
-    // The lifted lens's contour and rim line hug its very edge, as on the native lens.
-    contour = 1.0 - smoothstep(0.0, edgeWidth, inside);
-    reflection = smoothstep(0.0, edgeWidth * 0.35, inside) * (1.0 - smoothstep(edgeWidth * 0.35, edgeWidth, inside));
+    // The lifted lens's contour is a fine dark line at its very edge. Its rim line, just
+    // inside, is white and reaches round to the sides, faint there, as on the native lens;
+    // the colour along its top and bottom comes from what the rim mirrors.
+    contour = 1.0 - smoothstep(0.0, edgeWidth * 0.5, inside);
+    reflection = smoothstep(0.0, edgeWidth * 0.45, inside) * (1.0 - smoothstep(edgeWidth * 0.45, edgeWidth * 1.3, inside));
+    reflectionLight = 0.42 * smoothstep(0.25, 0.8, edgeLight) + 0.15 * smoothstep(0.8, 0.98, edgeLight);
   }
-  let reflectionLight = smoothstep(0.75, 0.98, edgeLight);
   let edgeGain = max(p.edge.x * p.refraction.w, 0.0);
   // The dark contour defines the body, so it follows edge strength alone: the lower SDR
   // highlight an HDR display uses must not thin the edge.
-  let contourStrength = min(0.85, max(p.edge.x, 0.0) * 3.2) * mix(0.85, 0.24, edgeLight);
+  let contourStrength = min(select(0.85, 0.95, lens), max(p.edge.x, 0.0) * 3.2) * mix(0.85, 0.24, edgeLight);
   let rimLight = reflection * reflectionLight * edgeGain;
   let brightnessAmount = clamp(abs(p.frost.w), 0.0, 1.0);
   var ink = vec4f(0.0);
@@ -322,6 +333,7 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
   }
   var refracted = sampleGlass(uv, bend, frost);
   if (p.ink.x > 0.001 && p.ink.w > 0.5) { refracted = overlayInk(refracted, uv, bend, length(displacement * p.size.xy)); }
+  refracted = refracted * (1.0 - rimShade);
   let luminance = dot(refracted, vec3f(0.299, 0.587, 0.114));
   let shine = specular * p.refraction.w * (127.0 / 255.0);
   refracted = mix(refracted + vec3f(shine), refracted * (1.0 - shine), smoothstep(0.3, 0.7, luminance));
@@ -329,13 +341,7 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
   // a grey outline. There the crest carries the shape instead, brighter than on light.
   let contourAmount = contour * contourStrength;
   refracted = refracted * (1.0 - contourAmount);
-  var crest = vec3f(rimLight);
-  if (lens) {
-    // The lens's rim line disperses too: green and blue at the very edge, red just inside.
-    let inner = inside - edgeWidth * 0.2;
-    let red = smoothstep(0.0, edgeWidth * 0.35, inner) * (1.0 - smoothstep(edgeWidth * 0.35, edgeWidth, inner));
-    crest = vec3f(red, reflection, reflection * 0.85) * reflectionLight * edgeGain;
-  }
+  let crest = vec3f(rimLight);
   refracted += crest * mix(0.5, 0.3, smoothstep(0.2, 0.5, luminance));
   let brightnessTarget = select(vec3f(0.0), vec3f(1.0), p.frost.w >= 0.0);
   refracted = mix(refracted, brightnessTarget, brightnessAmount);

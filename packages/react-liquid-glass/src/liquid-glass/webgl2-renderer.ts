@@ -358,14 +358,22 @@ void main() {
   }
   displacement *= coverage * uZoom * uRefractionRatio;
   Bend bend = bendOf(displacement);
+  float rimShade = 0.;
   if (uLens) {
-    // Red bends furthest, as in the dome, but around the rim red holds back where the rim
-    // faces the top-left and bottom-right, blue where it faces the other diagonal, and green
-    // half as much on both, so warm and cool glows gather at opposite ends of each band.
+    // The band disperses a little, red pulling furthest. The rim's outer slope, 0.15 of the
+    // band wide, bends inward instead, mirroring what lies just inside it, and shades it. Its
+    // reach disperses: red's furthest where the rim faces the top-left and bottom-right, blue's
+    // on the other diagonal, so warm and cool crescents gather at opposite ends of each band.
     float spread = .04 * uChroma;
-    float tilt = .6 * uChroma;
     float diagonal = 2. * lensNormal.x * lensNormal.y;
-    bend = Bend(lensZoom + displacement * (1. + spread - tilt * max(diagonal, 0.)), lensZoom + displacement * (1. - .5 * tilt * abs(diagonal)), lensZoom + displacement * (1. - spread - tilt * max(-diagonal, 0.)));
+    float reach = (.133 + .4 * diagonal) * uChroma;
+    float rimDepth = inside / max(.15 * uDepth, .001);
+    vec2 mirror = lensNormal * (.45 * uRefraction) * (bevelRatio / max(materialWeight, .001)) * coverage * uZoom * uRefractionRatio;
+    bend = Bend(
+      lensZoom + displacement * (1. + spread) + mirror * max(1. + reach - rimDepth, 0.),
+      lensZoom + displacement + mirror * max(1. - rimDepth, 0.),
+      lensZoom + displacement * (1. - spread) + mirror * max(1. - reach - rimDepth, 0.));
+    rimShade = .4 * max(1. - rimDepth, 0.);
   }
   if (uDebug) {
     outputColor = vec4(mix(vec3(.5), vec3(.5 + (displacement + lensZoom) * 4., coverage), coverage), 1.);
@@ -390,17 +398,20 @@ void main() {
   float contour = 1. - smoothstep(0., edgeWidth * mix(.48, .65, edgeLight), inside);
   float reflection = smoothstep(edgeWidth * .45, edgeWidth * .85, inside)
     * (1. - smoothstep(edgeWidth * .85, edgeWidth * 2., inside));
-  if (uLens) {
-    // The lifted lens's contour and rim line hug its very edge, as on the native lens.
-    contour = 1. - smoothstep(0., edgeWidth, inside);
-    reflection = smoothstep(0., edgeWidth * .35, inside) * (1. - smoothstep(edgeWidth * .35, edgeWidth, inside));
-  }
   // Confine the fine reflection to the upper/lower arcs, not the sidewalls.
   float reflectionLight = smoothstep(.75, .98, edgeLight);
+  if (uLens) {
+    // The lifted lens's contour is a fine dark line at its very edge. Its rim line, just
+    // inside, is white and reaches round to the sides, faint there, as on the native lens;
+    // the colour along its top and bottom comes from what the rim mirrors.
+    contour = 1. - smoothstep(0., edgeWidth * .5, inside);
+    reflection = smoothstep(0., edgeWidth * .45, inside) * (1. - smoothstep(edgeWidth * .45, edgeWidth * 1.3, inside));
+    reflectionLight = .42 * smoothstep(.25, .8, edgeLight) + .15 * smoothstep(.8, .98, edgeLight);
+  }
   float edgeGain = max(uEdgeStrength * uSpecular, 0.);
   // The dark contour defines the body, so it follows edge strength alone: the lower SDR
   // highlight an HDR display uses must not thin the edge.
-  float contourStrength = min(.85, max(uEdgeStrength, 0.) * 3.2) * mix(.85, .24, edgeLight);
+  float contourStrength = min(uLens ? .95 : .85, max(uEdgeStrength, 0.) * 3.2) * mix(.85, .24, edgeLight);
   float rimLight = reflection * reflectionLight * edgeGain;
   float brightnessAmount = clamp(abs(uBrightness), 0., 1.);
   vec4 ink = vec4(0.);
@@ -421,6 +432,7 @@ void main() {
   }
   vec3 refracted = sampleGlass(vUv, bend, frost);
   if (uContentSource && uContentOpacity > .001) refracted = overlayInk(refracted, vUv, bend, length(displacement * uSourceSize));
+  refracted *= 1. - rimShade;
   // Video's highlight response preserves contrast on both bright and dark substrates.
   float luminance = dot(refracted, vec3(.299, .587, .114));
   float shine = specular * uSpecular * (127. / 255.);
@@ -430,12 +442,6 @@ void main() {
   float contourAmount = contour * contourStrength;
   refracted = refracted * (1. - contourAmount);
   vec3 crest = vec3(rimLight);
-  if (uLens) {
-    // The lens's rim line disperses too: green and blue at the very edge, red just inside.
-    float inner = inside - edgeWidth * .2;
-    float red = smoothstep(0., edgeWidth * .35, inner) * (1. - smoothstep(edgeWidth * .35, edgeWidth, inner));
-    crest = vec3(red, reflection, reflection * .85) * reflectionLight * edgeGain;
-  }
   refracted += crest * mix(.5, .3, smoothstep(.2, .5, luminance));
   vec3 brightnessTarget = uBrightness >= 0. ? vec3(1.) : vec3(0.);
   refracted = mix(refracted, brightnessTarget, brightnessAmount);

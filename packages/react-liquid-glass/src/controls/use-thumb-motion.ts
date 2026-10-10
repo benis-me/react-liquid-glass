@@ -11,8 +11,9 @@ export const thumbLens = (dark: boolean, lens: LiquidLens): LiquidLens => ({
 
 /**
  * iOS 27's lifted lens, a pressed tab or thumb, calibrated against a native screenshot: clear
- * glass with no glow, tint or brightening, a contour and rim line that hug its edge, and the
- * native dispersion, warm and cool glows gathering at opposite ends of its rim.
+ * glass with no glow, tint or brightening and a thick rim: a fine dark contour, a white rim
+ * line all the way round, and an outer slope that mirrors what lies inside it, gathering warm
+ * and cool crescents at opposite ends.
  */
 // Its rim line rides on edge strength, so the lower SDR highlight an HDR display uses keeps it.
 export const liftedLens = (dark: boolean, lens: LiquidLens): LiquidLens => thumbLens(dark, {
