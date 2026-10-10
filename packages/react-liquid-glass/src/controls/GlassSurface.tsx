@@ -22,7 +22,7 @@ import { LiquidGlassCanvas } from "../liquid-glass/LiquidGlassCanvas.js";
 import { createLiquidBackdrop } from "../liquid-glass/backdrop.js";
 import { PRISM_MATERIAL, useGlassTone } from "../liquid-glass/provider.js";
 import { useLiquidToneTracker } from "../liquid-glass/tone.js";
-import { paintLiquidGrid } from "../liquid-glass/source.js";
+import { liquidScreenScale, paintLiquidGrid } from "../liquid-glass/source.js";
 
 export type GlassBackground = "grid" | "lines" | "plain";
 // Compact controls need less broad shading than the original, deep menu lens. They keep
@@ -160,8 +160,9 @@ function OpticalSurface({
     const element = root.current;
     if (!element) return;
     const backdrop = createLiquidBackdrop(element, () => {
-      const rect = element.getBoundingClientRect();
-      return { left: rect.left - 40, top: rect.top - 40, width: element.offsetWidth + 80, height: element.offsetHeight + 80 };
+      // On screen, so a surface under a scaled ancestor still samples what lies behind it.
+      const rect = element.getBoundingClientRect(), scale = liquidScreenScale(element, rect);
+      return { left: rect.left - 40 * scale.x, top: rect.top - 40 * scale.y, width: (element.offsetWidth + 80) * scale.x, height: (element.offsetHeight + 80) * scale.y };
     }, canvas => {
       const width = element.offsetWidth,
         height = element.offsetHeight;

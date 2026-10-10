@@ -4,7 +4,7 @@ import { LiquidGlass } from "../liquid-glass/LiquidGlass.js";
 import { liquidTheme, liquidTrackSource, subscribeLiquidTheme } from "../liquid-glass/source.js";
 import { usePointerReleaseFallback, useGlassContact, rubberBand } from "../apple-motion/react.js";
 import { SWITCH_FLICK_PROJECTION, SWITCH_RELEASE_SPRING } from "../apple-motion/presets.js";
-import { settleThumb, thumbLens, useThumbMotion } from "./use-thumb-motion.js";
+import { LIFTED_MODEL, liftedLens, settleThumb, useLiftedOptics, useLiftedShadow, useThumbMotion } from "./use-thumb-motion.js";
 
 /** Native input attributes (id, aria-*, required, form, onBlur…) pass through to the switch's checkbox. */
 type NativeSwitchProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "role" | "checked" | "defaultChecked" | "disabled" | "name" | "value" | "onChange" | "onClick" | "onKeyDown" | "size" | "children" | "className" | "style">;
@@ -60,12 +60,19 @@ export function GlassSwitch({
 
   const offset = useMotionValue(current ? travel : 0);
   const x = useTransform(offset, (position) => (padding + inset + thumbWidth / 2 + position) / filterWidth);
-  const { lensW, lensH, radius, tintOpacity, targetScaleX, targetScaleY, tintBlur, shadowOpacity, setDeformationBoost, expand, collapse } = useThumbMotion(offset, halfThumbWidth, halfThumbHeight, restTintBlur, reduce);
+  const { lensW, lensH, radius, tintOpacity, targetScaleX, targetScaleY, tintBlur, still, setDeformationBoost, expand, collapse, drag } = useThumbMotion(offset, halfThumbWidth, halfThumbHeight, restTintBlur, reduce);
+  // Held, the thumb is iOS 27's lifted lens; its refracted track already magnifies.
+  const held = useTransform(tintOpacity, opacity => 1 - opacity);
+  const { band, bulge } = useLiftedOptics(lensW, lensH, held);
+  // Held, the thumb casts the lifted lens's shadow, as a pressed tab does; at rest it keeps its own.
+  const liftShadow = useLiftedShadow(lensH, held, dark, { strength: .04, offset: Math.min(18, filterHeight * .12), blur: Math.min(26, filterHeight * .2) });
 
   const rootRef = useRef<HTMLLabelElement>(null);
   const contact = useGlassContact(rootRef, { deform: false, enabled: !disabled });
   const contactX = useTransform(() => ((contact.contactX.get() + 1) * width / 2 - inset - halfThumbWidth - offset.get()) / lensW.get());
   const contactY = useTransform(() => contact.contactY.get() * height / 2 / lensH.get());
+  // The lifted lens barely lights where it is touched, and not at all once the press drags.
+  const touchLight = useTransform(() => contact.contactStrength.get() * .3 * still.get());
   const thumbRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const pointerId = useRef<number | null>(null);
@@ -141,7 +148,7 @@ export function GlassSwitch({
     scaleX: targetScaleX, scaleY: targetScaleY,
   }), [width, height, padding, refractedTrackHeight, thumbWidth, travel, offset, targetScaleX, targetScaleY]);
   // Keep a thin refracting band and shallow cap at both thumb sizes.
-  const lens = thumbLens(dark, { depth: thumbHeight / 11, domeDepth: thumbHeight * (6 / 22) });
+  const lens = liftedLens(dark, { depth: thumbHeight / 11, domeDepth: thumbHeight * (6 / 22) });
 
   return (
     <label ref={rootRef} data-size={size} className={["dg-switch", className].filter(Boolean).join(" ")} style={{ ...style, width, height, "--dg-switch-progress": current ? 1 : 0 } as React.CSSProperties}>
@@ -162,11 +169,14 @@ export function GlassSwitch({
         onChange={(event) => pulseAndToggle(event.currentTarget.checked)}
       />
       <LiquidGlass
-        contact={{ ...contact, contactX, contactY }}
+        contact={{ ...contact, contactX, contactY, contactStrength: touchLight }}
         sourceFactory={sourceFactory}
         backdropRoot={rootRef}
         sourceValues={[offset, targetScaleX, targetScaleY]}
-        refractionPixels={thumbHeight * .22}
+        refractionPixels={1}
+        zoom={bulge}
+        depth={band}
+        material={{ ...LIFTED_MODEL, shadowStrength: liftShadow.strength, shadowOffset: liftShadow.offset, shadowBlur: liftShadow.blur }}
         lens={lens}
         x={x}
         y={0.5}
@@ -176,7 +186,6 @@ export function GlassSwitch({
         tintColor="white"
         tintOpacity={tintOpacity}
         tintBlur={tintBlur}
-        shadowOpacity={shadowOpacity}
         shadowBleed
         pixelRatio={2}
         pixelAlign
@@ -225,6 +234,7 @@ export function GlassSwitch({
                   if (holdTimer.current !== null) clearTimeout(holdTimer.current);
                   setDeformationBoost(0);
                   if (mode.current !== "hold") { mode.current = "hold"; expand(); }
+                  drag();
                 }
                 let next = offsetStart.current + (event.clientX - pointerStart.current);
                 if (next < 0) next = -rubberBand(-next, overshoot, overshoot * 10);

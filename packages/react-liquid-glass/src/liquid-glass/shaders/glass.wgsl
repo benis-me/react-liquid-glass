@@ -104,38 +104,42 @@ fn blobNormal(local: vec2f, index: u32) -> vec2f {
   let world = transpose(mat2x2f(b.inverse.xy, b.inverse.zw)) * deformed;
   return world / max(length(world), 0.0001);
 }
-// The dome keeps its calibrated red-outermost fringe; the bevel model follows
-// physical dispersion, where blue bends most.
-fn sampleChroma(uv: vec2f, displacement: vec2f) -> vec3f {
-  let outer = textureSample(source, linearSampler, uv - displacement * (1.0 + 0.2 * p.refraction.z));
-  let middle = textureSample(source, linearSampler, uv - displacement * (1.0 + 0.1 * p.refraction.z)).g;
-  let inner = textureSample(source, linearSampler, uv - displacement);
-  if (p.flags.w > 0.5) { return vec3f(inner.r, middle, outer.b); }
-  return vec3f(outer.r, middle, inner.b);
+// Where each colour channel reads the source. The dome keeps its calibrated red-outermost
+// fringe; the bevel model follows physical dispersion, where blue bends most.
+struct Bend { r: vec2f, g: vec2f, b: vec2f }
+fn bendOf(displacement: vec2f) -> Bend {
+  let outer = displacement * (1.0 + 0.2 * p.refraction.z);
+  let middle = displacement * (1.0 + 0.1 * p.refraction.z);
+  if (p.flags.w > 0.5) { return Bend(displacement, middle, outer); }
+  return Bend(outer, middle, displacement);
+}
+fn sampleChroma(uv: vec2f, bend: Bend) -> vec3f {
+  let red = textureSample(source, linearSampler, uv - bend.r).r;
+  let green = textureSample(source, linearSampler, uv - bend.g).g;
+  let blue = textureSample(source, linearSampler, uv - bend.b).b;
+  return vec3f(red, green, blue);
 }
 fn frostUv(uv: vec2f) -> vec2f { return clamp(uv * p.frostUv.xy, p.frostUv.zw, p.frostUv.xy - p.frostUv.zw); }
-fn sampleFrost(uv: vec2f, displacement: vec2f) -> vec3f {
-  let outer = textureSample(frostSource, linearSampler, frostUv(uv - displacement * (1.0 + 0.2 * p.refraction.z)));
-  let middle = textureSample(frostSource, linearSampler, frostUv(uv - displacement * (1.0 + 0.1 * p.refraction.z))).g;
-  let inner = textureSample(frostSource, linearSampler, frostUv(uv - displacement));
-  if (p.flags.w > 0.5) { return vec3f(inner.r, middle, outer.b); }
-  return vec3f(outer.r, middle, inner.b);
+fn sampleFrost(uv: vec2f, bend: Bend) -> vec3f {
+  let red = textureSample(frostSource, linearSampler, frostUv(uv - bend.r)).r;
+  let green = textureSample(frostSource, linearSampler, frostUv(uv - bend.g)).g;
+  let blue = textureSample(frostSource, linearSampler, frostUv(uv - bend.b)).b;
+  return vec3f(red, green, blue);
 }
-fn sampleGlass(uv: vec2f, displacement: vec2f) -> vec3f {
-  let blur = p.frost.x;
-  if (blur <= 0.001) { return sampleChroma(uv, displacement); }
-  if (blur >= 0.75) { return sampleFrost(uv, displacement); }
+fn sampleGlass(uv: vec2f, bend: Bend, blur: f32) -> vec3f {
+  if (blur <= 0.001) { return sampleChroma(uv, bend); }
+  if (blur >= 0.75) { return sampleFrost(uv, bend); }
   let stepSize = vec2f(blur * 1.34) / p.size.xy;
-  var frosted = sampleChroma(uv, displacement) * 0.2;
-  frosted += sampleChroma(uv + vec2f(stepSize.x, 0.0), displacement) * 0.12;
-  frosted += sampleChroma(uv - vec2f(stepSize.x, 0.0), displacement) * 0.12;
-  frosted += sampleChroma(uv + vec2f(0.0, stepSize.y), displacement) * 0.12;
-  frosted += sampleChroma(uv - vec2f(0.0, stepSize.y), displacement) * 0.12;
-  frosted += sampleChroma(uv + stepSize, displacement) * 0.08;
-  frosted += sampleChroma(uv - stepSize, displacement) * 0.08;
-  frosted += sampleChroma(uv + vec2f(stepSize.x, -stepSize.y), displacement) * 0.08;
-  frosted += sampleChroma(uv + vec2f(-stepSize.x, stepSize.y), displacement) * 0.08;
-  if (blur > 0.5) { return mix(frosted, sampleFrost(uv, displacement), smoothstep(0.5, 0.75, blur)); }
+  var frosted = sampleChroma(uv, bend) * 0.2;
+  frosted += sampleChroma(uv + vec2f(stepSize.x, 0.0), bend) * 0.12;
+  frosted += sampleChroma(uv - vec2f(stepSize.x, 0.0), bend) * 0.12;
+  frosted += sampleChroma(uv + vec2f(0.0, stepSize.y), bend) * 0.12;
+  frosted += sampleChroma(uv - vec2f(0.0, stepSize.y), bend) * 0.12;
+  frosted += sampleChroma(uv + stepSize, bend) * 0.08;
+  frosted += sampleChroma(uv - stepSize, bend) * 0.08;
+  frosted += sampleChroma(uv + vec2f(stepSize.x, -stepSize.y), bend) * 0.08;
+  frosted += sampleChroma(uv + vec2f(-stepSize.x, stepSize.y), bend) * 0.08;
+  if (blur > 0.5) { return mix(frosted, sampleFrost(uv, bend), smoothstep(0.5, 0.75, blur)); }
   return frosted;
 }
 fn sampleContent(uv: vec2f, blur: f32) -> vec4f {
@@ -144,15 +148,12 @@ fn sampleContent(uv: vec2f, blur: f32) -> vec4f {
 }
 // Source-space ink takes the backdrop's refracted, dispersed position. It stays at its own
 // blur under the clear center and takes the material's frost where the rim compresses it.
-fn overlayInk(color: vec3f, uv: vec2f, displacement: vec2f) -> vec3f {
-  let blur = mix(p.ink.z, p.frost.x, smoothstep(1.0, 4.0, length(displacement * p.size.xy)));
-  let outer = sampleContent(uv - displacement * (1.0 + 0.2 * p.refraction.z), blur) * p.ink.x;
-  let middle = sampleContent(uv - displacement * (1.0 + 0.1 * p.refraction.z), blur) * p.ink.x;
-  let inner = sampleContent(uv - displacement, blur) * p.ink.x;
-  var red = outer;
-  var blue = inner;
-  if (p.flags.w > 0.5) { red = inner; blue = outer; }
-  return vec3f(color.r * (1.0 - red.a) + red.r, color.g * (1.0 - middle.a) + middle.g, color.b * (1.0 - blue.a) + blue.b);
+fn overlayInk(color: vec3f, uv: vec2f, bend: Bend, rimShift: f32) -> vec3f {
+  let blur = mix(p.ink.z, p.frost.x, smoothstep(1.0, 4.0, rimShift));
+  let red = sampleContent(uv - bend.r, blur) * p.ink.x;
+  let green = sampleContent(uv - bend.g, blur) * p.ink.x;
+  let blue = sampleContent(uv - bend.b, blur) * p.ink.x;
+  return vec3f(color.r * (1.0 - red.a) + red.r, color.g * (1.0 - green.a) + green.g, color.b * (1.0 - blue.a) + blue.b);
 }
 fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
   let transparent = p.flags.y > 0.5;
@@ -204,6 +205,9 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
   var contactLight = 0.0;
   var bevelNormal = vec2f(0.0);
   var bevelRatio = vec2f(0.0);
+  var lensOffset = vec2f(0.0);
+  var lensAxis = vec2f(0.0);
+  var lensShort = 0.0;
   for (var index = 0u; index < 8u; index++) {
     if (index >= u32(p.flags.x)) { break; }
     let b = p.blobs[index];
@@ -234,6 +238,9 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
     if (p.flags.w > 0.5) {
       bevelNormal += blobNormal(local, index) * weight;
       bevelRatio += b.ratio.xy * weight;
+      lensOffset += (point - b.shape.xy - b.offset.xy) * weight;
+      lensAxis += select(vec2f(1.0, 0.0), vec2f(0.0, 1.0), b.sizeVelocity.x >= b.sizeVelocity.y) * weight;
+      lensShort += min(b.sizeVelocity.x, b.sizeVelocity.y) * weight;
     }
     materialUv += normalizedLocal * weight;
     materialWeight += weight;
@@ -242,7 +249,45 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
   materialUv /= max(materialWeight, 0.001);
   contactLight /= max(materialWeight, 0.001);
   var displacement = glassGradient * (p.refraction.y * 0.5 * falloff);
-  if (p.flags.w > 0.5) {
+  let lens = p.flags.w > 1.5;
+  var lensZoom = vec2f(0.0);
+  var lensNormal = vec2f(0.0);
+  var longSide = 0.0;
+  var frost = p.frost.x;
+  if (lens) {
+    // A lifted lens, as iOS 27's: it magnifies what lies under its middle by ratio.z, and
+    // its rim band (the edge depth) bulges outward, pulling in what surrounds the glass,
+    // before meeting the surface flush at the rim.
+    let band = clamp(1.0 - inside / max(p.frost.y, 0.001), 0.0, 1.0);
+    lensNormal = bevelNormal / max(length(bevelNormal), 0.0001);
+    // The magnification fades as the square root of the band, and the bulge,
+    // (sqrt(band) * (1 - band))^1.5, peaks at 1 a third of the way out, so the middle
+    // stays magnified close to the band before the rim pulls in its surroundings.
+    let rise = sqrt(band);
+    let swell = rise * (1.0 - band);
+    // The band pulls in its surroundings all round, ends included, as the native lens's does: the
+    // end of a bar it overhangs is drawn in as an arc concentric with the rim, where a pull on the
+    // long sides alone left that end showing as a smaller, off-centre half circle. The ends pull
+    // differently, though. A dragged lens slides across labels there, and the long sides' bulge,
+    // flush at the rim and folded by the mirror below, turned the letters it caught into reversed
+    // fragments and smears. At the ends the band squeezes instead, as a glass edge does: its pull is
+    // strongest at the rim and eases off over 2 depths, so what lies there is compressed toward
+    // the rim in order. Its strength, 1.5, draws a bar's end in as deep as the long sides draw in
+    // its top and bottom, so the end keeps the same gap to the rim; it reaches no further past
+    // the rim than 0.22 of the lens's half-height, so what lies beyond it stays out.
+    longSide = smoothstep(0.3, 0.9, abs(dot(lensNormal, lensAxis / max(length(lensAxis), 0.0001))));
+    let squeeze = 1.5 * clamp(1.0 - inside / max(2.0 * p.frost.y, 0.001), 0.0, 1.0);
+    displacement = -lensNormal * mix(squeeze, swell * sqrt(swell) * 4.1877, longSide) * (bevelRatio / max(materialWeight, 0.001)) * (p.refraction.y * 0.5);
+    // The magnification centres on the lens's middle, so it pushed what the ends' band shows
+    // further out than the sides', by how much further the ends lie: across the ends' band it
+    // centres on the end's own round instead, and the ends' gap matches the sides'.
+    let fromMiddle = lensOffset / max(materialWeight, 0.001);
+    let excess = max(dot(fromMiddle, lensNormal) - max(lensShort / max(materialWeight, 0.001) - inside, 0.0), 0.0)
+      * (1.0 - smoothstep(0.7, 1.2, inside / max(p.frost.y, 0.001))) * (1.0 - longSide);
+    lensZoom = (fromMiddle - lensNormal * excess) / p.size.xy * (1.0 - 1.0 / max(p.ratio.z, 1.0)) * (1.0 - rise) * coverage;
+    // Only the outer band scatters; the refracted edge and magnified middle stay clear.
+    frost *= smoothstep(0.45, 0.9, band);
+  } else if (p.flags.w > 0.5) {
     // Opt-in bevel: a flat slab whose quarter-circle rim (twice the edge depth)
     // refracts by Snell's law at n = 1.5. The top stays clear; the rim lenses inward.
     let rise = 1.0 - clamp(inside / max(p.frost.y * 2.0, 1.0), 0.0, 1.0);
@@ -252,7 +297,32 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
     displacement = normal * (tan(deviation) * 2.5) * (bevelRatio / max(materialWeight, 0.001)) * (p.refraction.y * 0.5);
   }
   displacement *= coverage * p.tint.w * p.ratio.xy;
-  if (debug) { return vec4f(mix(vec3f(0.5), vec3f(vec2f(0.5) + displacement * 4.0, coverage), coverage), 1.0); }
+  var bend = bendOf(displacement);
+  var rimShade = 0.0;
+  if (lens) {
+    // The band disperses a little, red pulling furthest. The rim's outer slope, 0.22 of the
+    // band wide, bends inward instead, mirroring what lies just inside it, and shades it. Its
+    // reach disperses: red's a little further all round and far further where the rim faces the
+    // top-left and bottom-right, blue's as far on the other diagonal, so warm and cool crescents
+    // of a like size gather at opposite ends of each band.
+    let spread = 0.04 * p.refraction.z;
+    let diagonal = 2.0 * lensNormal.x * lensNormal.y;
+    let redReach = (0.1 + 0.5 * diagonal) * p.refraction.z;
+    let blueReach = (0.02 + 0.6 * diagonal) * p.refraction.z;
+    let rimDepth = inside / max(0.22 * p.frost.y, 0.001);
+    // The mirror keeps to the long sides; at the ends the squeeze would fold back on it.
+    let mirror = lensNormal * (0.45 * p.refraction.y * longSide) * (bevelRatio / max(materialWeight, 0.001)) * coverage * p.tint.w * p.ratio.xy;
+    bend = Bend(
+      lensZoom + displacement * (1.0 + spread) + mirror * max(1.0 + redReach - rimDepth, 0.0),
+      lensZoom + displacement + mirror * max(1.0 - rimDepth, 0.0),
+      lensZoom + displacement * (1.0 - spread) + mirror * max(1.0 - blueReach - rimDepth, 0.0));
+    // The shade is the same in every channel: shading one channel more than another would
+    // tint bright content. At the ends it is a quarter as deep: native's ends are a crisp dark
+    // line with only a faint tail inside it. Like the contour it belongs to the rim, so it follows
+    // edge strength: a lens settled flat into the bar has none.
+    rimShade = 0.4 * max(1.0 - rimDepth, 0.0) * mix(0.25, 1.0, longSide) * smoothstep(0.0, 0.5, p.edge.x);
+  }
+  if (debug) { return vec4f(mix(vec3f(0.5), vec3f(vec2f(0.5) + (displacement + lensZoom) * 4.0, coverage), coverage), 1.0); }
   let theta = radians(p.glow.x);
   let light = vec2f(cos(theta), sin(theta));
   let alignment = abs(dot(materialUv, light));
@@ -262,13 +332,24 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
   let specular = min(1.0, glow);
   let edgeLight = pow(clamp(abs(dot(edgeGradient, light)) / max(length(edgeGradient), 0.001), 0.0, 1.0), p.edge.z);
   let edgeWidth = max(p.edge.y, 0.001);
-  let contour = 1.0 - smoothstep(0.0, edgeWidth * mix(0.48, 0.65, edgeLight), inside);
-  let reflection = smoothstep(edgeWidth * 0.45, edgeWidth * 0.85, inside) * (1.0 - smoothstep(edgeWidth * 0.85, edgeWidth * 2.0, inside));
-  let reflectionLight = smoothstep(0.75, 0.98, edgeLight);
+  // Plain glass: a fine dark contour, then an inset crest. The crest's band covers the rim's
+  // inner falloff, so over light content the edge reads as a lit bevel; a line hugging the edge
+  // left the falloff showing there as an inner shadow.
+  var contour = 1.0 - smoothstep(0.0, edgeWidth * mix(0.48, 0.65, edgeLight), inside);
+  var reflection = smoothstep(edgeWidth * 0.45, edgeWidth * 0.85, inside) * (1.0 - smoothstep(edgeWidth * 0.85, edgeWidth * 2.0, inside));
+  if (lens) {
+    // The lifted lens's contour is a fine dark line at its very edge, a little wider at the ends,
+    // and its rim line sits just inside it, so the line never washes out the contour.
+    contour = 1.0 - smoothstep(0.0, edgeWidth * mix(0.8, 0.55, edgeLight), inside);
+    reflection = smoothstep(edgeWidth * 0.2, edgeWidth * 0.6, inside) * (1.0 - smoothstep(edgeWidth * 0.6, edgeWidth * 1.4, inside));
+  }
+  // Every rim line reaches round toward the sides, faint there, as the native lens's does. Plain
+  // glass keeps its full top and bottom crest; the lens's own comes mostly from what it mirrors.
+  let reflectionLight = 0.42 * smoothstep(select(0.25, 0.12, lens), select(0.8, 0.72, lens), edgeLight) + select(0.58, 0.15, lens) * smoothstep(0.8, 0.98, edgeLight);
   let edgeGain = max(p.edge.x * p.refraction.w, 0.0);
   // The dark contour defines the body, so it follows edge strength alone: the lower SDR
   // highlight an HDR display uses must not thin the edge.
-  let contourStrength = min(0.85, max(p.edge.x, 0.0) * 3.2) * mix(0.85, 0.24, edgeLight);
+  let contourStrength = min(select(0.85, 0.95, lens), max(p.edge.x, 0.0) * 3.2) * mix(0.85, 0.24, edgeLight);
   let rimLight = reflection * reflectionLight * edgeGain;
   let brightnessAmount = clamp(abs(p.frost.w), 0.0, 1.0);
   var ink = vec4f(0.0);
@@ -276,23 +357,29 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
     let extent = max(p.blobs[0].sizeVelocity.xy * 2.0, vec2f(1.0));
     let local = movingBlobLocal(point, 0u);
     let edgeFocus = 1.0 - smoothstep(0.0, max(p.frost.y * 2.0, 1.0), inside);
-    let contentUv = vec2f(0.5) + (local - displacement * p.size.xy * 0.42 * p.ink.y * edgeFocus) / extent;
+    let contentUv = vec2f(0.5) + (local - (displacement + lensZoom) * p.size.xy * 0.42 * p.ink.y * edgeFocus) / extent;
     ink = sampleContent(contentUv, p.ink.z) * p.ink.x;
   }
   if (emissionOnly) {
     let visibility = coverage * p.shadow.w * (1.0 - clamp(p.edge.w, 0.0, 1.0)) * (1.0 - ink.a);
     return vec4f(vec3f(contactLight, rimLight * (1.0 - brightnessAmount), 0.0) * visibility, 1.0);
   }
-  var refracted = sampleGlass(uv, displacement);
-  if (p.ink.x > 0.001 && p.ink.w > 0.5) { refracted = overlayInk(refracted, uv, displacement); }
+  var refracted = sampleGlass(uv, bend, frost);
+  if (p.ink.x > 0.001 && p.ink.w > 0.5) { refracted = overlayInk(refracted, uv, bend, length(displacement * p.size.xy)); }
+  // The rim's shade darkens it over dark content, as native's does. Over light content the
+  // native lens's rim is white inside its contour, so the shade fades out there.
+  refracted = refracted * (1.0 - rimShade * (1.0 - smoothstep(0.45, 0.85, dot(refracted, vec3f(0.299, 0.587, 0.114)))));
   let luminance = dot(refracted, vec3f(0.299, 0.587, 0.114));
   let shine = specular * p.refraction.w * (127.0 / 255.0);
   refracted = mix(refracted + vec3f(shine), refracted * (1.0 - shine), smoothstep(0.3, 0.7, luminance));
-  // A dark hairline vanishes on dark content. Like the highlight above, the same contour
-  // lightens dark substrates and darkens bright ones, so the edge reads in both themes.
-  let contourAmount = contour * contourStrength;
-  refracted = mix(refracted + vec3f(contourAmount * 0.18), refracted * (1.0 - contourAmount), smoothstep(0.2, 0.5, luminance));
-  refracted += vec3f(rimLight * 0.3);
+  // iOS 27 darkens the edge on every substrate; a lighter contour on dark content reads as
+  // a grey outline. There the crest carries the shape instead, brighter than on light.
+  // Over light content the native lens's contour is an even grey line all round, about a fifth
+  // as dark as the content: its wide ends lighten, its narrow top and bottom darken to match.
+  let contourAmount = contour * contourStrength * select(1.0, mix(1.0, mix(0.38, 1.3, edgeLight), smoothstep(0.45, 0.85, luminance)), lens);
+  refracted = refracted * (1.0 - contourAmount);
+  let crest = vec3f(rimLight);
+  refracted += crest * mix(0.5, 0.3, smoothstep(0.2, 0.5, luminance));
   let brightnessTarget = select(vec3f(0.0), vec3f(1.0), p.frost.w >= 0.0);
   refracted = mix(refracted, brightnessTarget, brightnessAmount);
   refracted = mix(refracted, p.tint.xyz, clamp(p.edge.w, 0.0, 1.0));

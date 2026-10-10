@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExter
 import { cancelFrame, frame } from "motion";
 import { LiquidGlassCanvas } from "./LiquidGlassCanvas.js";
 import { LIQUID_GLASS_MATERIAL, type LiquidGlassFrame, type LiquidGlassBlob } from "./renderer.js";
-import { captureLiquidSource, liquidRgb, liquidTheme, subscribeLiquidTheme, type LiquidSourceFactory, type LiquidSourcePainter } from "./source.js";
+import { captureLiquidSource, liquidRgb, liquidScreenScale, liquidTheme, subscribeLiquidTheme, type LiquidSourceFactory, type LiquidSourcePainter } from "./source.js";
 import { isMotionValue, motionValue, readMotion, type MotionInput } from "../shared/values.js";
 import { DEFAULT_MATERIAL, useGlassMaterialOverrides } from "./provider.js";
 import { createLiquidBackdrop } from "./backdrop.js";
@@ -45,7 +45,11 @@ export interface LiquidGlassProps {
   pixelRatio?: number;
   /** Align small control canvases to physical pixels, avoiding a second compositor resample. */
   pixelAlign?: boolean;
-  /** CSS-pixel displacement gain; independent of the padded source's dimensions. */
+  /**
+   * CSS-pixel displacement gain; independent of the padded source's dimensions. A negative
+   * gain bends the rim the other way: it pulls in what surrounds the glass, so whatever lies
+   * under the rim looks smaller, as a lifted iOS lens does.
+   */
   refractionPixels?: number;
   zoom?: MotionInput; depth?: MotionInput;
   debug?: boolean;
@@ -160,7 +164,13 @@ export function LiquidGlass(props: LiquidGlassProps) {
         const retained = props.sharpInk && reuseInk ? inkRef.current : null;
         void Promise.all([
           captureLiquidSource(root, width, height, ctx => {
-            if (backdropRef.current) ctx.drawImage(backdropRef.current, bleed * 2, bleed * 2, width * 2, height * 2, 0, 0, width, height);
+            // The backdrop covers the glass and its bleed on screen, so under a scaled ancestor it is
+            // larger than the glass's own pixels: take the glass's share of it, not fixed pixels.
+            const backdrop = backdropRef.current;
+            if (backdrop) {
+              const sx = backdrop.width / (width + bleed * 2), sy = backdrop.height / (height + bleed * 2);
+              ctx.drawImage(backdrop, bleed * sx, bleed * sy, width * sx, height * sy, 0, 0, width, height);
+            }
             background?.(ctx);
           }, props.sharpInk ? "base" : "all"),
           // Sharp ink is a separate layer, so the material's frost never reaches it.
@@ -215,8 +225,9 @@ export function LiquidGlass(props: LiquidGlassProps) {
     if (!owner || !measured) return;
     const visible = () => readMotion(config.current.tintOpacity ?? 0) < 1;
     const backdrop = createLiquidBackdrop(props.backdropRoot?.current ?? owner, () => {
-      const rect = owner.getBoundingClientRect(), bleed = bleedRef.current;
-      return { left: rect.left - bleed, top: rect.top - bleed, width: sizeRef.current.width + bleed * 2, height: sizeRef.current.height + bleed * 2 };
+      // On screen, so glass under a scaled ancestor still samples what lies behind it.
+      const rect = owner.getBoundingClientRect(), bleed = bleedRef.current, scale = liquidScreenScale(owner, rect);
+      return { left: rect.left - bleed * scale.x, top: rect.top - bleed * scale.y, width: (sizeRef.current.width + bleed * 2) * scale.x, height: (sizeRef.current.height + bleed * 2) * scale.y };
     }, canvas => {
       backdropRef.current = canvas;
       const { width, height } = sizeRef.current, bleed = bleedRef.current;
@@ -261,7 +272,7 @@ export function LiquidGlass(props: LiquidGlassProps) {
   const toCanvas = (value: MotionInput, extent: number, total: number) => bleed ? derived(() => (readMotion(value) * extent + bleed) / total, [value]) : value;
   const scale = props.refractionPixels === undefined
     ? Math.max(Math.abs(lens.scaleX ?? .11), Math.abs(lens.scaleY ?? .11))
-    : Math.max(0, props.refractionPixels) * 2;
+    : props.refractionPixels * 2;
   return <div ref={rootRef} data-dg-glass-surface="" data-dg-liquid-surface="" className={props.className}
     style={{ position: "relative", ...props.style }}>
     {/* Keep positioned native children below the refracted pixels, not over their ink. */}

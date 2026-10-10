@@ -244,9 +244,10 @@ td.api-description { min-width: 220px; color: var(--muted); line-height: 1.6; }
 
 /* ───────────── Catalog ───────────── */
 .catalog-tools { margin-bottom: 24px; }
-.filter-scroll { margin: -18px -10px; }
+/* Room on either side for a pressed tab bar, which grows and lifts its lens past its ends. */
+.filter-scroll { margin: -18px -16px; }
 .filter-scroll > .dg-scroll-area__viewport { mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent); }
-.filter-scroll > .dg-scroll-area__viewport > div > .dg-scroll-area__content { padding: 18px 10px; overflow: clip; }
+.filter-scroll > .dg-scroll-area__viewport > div > .dg-scroll-area__content { padding: 18px 16px; overflow: clip; }
 .filter-scroll .dg-tabs { max-width: none; width: max-content; }
 .component-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px 16px; }
 .component-tile { min-width: 0; }
@@ -302,7 +303,7 @@ td.api-description { min-width: 220px; color: var(--muted); line-height: 1.6; }
 .inspector-heading { display: flex; justify-content: space-between; align-items: center; min-height: 34px; }
 .inspector-heading h2 { font-size: 15px; letter-spacing: -.01em; }
 .inspector-heading button { color: var(--muted); }
-.preset-list { margin: 6px -10px 10px; }
+.preset-list { margin: 6px -16px 10px; }
 .preset-list > .dg-scroll-area__viewport > div > .dg-scroll-area__content { padding-block: 14px; }
 .preset-list .dg-tabs__item { padding-inline: 11px; }
 .material-fields { display: grid; gap: 16px; }
