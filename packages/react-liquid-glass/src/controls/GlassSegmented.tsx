@@ -55,6 +55,8 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
   const dark = useSyncExternalStore(subscribeLiquidTheme, liquidTheme, () => "light").startsWith("dark");
   const segments = useMemo<readonly GlassSegmentItem[]>(() => suppliedItems?.length ? suppliedItems.map(item => ({ color1: "currentColor", color2: "currentColor", ...item })) : DEFAULT_SEGMENTS, [suppliedItems]);
   const [local, setLocal] = useState(defaultValue);
+  // While a press drags, the lens passes over the tabs without lighting them up.
+  const [dragging, setDragging] = useState(false);
   const current = value ?? local;
   const hasLinks = segments.some(item => item.href);
   const selected = segments.some((item) => item.value === current) ? current : current === "" || hasLinks ? "" : segments[0].value;
@@ -136,8 +138,8 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
   // 1 while the press stays put, easing to 0 once it drags.
   const still = useMotionValue(0);
   const magnify = useTransform(() => 1 + (LIFT_MAGNIFICATION - 1) * Math.min(1, Math.max(0, interaction.get())) * still.get());
-  // The native lens barely lights where it is touched.
-  const touchLight = useTransform(contact.contactStrength, strength => strength * .3);
+  // The native lens barely lights where it is touched, and not at all once the press drags.
+  const touchLight = useTransform(() => contact.contactStrength.get() * .3 * still.get());
   const stops = useRef<SpringRun[]>([]);
   const interactionStop = useRef<SpringRun | null>(null);
   const stillStop = useRef<SpringRun | null>(null);
@@ -330,6 +332,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
     });
   };
   const releaseInteraction = (delay = 0, settle = true) => {
+    setDragging(false);
     if (releaseTimer.current !== null) window.clearTimeout(releaseTimer.current);
     if (delay > 0) {
       releaseTimer.current = window.setTimeout(() => {
@@ -426,7 +429,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
   });
 
   return (
-    <div ref={rootRef} data-custom={suppliedItems ? "true" : undefined} className={["dg-tabs", className].filter(Boolean).join(" ")}>
+    <div ref={rootRef} data-custom={suppliedItems ? "true" : undefined} data-dragging={dragging ? "" : undefined} className={["dg-tabs", className].filter(Boolean).join(" ")}>
       {container}
       <div
         ref={groupRef}
@@ -468,6 +471,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
             dragMoved.current = true;
             stillStop.current?.stop();
             stillStop.current = springTo(still, 0, SEGMENTED_PRESS_SPRING);
+            setDragging(true);
             stops.current.forEach((run) => run.stop());
             stops.current = [];
             startDragCatchup(event.clientX);
@@ -534,7 +538,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
             margin: `-${SEGMENTED_PAD_Y}px -${SEGMENTED_PAD_X}px`,
             boxSizing: "content-box",
           }}
-          refractionTarget={<div className="dg-tabs__overlay"><div className="dg-tabs__group dg-tabs__group--overlay">{items(false, true)}</div></div>}
+          refractionTarget={<div className="dg-tabs__overlay"><div className={["dg-tabs__group dg-tabs__group--overlay", dragging ? "dg-tabs__group--quiet" : ""].filter(Boolean).join(" ")}>{items(false, true)}</div></div>}
         >
           <div className="dg-tabs__group dg-tabs__group--glass-base">{items(false)}</div>
         </LiquidGlass>

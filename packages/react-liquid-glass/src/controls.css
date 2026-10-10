@@ -170,6 +170,15 @@ html:is([data-theme="dark"], :where(.dark:not([data-theme]))) .dg-tabs__item:not
 .dg-tabs__group--glass-base { pointer-events: none; }
 .dg-tabs__group--overlay { padding: 2px; }
 .dg-tabs__item--overlay { color: var(--dg-control-text); padding: 8px 13px; pointer-events: none; }
+/* A dragged lens passes over the tabs without lighting them; the selection lights on release. */
+.dg-tabs[data-dragging] > .dg-tabs__group > .dg-tabs__item[data-selected],
+.dg-tabs__group--quiet .dg-tabs__item--overlay {
+  --dg-icon-color-1: #bcbbbb !important;
+  --dg-icon-color-2: #8f8f8f !important;
+  color: var(--dg-control-text-muted);
+}
+/* The lens's ink is captured once per change, so it must not capture a colour mid-fade. */
+.dg-tabs__group--quiet .dg-tabs__item--overlay { transition: none; }
 
 @media (max-width: 700px) { .dg-tabs__item:nth-of-type(n + 5) { display: none; } }
 @media (max-width: 550px) { .dg-tabs__item:nth-of-type(n + 4) { display: none; } }

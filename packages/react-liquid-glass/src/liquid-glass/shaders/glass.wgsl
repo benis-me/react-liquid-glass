@@ -206,6 +206,7 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
   var bevelNormal = vec2f(0.0);
   var bevelRatio = vec2f(0.0);
   var lensOffset = vec2f(0.0);
+  var lensAxis = vec2f(0.0);
   for (var index = 0u; index < 8u; index++) {
     if (index >= u32(p.flags.x)) { break; }
     let b = p.blobs[index];
@@ -237,6 +238,7 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
       bevelNormal += blobNormal(local, index) * weight;
       bevelRatio += b.ratio.xy * weight;
       lensOffset += (point - b.shape.xy - b.offset.xy) * weight;
+      lensAxis += select(vec2f(1.0, 0.0), vec2f(0.0, 1.0), b.sizeVelocity.x >= b.sizeVelocity.y) * weight;
     }
     materialUv += normalizedLocal * weight;
     materialWeight += weight;
@@ -248,6 +250,7 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
   let lens = p.flags.w > 1.5;
   var lensZoom = vec2f(0.0);
   var lensNormal = vec2f(0.0);
+  var longSide = 0.0;
   var frost = p.frost.x;
   if (lens) {
     // A lifted lens, as iOS 27's: it magnifies what lies under its middle by ratio.z, and
@@ -260,10 +263,13 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
     // stays magnified close to the band before the rim pulls in its surroundings.
     let rise = sqrt(band);
     let swell = rise * (1.0 - band);
-    displacement = -lensNormal * (swell * sqrt(swell) * 4.1877) * (bevelRatio / max(materialWeight, 0.001)) * (p.refraction.y * 0.5);
+    // Only the long sides pull in their surroundings, as the native lens's top and bottom do;
+    // the ends stay clear, so what the lens slides along is never echoed inside its rim.
+    longSide = smoothstep(0.3, 0.9, abs(dot(lensNormal, lensAxis / max(length(lensAxis), 0.0001))));
+    displacement = -lensNormal * (swell * sqrt(swell) * 4.1877 * longSide) * (bevelRatio / max(materialWeight, 0.001)) * (p.refraction.y * 0.5);
     lensZoom = lensOffset / max(materialWeight, 0.001) / p.size.xy * (1.0 - 1.0 / max(p.ratio.z, 1.0)) * (1.0 - rise) * coverage;
     // Only the outer band scatters; the refracted edge and magnified middle stay clear.
-    frost *= smoothstep(0.45, 0.9, band);
+    frost *= smoothstep(0.45, 0.9, band) * longSide;
   } else if (p.flags.w > 0.5) {
     // Opt-in bevel: a flat slab whose quarter-circle rim (twice the edge depth)
     // refracts by Snell's law at n = 1.5. The top stays clear; the rim lenses inward.
@@ -287,14 +293,15 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
     let redReach = (0.1 + 0.5 * diagonal) * p.refraction.z;
     let blueReach = (0.02 + 0.6 * diagonal) * p.refraction.z;
     let rimDepth = inside / max(0.22 * p.frost.y, 0.001);
-    let mirror = lensNormal * (0.45 * p.refraction.y) * (bevelRatio / max(materialWeight, 0.001)) * coverage * p.tint.w * p.ratio.xy;
+    // Like the pull, the mirror lives on the long sides; the ends stay clear.
+    let mirror = lensNormal * (0.45 * p.refraction.y * longSide) * (bevelRatio / max(materialWeight, 0.001)) * coverage * p.tint.w * p.ratio.xy;
     bend = Bend(
       lensZoom + displacement * (1.0 + spread) + mirror * max(1.0 + redReach - rimDepth, 0.0),
       lensZoom + displacement + mirror * max(1.0 - rimDepth, 0.0),
       lensZoom + displacement * (1.0 - spread) + mirror * max(1.0 - blueReach - rimDepth, 0.0));
     // The shade is the same in every channel: shading one channel more than another would
     // tint bright content.
-    rimShade = 0.4 * max(1.0 - rimDepth, 0.0);
+    rimShade = 0.4 * max(1.0 - rimDepth, 0.0) * longSide;
   }
   if (debug) { return vec4f(mix(vec3f(0.5), vec3f(vec2f(0.5) + (displacement + lensZoom) * 4.0, coverage), coverage), 1.0); }
   let theta = radians(p.glow.x);
@@ -306,21 +313,16 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
   let specular = min(1.0, glow);
   let edgeLight = pow(clamp(abs(dot(edgeGradient, light)) / max(length(edgeGradient), 0.001), 0.0, 1.0), p.edge.z);
   let edgeWidth = max(p.edge.y, 0.001);
-  var contour = 1.0 - smoothstep(0.0, edgeWidth * mix(0.48, 0.65, edgeLight), inside);
-  var reflection = smoothstep(edgeWidth * 0.45, edgeWidth * 0.85, inside) * (1.0 - smoothstep(edgeWidth * 0.85, edgeWidth * 2.0, inside));
-  var reflectionLight = smoothstep(0.75, 0.98, edgeLight);
-  if (lens) {
-    // The lifted lens's contour is a fine dark line at its very edge. Its rim line, just
-    // inside, is white and reaches round to the sides, faint there, as on the native lens;
-    // the colour along its top and bottom comes from what the rim mirrors.
-    contour = 1.0 - smoothstep(0.0, edgeWidth * 0.5, inside);
-    reflection = smoothstep(0.0, edgeWidth * 0.45, inside) * (1.0 - smoothstep(edgeWidth * 0.45, edgeWidth * 1.3, inside));
-    reflectionLight = 0.42 * smoothstep(0.25, 0.8, edgeLight) + 0.15 * smoothstep(0.8, 0.98, edgeLight);
-  }
+  // Every glass body wears the lifted lens's edge: a fine dark contour at its very edge, and
+  // just inside it a white rim line that reaches round to the sides, faint there. Plain glass
+  // keeps its full top and bottom crest; the lens's own comes mostly from what its rim mirrors.
+  let contour = 1.0 - smoothstep(0.0, edgeWidth * 0.5, inside);
+  let reflection = smoothstep(0.0, edgeWidth * 0.45, inside) * (1.0 - smoothstep(edgeWidth * 0.45, edgeWidth * 1.3, inside));
+  let reflectionLight = 0.42 * smoothstep(0.25, 0.8, edgeLight) + select(0.58, 0.15, lens) * smoothstep(0.8, 0.98, edgeLight);
   let edgeGain = max(p.edge.x * p.refraction.w, 0.0);
   // The dark contour defines the body, so it follows edge strength alone: the lower SDR
   // highlight an HDR display uses must not thin the edge.
-  let contourStrength = min(select(0.85, 0.95, lens), max(p.edge.x, 0.0) * 3.2) * mix(0.85, 0.24, edgeLight);
+  let contourStrength = min(0.95, max(p.edge.x, 0.0) * 3.2) * mix(0.85, 0.24, edgeLight);
   let rimLight = reflection * reflectionLight * edgeGain;
   let brightnessAmount = clamp(abs(p.frost.w), 0.0, 1.0);
   var ink = vec4f(0.0);
@@ -343,7 +345,9 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
   refracted = mix(refracted + vec3f(shine), refracted * (1.0 - shine), smoothstep(0.3, 0.7, luminance));
   // iOS 27 darkens the edge on every substrate; a lighter contour on dark content reads as
   // a grey outline. There the crest carries the shape instead, brighter than on light.
-  let contourAmount = contour * contourStrength;
+  // On light content the side contour lightens, so it reads as the same fine line as on dark;
+  // the top and bottom keep theirs.
+  let contourAmount = contour * contourStrength * mix(1.0, 0.6, smoothstep(0.45, 0.85, luminance) * (1.0 - edgeLight));
   refracted = refracted * (1.0 - contourAmount);
   let crest = vec3f(rimLight);
   refracted += crest * mix(0.5, 0.3, smoothstep(0.2, 0.5, luminance));

@@ -94,11 +94,11 @@ export interface LiquidGlassFrame {
    * slab with a rounded rim: Snell refraction at the rim, a clear top, and
    * physical dispersion order. Rim width is twice `edgeDepth`. `lens` is a lifted
    * lens, as iOS 27's pressed tab: it magnifies its middle by `lensMagnification`,
-   * and its rim band (`edgeDepth` wide) bulges outward by `refractionStrength`,
-   * pulling in what surrounds the glass, before meeting the surface flush at the rim;
-   * its rim's outer slope mirrors what lies just inside it, red reaching furthest on
-   * one diagonal and blue on the other, so warm and cool crescents gather at opposite
-   * ends of the rim.
+   * and along its long sides its rim band (`edgeDepth` wide) bulges outward by
+   * `refractionStrength`, pulling in what surrounds the glass, before meeting the
+   * surface flush at the rim, while its ends stay clear; its rim's outer slope mirrors
+   * what lies just inside it, red reaching furthest on one diagonal and blue on the
+   * other, so warm and cool crescents gather at opposite ends of the rim.
    */
   refractionModel?: "dome" | "bevel" | "lens";
   /** Visualize this exact shader's live displacement and coverage, without CPU maps. */
