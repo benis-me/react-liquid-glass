@@ -32,7 +32,8 @@ const DEFAULT_SEGMENTS = [
 
 const SEGMENTED_PAD_X = 80;
 const SEGMENTED_PAD_Y = 80;
-// The pressed tab magnifies what lies under it, as iOS 27's does, while its rim pulls in the bar.
+// A held tab magnifies what lies under it, as iOS 27's does, while its rim pulls in the bar.
+// Dragged, the glass shows what passes under it at its own size.
 const LIFT_MAGNIFICATION = 1.155;
 export interface GlassSegmentItem { value: string; label: string; href?: string; Icon?: ComponentType<{ className?: string }>; color1?: string; color2?: string; }
 export interface GlassSegmentedProps {
@@ -131,11 +132,15 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
     active * (0.18 - Math.min(0.10, Math.max(0, amount) * 0.55)));
   const minimumGlassH = useDerivedMotion2(lensH, heightBoost, (height, boost) => height * (1 + boost));
   const renderedLensH = useDerivedMotion2(expandedLensH, minimumGlassH, (height, minimum) => Math.max(height, minimum));
-  const { band, bulge, magnify } = useLiftedOptics(renderedLensW, renderedLensH, interaction, LIFT_MAGNIFICATION);
+  const { band, bulge } = useLiftedOptics(renderedLensW, renderedLensH, interaction);
+  // 1 while the press stays put, easing to 0 once it drags.
+  const still = useMotionValue(0);
+  const magnify = useTransform(() => 1 + (LIFT_MAGNIFICATION - 1) * Math.min(1, Math.max(0, interaction.get())) * still.get());
   // The native lens barely lights where it is touched.
   const touchLight = useTransform(contact.contactStrength, strength => strength * .3);
   const stops = useRef<SpringRun[]>([]);
   const interactionStop = useRef<SpringRun | null>(null);
+  const stillStop = useRef<SpringRun | null>(null);
   const heightStop = useRef<SpringRun | null>(null);
   const glassAnimation = useRef<ReturnType<typeof animate> | null>(null);
   const solidAnimation = useRef<ReturnType<typeof animate> | null>(null);
@@ -449,6 +454,8 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
           solidAnimation.current = animate(solidOpacity, 0, { duration: 0.1, ease: [0.22, 1, 0.36, 1] });
           interactionStop.current?.stop();
           interactionStop.current = springTo(interaction, 1, SEGMENTED_PRESS_SPRING);
+          stillStop.current?.stop();
+          still.set(1);
           choose(nearest.value);
           travelSettled.current = updateGeometry(nearest.value, hasLinks && !selected);
           dragPointer.current = event.pointerId;
@@ -459,6 +466,8 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
           if (event.pointerId !== dragPointer.current) return;
           if (!dragMoved.current && Math.hypot(event.clientX - dragStart.current.x, event.clientY - dragStart.current.y) > 2) {
             dragMoved.current = true;
+            stillStop.current?.stop();
+            stillStop.current = springTo(still, 0, SEGMENTED_PRESS_SPRING);
             stops.current.forEach((run) => run.stop());
             stops.current = [];
             startDragCatchup(event.clientX);

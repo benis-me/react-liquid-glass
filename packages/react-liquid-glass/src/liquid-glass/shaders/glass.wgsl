@@ -277,19 +277,23 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
   var bend = bendOf(displacement);
   var rimShade = 0.0;
   if (lens) {
-    // The band disperses a little, red pulling furthest. The rim's outer slope, 0.15 of the
+    // The band disperses a little, red pulling furthest. The rim's outer slope, 0.22 of the
     // band wide, bends inward instead, mirroring what lies just inside it, and shades it. Its
-    // reach disperses: red's furthest where the rim faces the top-left and bottom-right, blue's
-    // on the other diagonal, so warm and cool crescents gather at opposite ends of each band.
+    // reach disperses: red's a little further all round and far further where the rim faces the
+    // top-left and bottom-right, blue's as far on the other diagonal, so warm and cool crescents
+    // of a like size gather at opposite ends of each band.
     let spread = 0.04 * p.refraction.z;
     let diagonal = 2.0 * lensNormal.x * lensNormal.y;
-    let reach = (0.133 + 0.4 * diagonal) * p.refraction.z;
-    let rimDepth = inside / max(0.15 * p.frost.y, 0.001);
+    let redReach = (0.1 + 0.5 * diagonal) * p.refraction.z;
+    let blueReach = (0.02 + 0.6 * diagonal) * p.refraction.z;
+    let rimDepth = inside / max(0.22 * p.frost.y, 0.001);
     let mirror = lensNormal * (0.45 * p.refraction.y) * (bevelRatio / max(materialWeight, 0.001)) * coverage * p.tint.w * p.ratio.xy;
     bend = Bend(
-      lensZoom + displacement * (1.0 + spread) + mirror * max(1.0 + reach - rimDepth, 0.0),
+      lensZoom + displacement * (1.0 + spread) + mirror * max(1.0 + redReach - rimDepth, 0.0),
       lensZoom + displacement + mirror * max(1.0 - rimDepth, 0.0),
-      lensZoom + displacement * (1.0 - spread) + mirror * max(1.0 - reach - rimDepth, 0.0));
+      lensZoom + displacement * (1.0 - spread) + mirror * max(1.0 - blueReach - rimDepth, 0.0));
+    // The shade is the same in every channel: shading one channel more than another would
+    // tint bright content.
     rimShade = 0.4 * max(1.0 - rimDepth, 0.0);
   }
   if (debug) { return vec4f(mix(vec3f(0.5), vec3f(vec2f(0.5) + (displacement + lensZoom) * 4.0, coverage), coverage), 1.0); }

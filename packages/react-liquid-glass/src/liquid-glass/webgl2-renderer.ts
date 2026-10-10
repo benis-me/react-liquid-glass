@@ -360,19 +360,23 @@ void main() {
   Bend bend = bendOf(displacement);
   float rimShade = 0.;
   if (uLens) {
-    // The band disperses a little, red pulling furthest. The rim's outer slope, 0.15 of the
+    // The band disperses a little, red pulling furthest. The rim's outer slope, 0.22 of the
     // band wide, bends inward instead, mirroring what lies just inside it, and shades it. Its
-    // reach disperses: red's furthest where the rim faces the top-left and bottom-right, blue's
-    // on the other diagonal, so warm and cool crescents gather at opposite ends of each band.
+    // reach disperses: red's a little further all round and far further where the rim faces the
+    // top-left and bottom-right, blue's as far on the other diagonal, so warm and cool crescents
+    // of a like size gather at opposite ends of each band.
     float spread = .04 * uChroma;
     float diagonal = 2. * lensNormal.x * lensNormal.y;
-    float reach = (.133 + .4 * diagonal) * uChroma;
-    float rimDepth = inside / max(.15 * uDepth, .001);
+    float redReach = (.1 + .5 * diagonal) * uChroma;
+    float blueReach = (.02 + .6 * diagonal) * uChroma;
+    float rimDepth = inside / max(.22 * uDepth, .001);
     vec2 mirror = lensNormal * (.45 * uRefraction) * (bevelRatio / max(materialWeight, .001)) * coverage * uZoom * uRefractionRatio;
     bend = Bend(
-      lensZoom + displacement * (1. + spread) + mirror * max(1. + reach - rimDepth, 0.),
+      lensZoom + displacement * (1. + spread) + mirror * max(1. + redReach - rimDepth, 0.),
       lensZoom + displacement + mirror * max(1. - rimDepth, 0.),
-      lensZoom + displacement * (1. - spread) + mirror * max(1. - reach - rimDepth, 0.));
+      lensZoom + displacement * (1. - spread) + mirror * max(1. - blueReach - rimDepth, 0.));
+    // The shade is the same in every channel: shading one channel more than another would
+    // tint bright content.
     rimShade = .4 * max(1. - rimDepth, 0.);
   }
   if (uDebug) {

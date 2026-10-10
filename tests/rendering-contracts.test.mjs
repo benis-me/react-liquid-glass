@@ -251,16 +251,21 @@ test("the lifted lens model is the same on WebGPU and WebGL2", () => {
   // what lies inside it, its reach dispersing along the diagonals; only the outer band frosts.
   assert.match(wgsl, /let diagonal = 2\.0 \* lensNormal\.x \* lensNormal\.y;/);
   assert.match(liquidCanvasSource, /float diagonal = 2\. \* lensNormal\.x \* lensNormal\.y;/);
-  assert.match(wgsl, /let reach = \(0\.133 \+ 0\.4 \* diagonal\) \* p\.refraction\.z;\s*let rimDepth = inside \/ max\(0\.15 \* p\.frost\.y, 0\.001\);/);
-  assert.match(liquidCanvasSource, /float reach = \(\.133 \+ \.4 \* diagonal\) \* uChroma;\s*float rimDepth = inside \/ max\(\.15 \* uDepth, \.001\);/);
+  assert.match(wgsl, /let redReach = \(0\.1 \+ 0\.5 \* diagonal\) \* p\.refraction\.z;\s*let blueReach = \(0\.02 \+ 0\.6 \* diagonal\) \* p\.refraction\.z;\s*let rimDepth = inside \/ max\(0\.22 \* p\.frost\.y, 0\.001\);/);
+  assert.match(liquidCanvasSource, /float redReach = \(\.1 \+ \.5 \* diagonal\) \* uChroma;\s*float blueReach = \(\.02 \+ \.6 \* diagonal\) \* uChroma;\s*float rimDepth = inside \/ max\(\.22 \* uDepth, \.001\);/);
   assert.match(wgsl, /let mirror = lensNormal \* \(0\.45 \* p\.refraction\.y\) \* \(bevelRatio \/ max\(materialWeight, 0\.001\)\) \* coverage \* p\.tint\.w \* p\.ratio\.xy;/);
   assert.match(liquidCanvasSource, /vec2 mirror = lensNormal \* \(\.45 \* uRefraction\) \* \(bevelRatio \/ max\(materialWeight, \.001\)\) \* coverage \* uZoom \* uRefractionRatio;/);
   assert.match(wgsl, /lensZoom \+ displacement \+ mirror \* max\(1\.0 - rimDepth, 0\.0\),/);
   assert.match(liquidCanvasSource, /lensZoom \+ displacement \+ mirror \* max\(1\. - rimDepth, 0\.\),/);
-  assert.match(wgsl, /lensZoom \+ displacement \* \(1\.0 \+ spread\) \+ mirror \* max\(1\.0 \+ reach - rimDepth, 0\.0\)/);
-  assert.match(liquidCanvasSource, /lensZoom \+ displacement \* \(1\. \+ spread\) \+ mirror \* max\(1\. \+ reach - rimDepth, 0\.\)/);
+  assert.match(wgsl, /lensZoom \+ displacement \* \(1\.0 \+ spread\) \+ mirror \* max\(1\.0 \+ redReach - rimDepth, 0\.0\)/);
+  assert.match(liquidCanvasSource, /lensZoom \+ displacement \* \(1\. \+ spread\) \+ mirror \* max\(1\. \+ redReach - rimDepth, 0\.\)/);
+  assert.match(wgsl, /lensZoom \+ displacement \* \(1\.0 - spread\) \+ mirror \* max\(1\.0 - blueReach - rimDepth, 0\.0\)/);
+  assert.match(liquidCanvasSource, /lensZoom \+ displacement \* \(1\. - spread\) \+ mirror \* max\(1\. - blueReach - rimDepth, 0\.\)/);
   assert.doesNotMatch(wgsl, /tilt \* abs\(diagonal\)/);
   assert.doesNotMatch(liquidCanvasSource, /tilt \* abs\(diagonal\)/);
+  // The shade is the same in every channel, so bright content is never tinted.
+  assert.match(wgsl, /var rimShade = 0\.0;/);
+  assert.match(liquidCanvasSource, /float rimShade = 0\.;/);
   assert.match(wgsl, /rimShade = 0\.4 \* max\(1\.0 - rimDepth, 0\.0\);/);
   assert.match(liquidCanvasSource, /rimShade = \.4 \* max\(1\. - rimDepth, 0\.\);/);
   assert.match(wgsl, /refracted = refracted \* \(1\.0 - rimShade\);/);
@@ -907,6 +912,10 @@ test("control optics retain size-independent pixel gain and the approved menu ma
   assert.match(componentSource, /const bulge = useTransform\(\(\) => Math\.min\(lensW\.get\(\), lensH\.get\(\)\) \* \.147 \* unit\(lift\.get\(\)\)\)/);
   assert.equal((componentSource.match(/refractionPixels=\{1\}\s*zoom=\{bulge\}\s*depth=\{band\}\s*material=\{LIFTED_MODEL\}/g) ?? []).length, 2);
   assert.match(componentSource, /const LIFT_MAGNIFICATION = 1\.155;/);
+  // Only a press that stays put magnifies; once it drags, the glass shows what passes under it
+  // at its own size.
+  assert.match(componentSource, /const magnify = useTransform\(\(\) => 1 \+ \(LIFT_MAGNIFICATION - 1\) \* Math\.min\(1, Math\.max\(0, interaction\.get\(\)\)\) \* still\.get\(\)\);/);
+  assert.match(componentSource, /dragMoved\.current = true;\s*stillStop\.current\?\.stop\(\);\s*stillStop\.current = springTo\(still, 0, SEGMENTED_PRESS_SPRING\);/);
   assert.match(componentSource, /refractionPixels=\{1\}\s*zoom=\{bulge\}\s*material=\{\{ refractionModel: "lens", lensMagnification: magnify, shadowStrength: 0 \}\}/);
   assert.equal((componentSource.match(/strength => strength \* \.3/g) ?? []).length, 3, "the lifted lens barely lights where it is touched");
   const scaleCode = liquidAdapterSource.match(/const scale = props\.refractionPixels[\s\S]*?;/)?.[0];
