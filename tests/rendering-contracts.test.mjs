@@ -848,7 +848,13 @@ test("control optics retain size-independent pixel gain and the approved menu ma
   assert.equal((componentSource.match(/chromaAmount: \.24, edgeWidth: \.9/g) ?? []).length, 1);
   assert.equal((componentSource.match(/thumbLens\(dark, \{/g) ?? []).length, 3, "Switch, Slider and Segmented share one thumb lens");
   assert.equal((componentSource.match(/refractionPixels=\{thumbHeight \* \.22\}/g) ?? []).length, 2);
-  assert.match(componentSource, /refractionPixels=\{5\.5\}/);
+  // The lifted Tabs lens pulls in what surrounds it, as iOS 27's does: an outward gain that grows
+  // with the lift from a resting 5.5px, a wider refracting band and visible dispersion.
+  assert.match(componentSource, /const LIFTED_PULL = -14;\s*const RESTING_PULL = 5\.5 \/ 14;\s*const LIFTED_EDGE_DEPTH = 8;/);
+  assert.match(componentSource, /refractionPixels=\{LIFTED_PULL\}\s*zoom=\{pull\}/);
+  assert.match(componentSource, /const pull = useTransform\(interaction, pressed => RESTING_PULL \+ \(1 - RESTING_PULL\) \* pressed\)/);
+  assert.match(componentSource, /\(2\.5 \+ \(LIFTED_EDGE_DEPTH - 2\.5\) \* pressed\) \* \(1 \+ amount \* 0\.7\)/);
+  assert.match(componentSource, /domeDepth: 8, chromaAmount: 1\.5 \}\)/);
   const scaleCode = liquidAdapterSource.match(/const scale = props\.refractionPixels[\s\S]*?;/)?.[0];
   const ratioCode = liquidAdapterSource.match(/refractionRatio=\{([^}]+)\}/)?.[1];
   assert.ok(scaleCode && ratioCode);
@@ -860,6 +866,8 @@ test("control optics retain size-independent pixel gain and the approved menu ma
       assert.ok(Math.abs(scale * .5 * ratio[axis] * length - 4.84) < 1e-9, "padding and aspect ratio must not amplify refraction");
     }
   }
+  const [pullScale, pullRatio] = gain({ refractionPixels: -14 }, LIQUID_GLASS_MATERIAL, { width: 290, height: 72 }, 450, 232);
+  assert.ok(Math.abs(pullScale * .5 * pullRatio[0] * 450 + 14) < 1e-9, "a negative gain keeps its sign and pixel size");
   assert.deepEqual(gain({}, { scaleX: .08, scaleY: .12 }, { width: 124, height: 78 }, 124, 78), [.12, [.08 / .12, 1]], "per-axis optical gain remains unchanged");
   assert.equal(LIQUID_GLASS_MATERIAL.chromaAmount, .55);
   assert.match(componentSource, /SEGMENTED_TRAVEL_SPRING = \{ mass: 1, stiffness: 260, damping: 28 \}/);

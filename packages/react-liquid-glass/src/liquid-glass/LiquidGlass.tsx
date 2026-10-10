@@ -45,7 +45,11 @@ export interface LiquidGlassProps {
   pixelRatio?: number;
   /** Align small control canvases to physical pixels, avoiding a second compositor resample. */
   pixelAlign?: boolean;
-  /** CSS-pixel displacement gain; independent of the padded source's dimensions. */
+  /**
+   * CSS-pixel displacement gain; independent of the padded source's dimensions. A negative
+   * gain bends the rim the other way: it pulls in what surrounds the glass, so whatever lies
+   * under the rim looks smaller, as a lifted iOS lens does.
+   */
   refractionPixels?: number;
   zoom?: MotionInput; depth?: MotionInput;
   debug?: boolean;
@@ -261,7 +265,7 @@ export function LiquidGlass(props: LiquidGlassProps) {
   const toCanvas = (value: MotionInput, extent: number, total: number) => bleed ? derived(() => (readMotion(value) * extent + bleed) / total, [value]) : value;
   const scale = props.refractionPixels === undefined
     ? Math.max(Math.abs(lens.scaleX ?? .11), Math.abs(lens.scaleY ?? .11))
-    : Math.max(0, props.refractionPixels) * 2;
+    : props.refractionPixels * 2;
   return <div ref={rootRef} data-dg-glass-surface="" data-dg-liquid-surface="" className={props.className}
     style={{ position: "relative", ...props.style }}>
     {/* Keep positioned native children below the refracted pixels, not over their ink. */}
