@@ -10,7 +10,7 @@ Notable changes to `rglass`. Versions follow semantic versioning; before 1.0, a 
 - Glass edges follow iOS 27's darkened border and brighter static highlights. The contour depends on edge strength alone, so it no longer thins on HDR displays. The static top and bottom highlight is about a third brighter over light content and more than twice as bright over dark content, so dark-mode glass keeps a crisp, defined edge.
 - Pointer feedback is quieter. Tabs and Morph Menu rows fill on hover at once instead of fading, Tabs labels keep their color on hover, and `GlassGroup` and `GlassButtonGroup` buttons press to 97% over 100ms.
 - Glass thickens with size, as Apple's does. Popover, Dropdown Menu, Select, Dialog, Sheet and the Morph Menu follow one rule from a 48px control to a 320px panel: as the live body grows, its shadow deepens and softens, its rim lenses more strongly, its light softens and busy backgrounds diffuse more. The two ends are the Button's material and the open Morph Menu's, so panels of the same size now look alike whichever component opened them, and tooltips stay thin.
-- The pressed `GlassTabs` lens pulls in what surrounds it at its rim, as iOS 27's does. The bar seen through the lens looks smaller while the tab's icon and label keep their size, and the rim disperses visibly.
+- A pressed `GlassTabs` lens and held `GlassSwitch` and `GlassSlider` thumbs are iOS 27's lifted lens, matched to a native screenshot. The glass is clear instead of milky. Its rim bulges outward and pulls in what surrounds it, so the bar seen through it looks smaller, while a pressed tab's icon and label grow slightly. A fine dark contour and rim line hug its edge, and warm and cool glows gather at opposite ends of the rim.
 - The Morph Menu's closed trigger is the same glass as a Button. It no longer magnifies the content behind it or carries the open menu's deep shadow, and pressing it lights the glass where it is touched instead of pulsing its zoom. Its open panel diffuses busy backgrounds like the other popups instead of showing them sharply magnified.
 
 ### Fixed
@@ -28,6 +28,7 @@ Notable changes to `rglass`. Versions follow semantic versioning; before 1.0, a 
 
 ### Added
 
+- `refractionModel: "lens"` with `lensMagnification` draws that lifted lens on any glass, on WebGPU and WebGL2 alike.
 - `LiquidGlass` accepts a negative `refractionPixels`, which bends the rim the other way so it pulls in what surrounds the glass.
 - `liquidThickness(width, height)` exposes the size-to-thickness rule, and `LiquidGlassCanvas` accepts MotionValues for every scalar material value, so custom glass can thicken as it grows.
 - The Morph Menu moves focus into its panel on opening, prefers the checked item, supports arrow keys, Home and End, and makes its closed panel inert.

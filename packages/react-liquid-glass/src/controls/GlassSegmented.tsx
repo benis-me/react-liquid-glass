@@ -1,7 +1,7 @@
 import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentType, type ReactNode } from "react";
 import { animate, motion, useMotionValue, useReducedMotion, useTransform } from "motion/react";
 import { LiquidGlass } from "../liquid-glass/LiquidGlass.js";
-import { thumbLens } from "./use-thumb-motion.js";
+import { liftedLens, useLiftedOptics } from "./use-thumb-motion.js";
 import { GlassSurface } from "./GlassSurface.js";
 import { liquidTheme, subscribeLiquidTheme } from "../liquid-glass/source.js";
 import { springTo, useGlassContact, usePointerReleaseFallback, waitForRest, useDerivedMotion2, useVelocityDeformation, type SpringRun } from "../apple-motion/react.js";
@@ -32,12 +32,8 @@ const DEFAULT_SEGMENTS = [
 
 const SEGMENTED_PAD_X = 80;
 const SEGMENTED_PAD_Y = 80;
-// A lifted lens pulls in what surrounds it, as iOS 27's does: the bar seen through its rim
-// looks smaller while the tab's own icon and label keep their size, and the rim disperses
-// visibly. The pull and the refracting band grow with the lift from a resting 5.5px and 2.5px.
-const LIFTED_PULL = -14;
-const RESTING_PULL = 5.5 / 14;
-const LIFTED_EDGE_DEPTH = 8;
+// The pressed tab magnifies what lies under it, as iOS 27's does, while its rim pulls in the bar.
+const LIFT_MAGNIFICATION = 1.155;
 export interface GlassSegmentItem { value: string; label: string; href?: string; Icon?: ComponentType<{ className?: string }>; color1?: string; color2?: string; }
 export interface GlassSegmentedProps {
   items?: readonly GlassSegmentItem[];
@@ -135,8 +131,9 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
     active * (0.18 - Math.min(0.10, Math.max(0, amount) * 0.55)));
   const minimumGlassH = useDerivedMotion2(lensH, heightBoost, (height, boost) => height * (1 + boost));
   const renderedLensH = useDerivedMotion2(expandedLensH, minimumGlassH, (height, minimum) => Math.max(height, minimum));
-  const boostedDepth = useDerivedMotion2(deformation, interaction, (amount, pressed) => (2.5 + (LIFTED_EDGE_DEPTH - 2.5) * pressed) * (1 + amount * 0.7));
-  const pull = useTransform(interaction, pressed => RESTING_PULL + (1 - RESTING_PULL) * pressed);
+  const { band, bulge, magnify } = useLiftedOptics(renderedLensW, renderedLensH, interaction, LIFT_MAGNIFICATION);
+  // The native lens barely lights where it is touched.
+  const touchLight = useTransform(contact.contactStrength, strength => strength * .3);
   const stops = useRef<SpringRun[]>([]);
   const interactionStop = useRef<SpringRun | null>(null);
   const heightStop = useRef<SpringRun | null>(null);
@@ -382,7 +379,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
     stopDragCatchup();
     releaseInteraction(0, dragMoved.current);
   });
-  const lens = thumbLens(dark, { lensW: 50, lensH: 20, borderRadius: 16, depth: 2.5, domeDepth: 8, chromaAmount: 1.5 });
+  const lens = liftedLens(dark, { lensW: 50, lensH: 20, borderRadius: 16, depth: 2.5, domeDepth: 8 });
   // The bar never changes with the selection; skipping its re-render keeps it from redrawing,
   // and the lens, which refracts it, from recapturing.
   const container = useMemo(() => <GlassSurface className="dg-tabs__container" radius={999} />, []);
@@ -506,20 +503,21 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
       </div>
       <motion.div className="dg-tabs__glass-layer" aria-hidden style={{ opacity: glassOpacity }}>
         <LiquidGlass
-          contact={{ ...contact, contactX }}
+          contact={{ ...contact, contactX, contactStrength: touchLight }}
           className="dg-tabs__glass"
           // Leave out only the native tabs, so the lifted lens refracts the bar's own edge.
           backdropRoot={groupRef}
           sharpInk
-          refractionPixels={LIFTED_PULL}
-          zoom={pull}
+          refractionPixels={1}
+          zoom={bulge}
+          material={{ refractionModel: "lens", lensMagnification: magnify, shadowStrength: 0 }}
           lens={lens}
           x={impactX}
           y={y}
           lensW={renderedLensW}
           lensH={renderedLensH}
           autoBorderRadius
-          depth={boostedDepth}
+          depth={band}
           style={{
             position: "absolute",
             inset: 0,

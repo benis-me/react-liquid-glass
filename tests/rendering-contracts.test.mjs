@@ -176,22 +176,26 @@ test("liquid uses the shared smooth-union compositor for its full lifecycle", ()
   assert.match(liquidCanvasSource, /float contourAmount = contour \* contourStrength;\s*refracted = refracted \* \(1\. - contourAmount\);/);
   assert.doesNotMatch(liquidCanvasSource, /vec3\(contourAmount/);
   assert.match(liquidCanvasSource, /float rimLight = reflection \* reflectionLight \* edgeGain/);
-  assert.match(liquidCanvasSource, /refracted \+= vec3\(rimLight \* mix\(\.5, \.3, smoothstep\(\.2, \.5, luminance\)\)\)/);
+  assert.match(liquidCanvasSource, /vec3 crest = vec3\(rimLight\);/);
+  assert.match(liquidCanvasSource, /refracted \+= crest \* mix\(\.5, \.3, smoothstep\(\.2, \.5, luminance\)\)/);
   assert.match(liquidCanvasSource, /refracted \* \(1\. - shine\)/);
   assert.doesNotMatch(liquidCanvasSource, /edgeShare/);
   assert.doesNotMatch(liquidCanvasSource, /sceneNormal|insetRim/);
   assert.equal((liquidCanvasSource.match(/= sceneSdf\(/g) ?? []).length, 3, "edge profiles reuse the existing SDF distances");
-  assert.match(liquidCanvasSource, /vec3 sampleChroma\(sampler2D source, vec2 uv, vec2 displacement\)/);
-  assert.match(liquidCanvasSource, /if \(uBlur <= \.001\) return sampleChroma\(uSource, uv, displacement\)/);
-  assert.match(liquidCanvasSource, /if \(uBlur >= \.75\) return sampleFrost\(uv, displacement\)/);
-  assert.match(liquidCanvasSource, /vec2 stepSize = vec2\(uBlur \* 1\.34\) \/ uSourceSize/);
+  assert.match(liquidCanvasSource, /vec3 sampleChroma\(sampler2D source, vec2 uv, Bend bend\)/);
+  assert.match(liquidCanvasSource, /if \(blur <= \.001\) return sampleChroma\(uSource, uv, bend\)/);
+  assert.match(liquidCanvasSource, /if \(blur >= \.75\) return sampleFrost\(uv, bend\)/);
+  assert.match(liquidCanvasSource, /vec2 stepSize = vec2\(blur \* 1\.34\) \/ uSourceSize/);
   assert.equal((liquidCanvasSource.match(/frosted \+= sampleChroma/g) ?? []).length, 8);
-  assert.match(liquidCanvasSource, /smoothstep\(\.5, \.75, uBlur\)\) : frosted/);
+  assert.match(liquidCanvasSource, /smoothstep\(\.5, \.75, blur\)\) : frosted/);
+  // Dome and bevel keep their dispersion order through the per-channel bend.
+  assert.match(liquidCanvasSource, /if \(uBevel\) return Bend\(displacement, middle, outer\);\s*return Bend\(outer, middle, displacement\);/);
+  assert.match(liquidCanvasSource, /vec3 refracted = sampleGlass\(vUv, bend, frost\)/);
   const specularCompositeIndex = liquidCanvasSource.indexOf("float shine = specular * uSpecular");
   const brightnessCompositeIndex = liquidCanvasSource.indexOf("refracted = mix(refracted, brightnessTarget");
   const tintCompositeIndex = liquidCanvasSource.indexOf("refracted = mix(refracted, uTintColor");
   const contourCompositeIndex = liquidCanvasSource.indexOf("refracted = refracted * (1. - contourAmount)");
-  const reflectionCompositeIndex = liquidCanvasSource.indexOf("refracted += vec3(rimLight");
+  const reflectionCompositeIndex = liquidCanvasSource.indexOf("refracted += crest");
   assert.ok(specularCompositeIndex < contourCompositeIndex && contourCompositeIndex < reflectionCompositeIndex);
   assert.ok(reflectionCompositeIndex < brightnessCompositeIndex, "both edge profiles remain inside the shared material and coverage");
   assert.ok(specularCompositeIndex >= 0 && specularCompositeIndex < brightnessCompositeIndex);
@@ -228,7 +232,33 @@ test("WebGPU darkens the edge and brightens the dark crest exactly as WebGL2 doe
   const wgsl = readFileSync(new URL("../packages/react-liquid-glass/src/liquid-glass/shaders/glass.wgsl", import.meta.url), "utf8");
   assert.match(wgsl, /let contourAmount = contour \* contourStrength;\s*refracted = refracted \* \(1\.0 - contourAmount\);/);
   assert.doesNotMatch(wgsl, /vec3f\(contourAmount/);
-  assert.match(wgsl, /refracted \+= vec3f\(rimLight \* mix\(0\.5, 0\.3, smoothstep\(0\.2, 0\.5, luminance\)\)\)/);
+  assert.match(wgsl, /var crest = vec3f\(rimLight\);/);
+  assert.match(wgsl, /refracted \+= crest \* mix\(0\.5, 0\.3, smoothstep\(0\.2, 0\.5, luminance\)\)/);
+});
+
+test("the lifted lens model is the same on WebGPU and WebGL2", () => {
+  const wgsl = readFileSync(new URL("../packages/react-liquid-glass/src/liquid-glass/shaders/glass.wgsl", import.meta.url), "utf8");
+  const gpu = readFileSync(new URL("../packages/react-liquid-glass/src/liquid-glass/webgpu-renderer.ts", import.meta.url), "utf8");
+  // Magnified middle, outward bulge in the band, flush at the rim.
+  assert.match(wgsl, /displacement = -lensNormal \* \(4\.0 \* band \* \(1\.0 - band\)\) \* \(bevelRatio \/ max\(materialWeight, 0\.001\)\) \* \(p\.refraction\.y \* 0\.5\)/);
+  assert.match(liquidCanvasSource, /displacement = -lensNormal \* \(4\. \* band \* \(1\. - band\)\) \* \(bevelRatio \/ max\(materialWeight, \.001\)\) \* \(uRefraction \* \.5\)/);
+  assert.match(wgsl, /\(1\.0 - 1\.0 \/ max\(p\.ratio\.z, 1\.0\)\) \* \(1\.0 - sqrt\(band\)\) \* coverage/);
+  assert.match(liquidCanvasSource, /\(1\. - 1\. \/ max\(uLensZoom, 1\.\)\) \* \(1\. - sqrt\(band\)\) \* coverage/);
+  // Red holds back on one diagonal, blue on the other and green half as much on both;
+  // only the outer band frosts.
+  assert.match(wgsl, /let diagonal = 2\.0 \* lensNormal\.x \* lensNormal\.y;/);
+  assert.match(liquidCanvasSource, /float diagonal = 2\. \* lensNormal\.x \* lensNormal\.y;/);
+  assert.match(wgsl, /lensZoom \+ displacement \* \(1\.0 - 0\.5 \* tilt \* abs\(diagonal\)\)/);
+  assert.match(liquidCanvasSource, /lensZoom \+ displacement \* \(1\. - \.5 \* tilt \* abs\(diagonal\)\)/);
+  assert.match(wgsl, /frost \*= smoothstep\(0\.45, 0\.9, band\)/);
+  assert.match(liquidCanvasSource, /frost \*= smoothstep\(\.45, \.9, band\)/);
+  // The lens's contour and rim line hug its edge.
+  assert.match(wgsl, /contour = 1\.0 - smoothstep\(0\.0, edgeWidth, inside\);/);
+  assert.match(liquidCanvasSource, /contour = 1\. - smoothstep\(0\., edgeWidth, inside\);/);
+  assert.match(gpu, /p\.refractionModel === "lens" \? 2 : Number\(p\.refractionModel === "bevel"\)/);
+  assert.match(gpu, /number\(p, "lensMagnification"\), 0\], 40\)/);
+  assert.match(liquidCanvasSource, /gl\.uniform1i\(u\.uLens, p\.refractionModel === "lens" \? 1 : 0\)/);
+  assert.match(liquidCanvasSource, /lensMagnification: "uLensZoom"/);
 });
 
 test("popups thicken with size under the same rule as the Morph Menu", () => {
@@ -414,7 +444,7 @@ test("liquid content refraction and blur follow shape, with a neutral settled en
   assert.match(liquidDemoSource, /animate\(closingBlur, 0, \{ duration: 0\.16/);
   assert.match(liquidDemoSource, /closingBlur\.jump\(0\)/);
   assert.match(liquidDemoSource, /opacity: domContentOpacity/);
-  assert.match(liquidCanvasSource, /local - displacement \* uSourceSize \* \.42 \* uContentRefraction \* edgeFocus/);
+  assert.match(liquidCanvasSource, /local - \(displacement \+ lensZoom\) \* uSourceSize \* \.42 \* uContentRefraction \* edgeFocus/);
   assert.match(liquidCanvasSource, /texture\(uContent, uv, log2\(1\. \+ blur \* 2\.\)\)/);
   assert.match(liquidCanvasSource, /ink = sampleContent\(contentUv, uContentBlur\) \* uContentOpacity/);
   assert.match(liquidCanvasSource, /gl\.LINEAR_MIPMAP_LINEAR/);
@@ -573,7 +603,7 @@ test("switch, slider, and toggle retain their source motion contracts", () => {
   assert.match(componentSource, /duration: 0\.6/);
   assert.match(componentSource, /return Math\.min\(0\.18, speed \* SEGMENTED_DEFORMATION\.perSpeed\)/);
   assert.doesNotMatch(componentSource, /zoom=\{zoom\}/, "the Tabs lens has no velocity zoom");
-  assert.match(componentSource, /depth=\{boostedDepth\}/);
+  assert.match(componentSource, /depth=\{band\}/);
   assert.match(componentSource, /refracted \? color1 : "#bcbbbb"/);
 });
 
@@ -638,11 +668,14 @@ test("segmented lens overflows the bar, refracts its edge and keeps tab text sha
 test("source-space ink refracts with the backdrop, sharp at the center and frosted at the rim", () => {
   const wgsl = readFileSync(new URL("../packages/react-liquid-glass/src/liquid-glass/shaders/glass.wgsl", import.meta.url), "utf8");
   const gpu = readFileSync(new URL("../packages/react-liquid-glass/src/liquid-glass/webgpu-renderer.ts", import.meta.url), "utf8");
-  assert.match(liquidCanvasSource, /float blur = mix\(uContentBlur, uBlur, smoothstep\(1\., 4\., length\(displacement \* uSourceSize\)\)\)/);
-  assert.match(wgsl, /let blur = mix\(p\.ink\.z, p\.frost\.x, smoothstep\(1\.0, 4\.0, length\(displacement \* p\.size\.xy\)\)\)/);
+  // Ink frosts where the rim shifts it, never because the lens model magnifies it.
+  assert.match(liquidCanvasSource, /float blur = mix\(uContentBlur, uBlur, smoothstep\(1\., 4\., rimShift\)\)/);
+  assert.match(liquidCanvasSource, /overlayInk\(refracted, vUv, bend, length\(displacement \* uSourceSize\)\)/);
+  assert.match(wgsl, /let blur = mix\(p\.ink\.z, p\.frost\.x, smoothstep\(1\.0, 4\.0, rimShift\)\)/);
+  assert.match(wgsl, /overlayInk\(refracted, uv, bend, length\(displacement \* p\.size\.xy\)\)/);
   // Ink joins the backdrop before shading, so the lens lights and tints both alike.
-  assert.ok(liquidCanvasSource.indexOf("refracted = overlayInk(refracted, vUv, displacement)") < liquidCanvasSource.indexOf("float shine ="));
-  assert.ok(wgsl.indexOf("refracted = overlayInk(refracted, uv, displacement)") < wgsl.indexOf("let shine ="));
+  assert.ok(liquidCanvasSource.indexOf("refracted = overlayInk(refracted, vUv, bend") < liquidCanvasSource.indexOf("float shine ="));
+  assert.ok(wgsl.indexOf("refracted = overlayInk(refracted, uv, bend") < wgsl.indexOf("let shine ="));
   assert.match(liquidCanvasSource, /if \(uContentOpacity > \.001 && !uContentSource\)/);
   assert.match(wgsl, /if \(p\.ink\.x > 0\.001 && p\.ink\.w < 0\.5\)/);
   assert.match(liquidCanvasSource, /gl\.uniform1i\(u\.uContentSource, p\.contentSpace === "source" \? 1 : 0\)/);
@@ -846,15 +879,17 @@ test("core library stays CSS-free while optional controls ship standalone styles
 test("control optics retain size-independent pixel gain and the approved menu material", () => {
   assert.match(componentSource, /\.\.\.LIQUID_LENS/);
   assert.equal((componentSource.match(/chromaAmount: \.24, edgeWidth: \.9/g) ?? []).length, 1);
-  assert.equal((componentSource.match(/thumbLens\(dark, \{/g) ?? []).length, 3, "Switch, Slider and Segmented share one thumb lens");
-  assert.equal((componentSource.match(/refractionPixels=\{thumbHeight \* \.22\}/g) ?? []).length, 2);
-  // The lifted Tabs lens pulls in what surrounds it, as iOS 27's does: an outward gain that grows
-  // with the lift from a resting 5.5px, a wider refracting band and visible dispersion.
-  assert.match(componentSource, /const LIFTED_PULL = -14;\s*const RESTING_PULL = 5\.5 \/ 14;\s*const LIFTED_EDGE_DEPTH = 8;/);
-  assert.match(componentSource, /refractionPixels=\{LIFTED_PULL\}\s*zoom=\{pull\}/);
-  assert.match(componentSource, /const pull = useTransform\(interaction, pressed => RESTING_PULL \+ \(1 - RESTING_PULL\) \* pressed\)/);
-  assert.match(componentSource, /\(2\.5 \+ \(LIFTED_EDGE_DEPTH - 2\.5\) \* pressed\) \* \(1 \+ amount \* 0\.7\)/);
-  assert.match(componentSource, /domeDepth: 8, chromaAmount: 1\.5 \}\)/);
+  // Held thumbs and the pressed tab are one lifted lens, iOS 27's, calibrated against a native
+  // screenshot: clear glass whose rim band (0.39 of its radius) bulges out by 0.138 of its radius
+  // as it lifts. Only the tab magnifies; the thumbs' refracted track already does.
+  assert.equal((componentSource.match(/liftedLens\(dark, \{/g) ?? []).length, 3, "Switch, Slider and Segmented share one lifted lens");
+  assert.match(componentSource, /chromaAmount: 1\.5, blurAmount: \.7, edgeWidth: 1\.2, edgeStrength: \.81, specularStrength: 1,\s*glowStrength: 0, brightness: 0, tint: 0, \.\.\.lens,/);
+  assert.match(componentSource, /const band = useTransform\(\(\) => 2\.5 \+ \(Math\.min\(lensW\.get\(\), lensH\.get\(\)\) \* \.39 - 2\.5\) \* unit\(lift\.get\(\)\)\)/);
+  assert.match(componentSource, /const bulge = useTransform\(\(\) => Math\.min\(lensW\.get\(\), lensH\.get\(\)\) \* \.138 \* unit\(lift\.get\(\)\)\)/);
+  assert.equal((componentSource.match(/refractionPixels=\{1\}\s*zoom=\{bulge\}\s*depth=\{band\}\s*material=\{LIFTED_MODEL\}/g) ?? []).length, 2);
+  assert.match(componentSource, /const LIFT_MAGNIFICATION = 1\.155;/);
+  assert.match(componentSource, /refractionPixels=\{1\}\s*zoom=\{bulge\}\s*material=\{\{ refractionModel: "lens", lensMagnification: magnify, shadowStrength: 0 \}\}/);
+  assert.equal((componentSource.match(/strength => strength \* \.3/g) ?? []).length, 3, "the lifted lens barely lights where it is touched");
   const scaleCode = liquidAdapterSource.match(/const scale = props\.refractionPixels[\s\S]*?;/)?.[0];
   const ratioCode = liquidAdapterSource.match(/refractionRatio=\{([^}]+)\}/)?.[1];
   assert.ok(scaleCode && ratioCode);

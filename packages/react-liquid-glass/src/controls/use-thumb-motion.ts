@@ -9,6 +9,33 @@ export const thumbLens = (dark: boolean, lens: LiquidLens): LiquidLens => ({
   ...LIQUID_LENS, chromaAmount: .24, edgeWidth: .9, brightness: dark ? .035 : .015, ...lens,
 });
 
+/**
+ * iOS 27's lifted lens, a pressed tab or thumb, calibrated against a native screenshot: clear
+ * glass with no glow, tint or brightening, a contour and rim line that hug its edge, and the
+ * native dispersion, warm and cool glows gathering at opposite ends of its rim.
+ */
+// Its rim line rides on edge strength, so the lower SDR highlight an HDR display uses keeps it.
+export const liftedLens = (dark: boolean, lens: LiquidLens): LiquidLens => thumbLens(dark, {
+  chromaAmount: 1.5, blurAmount: .7, edgeWidth: 1.2, edgeStrength: .81, specularStrength: 1,
+  glowStrength: 0, brightness: 0, tint: 0, ...lens,
+});
+type Readable = { get(): number };
+const unit = (value: number) => Math.min(1, Math.max(0, value));
+/** The lifted lens draws with the lens refraction model. */
+export const LIFTED_MODEL = { refractionModel: "lens" } as const;
+/**
+ * The lifted lens's optics as it lifts from resting glass (0) to a held lens (1): its rim band,
+ * 0.39 of its radius wide, bulges out by 0.138 of its radius, pulling in what surrounds it, and
+ * its middle magnifies by `magnification`. Give `band` to the edge depth, `bulge` to the zoom
+ * with one refraction pixel, and `magnify` to the lens model's magnification.
+ */
+export function useLiftedOptics(lensW: Readable, lensH: Readable, lift: Readable, magnification = 1) {
+  const band = useTransform(() => 2.5 + (Math.min(lensW.get(), lensH.get()) * .39 - 2.5) * unit(lift.get()));
+  const bulge = useTransform(() => Math.min(lensW.get(), lensH.get()) * .138 * unit(lift.get()));
+  const magnify = useTransform(() => 1 + (magnification - 1) * unit(lift.get()));
+  return { band, bulge, magnify };
+}
+
 /** Reduced motion settles a thumb at once instead of springing it there. */
 export function settleThumb(value: MotionValue<number>, target: number, spring: PhysicalSpring, reduce: boolean): SpringRun {
   if (!reduce) return springTo(value, target, spring);

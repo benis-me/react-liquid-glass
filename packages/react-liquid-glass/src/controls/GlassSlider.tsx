@@ -4,7 +4,7 @@ import { animate, motion, useMotionValue, useReducedMotion, useTransform } from 
 import { LiquidGlass } from "../liquid-glass/LiquidGlass.js";
 import { liquidTheme, liquidTrackSource, subscribeLiquidTheme } from "../liquid-glass/source.js";
 import { usePointerReleaseFallback, useGlassContact, rubberBand, type SpringRun } from "../apple-motion/react.js";
-import { settleThumb, thumbLens, useThumbMotion } from "./use-thumb-motion.js";
+import { LIFTED_MODEL, liftedLens, settleThumb, useLiftedOptics, useThumbMotion } from "./use-thumb-motion.js";
 
 /** Native input attributes (id, aria-*, required, form, onBlur…) pass through to the slider's range input. */
 type NativeSliderProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "min" | "max" | "step" | "value" | "defaultValue" | "disabled" | "name" | "onChange" | "size" | "children" | "className" | "style">;
@@ -83,11 +83,16 @@ export function GlassSlider({
   const offset = useMotionValue(toOffset(current));
   const x = useTransform(offset, (position) => (padding + thumbWidth / 2 + position) / filterWidth);
   const { lensW, lensH, radius, tintOpacity, targetScaleX, targetScaleY, tintBlur, shadowOpacity, setDeformationBoost, expand, collapse } = useThumbMotion(offset, halfThumbWidth, halfThumbHeight, restTintBlur, reduce);
+  // Held, the thumb is iOS 27's lifted lens; its refracted track already magnifies.
+  const held = useTransform(tintOpacity, opacity => 1 - opacity);
+  const { band, bulge } = useLiftedOptics(lensW, lensH, held);
 
   const wrapperRef = useRef<HTMLDivElement>(null);
   const contact = useGlassContact(wrapperRef, { deform: false, enabled: !disabled });
   const contactX = useTransform(() => ((contact.contactX.get() + 1) * width / 2 - halfThumbWidth - offset.get()) / lensW.get());
   const contactY = useTransform(() => contact.contactY.get() * thumbHeight / 2 / lensH.get());
+  // The lifted lens barely lights where it is touched.
+  const touchLight = useTransform(contact.contactStrength, strength => strength * .3);
   const trackRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const pointerId = useRef<number | null>(null);
@@ -137,16 +142,19 @@ export function GlassSlider({
     trackHeight: refractedTrackHeight, travel, offset,
     scaleX: targetScaleX, scaleY: targetScaleY,
   }), [width, thumbHeight, padding, refractedTrackHeight, thumbWidth, travel, offset, targetScaleX, targetScaleY]);
-  const lens = thumbLens(dark, { depth: thumbHeight / 11, domeDepth: thumbHeight * (5 / 22) });
+  const lens = liftedLens(dark, { depth: thumbHeight / 11, domeDepth: thumbHeight * (5 / 22) });
 
   return (
     <div ref={wrapperRef} data-size={size} className={["dg-slider", className].filter(Boolean).join(" ")} style={{ ...style, width, height: thumbHeight, "--dg-slider-fill": `${thumbWidth / 2 + toOffset(current)}px`, "--dg-slider-progress": toOffset(current) / travel } as React.CSSProperties}>
       <LiquidGlass
-        contact={{ ...contact, contactX, contactY }}
+        contact={{ ...contact, contactX, contactY, contactStrength: touchLight }}
         sourceFactory={sourceFactory}
         backdropRoot={wrapperRef}
         sourceValues={[offset, targetScaleX, targetScaleY]}
-        refractionPixels={thumbHeight * .22}
+        refractionPixels={1}
+        zoom={bulge}
+        depth={band}
+        material={LIFTED_MODEL}
         lens={lens}
         x={x}
         y={0.5}

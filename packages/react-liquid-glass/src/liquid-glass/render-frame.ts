@@ -41,7 +41,7 @@ export const LIQUID_GLASS_MATERIAL = Object.freeze({
   brightness: .015, specularRotation: 90, glowStrength: .30, glowSpread: .72,
   glowExponent: 1.4, edgeStrength: .36, edgeWidth: 1.6, edgeExponent: 1.2,
   tintColor: [1, 1, 1] as readonly [number, number, number], tintStrength: .055,
-  magnification: 1, shadowStrength: .11, shadowOffset: 18, shadowBlur: 26,
+  magnification: 1, lensMagnification: 1, shadowStrength: .11, shadowOffset: 18, shadowBlur: 26,
   opacity: 1, refractionRatio: [1, 1] as readonly [number, number],
 });
 
@@ -82,6 +82,8 @@ export interface LiquidGlassFrame {
   tintColor?: readonly [number, number, number];
   tintStrength?: MotionInput;
   magnification?: MotionInput;
+  /** How much the `lens` model magnifies what lies under its middle; 1 leaves it unscaled. */
+  lensMagnification?: MotionInput;
   shadowStrength?: MotionInput;
   shadowOffset?: MotionInput;
   shadowBlur?: MotionInput;
@@ -90,9 +92,14 @@ export interface LiquidGlassFrame {
   /**
    * `dome` (default) is the calibrated spherical-cap lens. `bevel` models a flat
    * slab with a rounded rim: Snell refraction at the rim, a clear top, and
-   * physical dispersion order. Rim width is twice `edgeDepth`.
+   * physical dispersion order. Rim width is twice `edgeDepth`. `lens` is a lifted
+   * lens, as iOS 27's pressed tab: it magnifies its middle by `lensMagnification`,
+   * and its rim band (`edgeDepth` wide) bulges outward by `refractionStrength`,
+   * pulling in what surrounds the glass, before meeting the surface flush at the rim;
+   * its dispersion holds red and blue back on opposite diagonals and green half as
+   * much on both, so warm and cool glows gather at opposite ends of the rim.
    */
-  refractionModel?: "dome" | "bevel";
+  refractionModel?: "dome" | "bevel" | "lens";
   /** Visualize this exact shader's live displacement and coverage, without CPU maps. */
   debug?: boolean;
   pixelRatio?: number;

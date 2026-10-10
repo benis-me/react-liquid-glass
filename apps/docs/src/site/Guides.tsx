@@ -76,6 +76,7 @@ const guides: Guide[] = [
         en: "Lens profile and light",
         zh: "透镜轮廓与光源",
         body: [
+          ["Pressed tabs and held thumbs lift into iOS 27's lens: clear glass that magnifies what lies under its middle while its rim bulges outward, pulling in what surrounds it, so the bar seen through the rim looks smaller; warm and cool glows gather at opposite ends of the rim. Custom glass can use it with refractionModel: \"lens\" and lensMagnification.", "按下的标签与按住的滑块会抬升为 iOS 27 的透镜：清透的玻璃放大中间的内容，边缘向外鼓起，把周围的内容拉进来，因此透过边缘看到的工具栏会显得更小；暖色与冷色的光晕分别聚在边缘的两端。自定义玻璃可通过 refractionModel: \"lens\" 与 lensMagnification 使用它。"],
           ["refractionModel: \"bevel\" models a flat slab with a rounded rim: the top stays clear, the rim refracts by Snell's law, and dispersion follows physical order with blue bending most. The default \"dome\" is the calibrated spherical-cap lens.", "refractionModel: \"bevel\" 模拟带圆角边缘的平板玻璃：顶部保持清晰，边缘按斯涅尔定律折射，色散遵循蓝光偏折最大的物理顺序。默认的 \"dome\" 是经过校准的球冠透镜。"],
           ["lightSource: \"pointer\" steers highlights toward a mouse or pen; \"device\" follows orientation events where the platform grants them (on iOS, call DeviceOrientationEvent.requestPermission() from a user gesture first). Reduced motion keeps the light fixed.", "lightSource: \"pointer\" 让高光朝向鼠标或触控笔；\"device\" 在平台允许时跟随设备方向（在 iOS 上需先在用户手势中调用 DeviceOrientationEvent.requestPermission()）。开启减少动态效果时光源保持固定。"],
         ],

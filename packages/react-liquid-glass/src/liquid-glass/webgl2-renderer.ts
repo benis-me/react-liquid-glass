@@ -67,6 +67,8 @@ uniform bool uDebug;
 uniform vec4 uBounds[8];
 uniform vec2 uOutputSize;
 uniform bool uBevel;
+uniform bool uLens;
+uniform float uLensZoom;
 
 float smoothMin(float a, float b, float radius) {
   float k = max(radius, .001);
@@ -167,42 +169,47 @@ vec2 blobNormal(vec2 local, int index) {
   return world / max(length(world), .0001);
 }
 
-// The dome keeps its calibrated red-outermost fringe; the bevel model follows
-// physical dispersion, where blue bends most.
-vec3 sampleChroma(sampler2D source, vec2 uv, vec2 displacement) {
-  vec4 outer = texture(source, uv - displacement * (1. + .2 * uChroma));
-  float middle = texture(source, uv - displacement * (1. + .1 * uChroma)).g;
-  vec4 inner = texture(source, uv - displacement);
-  return uBevel ? vec3(inner.r, middle, outer.b) : vec3(outer.r, middle, inner.b);
+// Where each colour channel reads the source. The dome keeps its calibrated red-outermost
+// fringe; the bevel model follows physical dispersion, where blue bends most.
+struct Bend { vec2 r; vec2 g; vec2 b; };
+Bend bendOf(vec2 displacement) {
+  vec2 outer = displacement * (1. + .2 * uChroma);
+  vec2 middle = displacement * (1. + .1 * uChroma);
+  if (uBevel) return Bend(displacement, middle, outer);
+  return Bend(outer, middle, displacement);
+}
+vec3 sampleChroma(sampler2D source, vec2 uv, Bend bend) {
+  return vec3(texture(source, uv - bend.r).r, texture(source, uv - bend.g).g, texture(source, uv - bend.b).b);
 }
 
 vec2 frostUv(vec2 uv) {
   return clamp(uv * uFrostUv.xy, uFrostUv.zw, uFrostUv.xy - uFrostUv.zw);
 }
-vec3 sampleFrost(vec2 uv, vec2 displacement) {
-  vec4 outer = texture(uFrostSource, frostUv(uv - displacement * (1. + .2 * uChroma)));
-  float middle = texture(uFrostSource, frostUv(uv - displacement * (1. + .1 * uChroma))).g;
-  vec4 inner = texture(uFrostSource, frostUv(uv - displacement));
-  return uBevel ? vec3(inner.r, middle, outer.b) : vec3(outer.r, middle, inner.b);
+vec3 sampleFrost(vec2 uv, Bend bend) {
+  return vec3(
+    texture(uFrostSource, frostUv(uv - bend.r)).r,
+    texture(uFrostSource, frostUv(uv - bend.g)).g,
+    texture(uFrostSource, frostUv(uv - bend.b)).b
+  );
 }
 
-vec3 sampleGlass(vec2 uv, vec2 displacement) {
-  if (uBlur <= .001) return sampleChroma(uSource, uv, displacement);
-  if (uBlur >= .75) return sampleFrost(uv, displacement);
+vec3 sampleGlass(vec2 uv, Bend bend, float blur) {
+  if (blur <= .001) return sampleChroma(uSource, uv, bend);
+  if (blur >= .75) return sampleFrost(uv, bend);
   // Keep core Glass's chroma offsets inside every sample of the frost
   // instead of replacing them with one achromatic blur.
-  vec2 stepSize = vec2(uBlur * 1.34) / uSourceSize;
-  vec3 frosted = sampleChroma(uSource, uv, displacement) * .2;
-  frosted += sampleChroma(uSource, uv + vec2(stepSize.x, 0.), displacement) * .12;
-  frosted += sampleChroma(uSource, uv - vec2(stepSize.x, 0.), displacement) * .12;
-  frosted += sampleChroma(uSource, uv + vec2(0., stepSize.y), displacement) * .12;
-  frosted += sampleChroma(uSource, uv - vec2(0., stepSize.y), displacement) * .12;
-  frosted += sampleChroma(uSource, uv + stepSize, displacement) * .08;
-  frosted += sampleChroma(uSource, uv - stepSize, displacement) * .08;
-  frosted += sampleChroma(uSource, uv + vec2(stepSize.x, -stepSize.y), displacement) * .08;
-  frosted += sampleChroma(uSource, uv + vec2(-stepSize.x, stepSize.y), displacement) * .08;
+  vec2 stepSize = vec2(blur * 1.34) / uSourceSize;
+  vec3 frosted = sampleChroma(uSource, uv, bend) * .2;
+  frosted += sampleChroma(uSource, uv + vec2(stepSize.x, 0.), bend) * .12;
+  frosted += sampleChroma(uSource, uv - vec2(stepSize.x, 0.), bend) * .12;
+  frosted += sampleChroma(uSource, uv + vec2(0., stepSize.y), bend) * .12;
+  frosted += sampleChroma(uSource, uv - vec2(0., stepSize.y), bend) * .12;
+  frosted += sampleChroma(uSource, uv + stepSize, bend) * .08;
+  frosted += sampleChroma(uSource, uv - stepSize, bend) * .08;
+  frosted += sampleChroma(uSource, uv + vec2(stepSize.x, -stepSize.y), bend) * .08;
+  frosted += sampleChroma(uSource, uv + vec2(-stepSize.x, stepSize.y), bend) * .08;
   // Keep the fine-frost endpoint exact, with no optical step during a morph.
-  return uBlur > .5 ? mix(frosted, sampleFrost(uv, displacement), smoothstep(.5, .75, uBlur)) : frosted;
+  return blur > .5 ? mix(frosted, sampleFrost(uv, bend), smoothstep(.5, .75, blur)) : frosted;
 }
 
 vec4 sampleContent(vec2 uv, float blur) {
@@ -212,13 +219,12 @@ vec4 sampleContent(vec2 uv, float blur) {
 }
 // Source-space ink takes the backdrop's refracted, dispersed position. It stays at its own
 // blur under the clear center and takes the material's frost where the rim compresses it.
-vec3 overlayInk(vec3 color, vec2 uv, vec2 displacement) {
-  float blur = mix(uContentBlur, uBlur, smoothstep(1., 4., length(displacement * uSourceSize)));
-  vec4 outer = sampleContent(uv - displacement * (1. + .2 * uChroma), blur) * uContentOpacity;
-  vec4 middle = sampleContent(uv - displacement * (1. + .1 * uChroma), blur) * uContentOpacity;
-  vec4 inner = sampleContent(uv - displacement, blur) * uContentOpacity;
-  vec4 red = uBevel ? inner : outer, blue = uBevel ? outer : inner;
-  return vec3(color.r * (1. - red.a) + red.r, color.g * (1. - middle.a) + middle.g, color.b * (1. - blue.a) + blue.b);
+vec3 overlayInk(vec3 color, vec2 uv, Bend bend, float rimShift) {
+  float blur = mix(uContentBlur, uBlur, smoothstep(1., 4., rimShift));
+  vec4 red = sampleContent(uv - bend.r, blur) * uContentOpacity;
+  vec4 green = sampleContent(uv - bend.g, blur) * uContentOpacity;
+  vec4 blue = sampleContent(uv - bend.b, blur) * uContentOpacity;
+  return vec3(color.r * (1. - red.a) + red.r, color.g * (1. - green.a) + green.g, color.b * (1. - blue.a) + blue.b);
 }
 
 void main() {
@@ -274,6 +280,7 @@ void main() {
   float contactLight = 0.;
   vec2 bevelNormal = vec2(0.);
   vec2 bevelRatio = vec2(0.);
+  vec2 lensOffset = vec2(0.);
   for (int index = 0; index < 8; index++) {
     if (index >= uBlobCount) break;
     if (min(uHalfSize[index].x, uHalfSize[index].y) <= .001) continue;
@@ -309,9 +316,10 @@ void main() {
       gradient = sign(lensLocal) * capped / denominator * dome.zw;
     }
     glassGradient += gradient * uBlobRefractionRatio[index] * weight;
-    if (uBevel) {
+    if (uBevel || uLens) {
       bevelNormal += blobNormal(local, index) * weight;
       bevelRatio += uBlobRefractionRatio[index] * weight;
+      lensOffset += (point - uBlobs[index].xy - uContactOffset[index]) * weight;
     }
     materialUv += normalizedLocal * weight;
     materialWeight += weight;
@@ -321,7 +329,20 @@ void main() {
   contactLight /= max(materialWeight, .001);
   // Core Glass uses objectBoundingBox primitive units: channel delta is half the scale.
   vec2 displacement = glassGradient * (uRefraction * .5 * falloff);
-  if (uBevel) {
+  vec2 lensZoom = vec2(0.);
+  vec2 lensNormal = vec2(0.);
+  float frost = uBlur;
+  if (uLens) {
+    // A lifted lens, as iOS 27's: it magnifies what lies under its middle by uLensZoom, and
+    // its rim band (the edge depth) bulges outward, pulling in what surrounds the glass,
+    // before meeting the surface flush at the rim.
+    float band = clamp(1. - inside / max(uDepth, .001), 0., 1.);
+    lensNormal = bevelNormal / max(length(bevelNormal), .0001);
+    displacement = -lensNormal * (4. * band * (1. - band)) * (bevelRatio / max(materialWeight, .001)) * (uRefraction * .5);
+    lensZoom = lensOffset / max(materialWeight, .001) / uSourceSize * (1. - 1. / max(uLensZoom, 1.)) * (1. - sqrt(band)) * coverage;
+    // Only the outer band scatters; the refracted edge and magnified middle stay clear.
+    frost *= smoothstep(.45, .9, band);
+  } else if (uBevel) {
     // Opt-in bevel: a flat slab whose quarter-circle rim (twice the edge depth)
     // refracts by Snell's law at n = 1.5. The top stays clear; the rim lenses inward.
     float rise = 1. - clamp(inside / max(uDepth * 2., 1.), 0., 1.);
@@ -331,8 +352,18 @@ void main() {
     displacement = normal * (tan(deviation) * 2.5) * (bevelRatio / max(materialWeight, .001)) * (uRefraction * .5);
   }
   displacement *= coverage * uZoom * uRefractionRatio;
+  Bend bend = bendOf(displacement);
+  if (uLens) {
+    // Red bends furthest, as in the dome, but around the rim red holds back where the rim
+    // faces the top-left and bottom-right, blue where it faces the other diagonal, and green
+    // half as much on both, so warm and cool glows gather at opposite ends of each band.
+    float spread = .04 * uChroma;
+    float tilt = .6 * uChroma;
+    float diagonal = 2. * lensNormal.x * lensNormal.y;
+    bend = Bend(lensZoom + displacement * (1. + spread - tilt * max(diagonal, 0.)), lensZoom + displacement * (1. - .5 * tilt * abs(diagonal)), lensZoom + displacement * (1. - spread - tilt * max(-diagonal, 0.)));
+  }
   if (uDebug) {
-    outputColor = vec4(mix(vec3(.5), vec3(.5 + displacement * 4., coverage), coverage), 1.);
+    outputColor = vec4(mix(vec3(.5), vec3(.5 + (displacement + lensZoom) * 4., coverage), coverage), 1.);
     return;
   }
 
@@ -354,6 +385,11 @@ void main() {
   float contour = 1. - smoothstep(0., edgeWidth * mix(.48, .65, edgeLight), inside);
   float reflection = smoothstep(edgeWidth * .45, edgeWidth * .85, inside)
     * (1. - smoothstep(edgeWidth * .85, edgeWidth * 2., inside));
+  if (uLens) {
+    // The lifted lens's contour and rim line hug its very edge, as on the native lens.
+    contour = 1. - smoothstep(0., edgeWidth, inside);
+    reflection = smoothstep(0., edgeWidth * .35, inside) * (1. - smoothstep(edgeWidth * .35, edgeWidth, inside));
+  }
   // Confine the fine reflection to the upper/lower arcs, not the sidewalls.
   float reflectionLight = smoothstep(.75, .98, edgeLight);
   float edgeGain = max(uEdgeStrength * uSpecular, 0.);
@@ -368,7 +404,7 @@ void main() {
     vec2 local = movingBlobLocal(point, uBlobs[0], uVelocity[0], 0);
     // Reuse the live merged optical field; only the peripheral ink is stretched.
     float edgeFocus = 1. - smoothstep(0., max(uDepth * 2., 1.), inside);
-    vec2 contentUv = .5 + (local - displacement * uSourceSize * .42 * uContentRefraction * edgeFocus) / extent;
+    vec2 contentUv = .5 + (local - (displacement + lensZoom) * uSourceSize * .42 * uContentRefraction * edgeFocus) / extent;
     ink = sampleContent(contentUv, uContentBlur) * uContentOpacity;
   }
   // The same fine crest and contact field feed HDR. No frost pass is repeated,
@@ -378,8 +414,8 @@ void main() {
     outputColor = vec4(vec3(contactLight, rimLight * (1. - brightnessAmount), 0.) * visibility, 1.);
     return;
   }
-  vec3 refracted = sampleGlass(vUv, displacement);
-  if (uContentSource && uContentOpacity > .001) refracted = overlayInk(refracted, vUv, displacement);
+  vec3 refracted = sampleGlass(vUv, bend, frost);
+  if (uContentSource && uContentOpacity > .001) refracted = overlayInk(refracted, vUv, bend, length(displacement * uSourceSize));
   // Video's highlight response preserves contrast on both bright and dark substrates.
   float luminance = dot(refracted, vec3(.299, .587, .114));
   float shine = specular * uSpecular * (127. / 255.);
@@ -388,7 +424,14 @@ void main() {
   // a grey outline. There the crest carries the shape instead, brighter than on light.
   float contourAmount = contour * contourStrength;
   refracted = refracted * (1. - contourAmount);
-  refracted += vec3(rimLight * mix(.5, .3, smoothstep(.2, .5, luminance)));
+  vec3 crest = vec3(rimLight);
+  if (uLens) {
+    // The lens's rim line disperses too: green and blue at the very edge, red just inside.
+    float inner = inside - edgeWidth * .2;
+    float red = smoothstep(0., edgeWidth * .35, inner) * (1. - smoothstep(edgeWidth * .35, edgeWidth, inner));
+    crest = vec3(red, reflection, reflection * .85) * reflectionLight * edgeGain;
+  }
+  refracted += crest * mix(.5, .3, smoothstep(.2, .5, luminance));
   vec3 brightnessTarget = uBrightness >= 0. ? vec3(1.) : vec3(0.);
   refracted = mix(refracted, brightnessTarget, brightnessAmount);
   refracted = mix(refracted, uTintColor, clamp(uTint, 0., 1.));
@@ -470,7 +513,7 @@ const uniformNames = [
   "uSpecularRotation", "uGlowStrength", "uGlowSpread", "uGlowExponent",
   "uEdgeStrength", "uEdgeWidth", "uEdgeExponent", "uTintColor", "uTint", "uZoom",
   "uShadow", "uShadowOffset", "uShadowBlur", "uOpacity", "uTransparentOutside", "uDebug",
-  "uBounds[0]", "uOutputSize", "uBevel",
+  "uBounds[0]", "uOutputSize", "uBevel", "uLens", "uLensZoom",
 ] as const;
 const scalarUniforms = {
   mergeDistance: "uMergeDistance", refractionStrength: "uRefraction",
@@ -479,7 +522,7 @@ const scalarUniforms = {
   specularRotation: "uSpecularRotation", glowStrength: "uGlowStrength",
   glowSpread: "uGlowSpread", glowExponent: "uGlowExponent", edgeStrength: "uEdgeStrength",
   edgeWidth: "uEdgeWidth", edgeExponent: "uEdgeExponent", tintStrength: "uTint",
-  magnification: "uZoom", shadowStrength: "uShadow", shadowOffset: "uShadowOffset",
+  magnification: "uZoom", lensMagnification: "uLensZoom", shadowStrength: "uShadow", shadowOffset: "uShadowOffset",
   shadowBlur: "uShadowBlur", opacity: "uOpacity",
 } as const;
 const scalarKeys = Object.keys(scalarUniforms) as Array<keyof typeof scalarUniforms>;
@@ -773,6 +816,7 @@ export function createWebGL2GlassRenderer(
     gl.uniform1i(u.uTransparentOutside, p.transparentOutside ? 1 : 0);
     gl.uniform1i(u.uDebug, p.debug ? 1 : 0);
     gl.uniform1i(u.uBevel, p.refractionModel === "bevel" ? 1 : 0);
+    gl.uniform1i(u.uLens, p.refractionModel === "lens" ? 1 : 0);
     if (clipped) {
       const x0 = Math.max(0, Math.min(width, Math.floor(left * width / p.width))), y0 = Math.max(0, Math.min(height, Math.floor(top * height / p.height)));
       const x1 = Math.max(x0, Math.min(width, Math.ceil(right * width / p.width))), y1 = Math.max(y0, Math.min(height, Math.ceil(bottom * height / p.height)));
