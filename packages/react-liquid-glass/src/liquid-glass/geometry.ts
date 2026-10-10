@@ -1,7 +1,15 @@
+/**
+ * How thick glass of this size reads, as Apple's thickens when it grows: 0 for a control
+ * (a 48px short side or less), 1 for a panel (320px or more), eased between. CSS pixels.
+ */
+export function liquidThickness(width: number, height: number) {
+  const thickness = Math.max(0, Math.min(1, (Math.min(width, height) - 48) / 272));
+  return thickness * thickness * (3 - 2 * thickness);
+}
+
 /** Clear controls become more frosted as the live popup body grows. CSS pixels. */
 export function liquidSurfaceBlur(width: number, height: number) {
-  const thickness = Math.max(0, Math.min(1, (Math.min(width, height) - 48) / 272));
-  return .4 + 11.6 * thickness * thickness * (3 - 2 * thickness);
+  return .4 + 11.6 * liquidThickness(width, height);
 }
 
 /** Content optics follow actual shape recovery, independently of the opacity reveal. */

@@ -7,7 +7,7 @@ import { springTo, popoverFrames } from 'rglass/apple-motion/react';
 import { motionValue } from 'motion';
 import { LiquidMenu, GlassSwitch, GlassSlider, GlassSegmented } from 'rglass/controls';
 import { createLiquidGlassRenderer, LIQUID_GLASS_MATERIAL } from 'rglass/liquid-glass/renderer';
-import { liquidSurfaceBlur } from 'rglass/liquid-glass';
+import { liquidSurfaceBlur, liquidThickness } from 'rglass/liquid-glass';
 
 const near = (actual, expected, epsilon = 1e-9) => assert.ok(Math.abs(actual - expected) <= epsilon, `${actual} != ${expected}`);
 const configurations = [
@@ -123,6 +123,19 @@ test('popup frost stays clear on shallow controls and grows smoothly with the bo
     const blur = liquidSurfaceBlur(320, size);
     assert.ok(blur >= previous && blur <= 12 && blur - previous < .07);
     previous = blur;
+  }
+});
+
+test('glass thickens with its short side, from a 48px control to a 320px panel', () => {
+  for (const [w, h] of [[40,40], [180,36], [600,48]]) near(liquidThickness(w,h), 0);
+  for (const [w, h] of [[320,320], [404,748], [900,600]]) near(liquidThickness(w,h), 1);
+  near(liquidThickness(184,184), .5);
+  let previous = 0;
+  for (let size = 48; size <= 320; size++) {
+    const thickness = liquidThickness(size, 900);
+    assert.ok(thickness >= previous && thickness - previous < .006);
+    near(liquidSurfaceBlur(size, 900), .4 + 11.6 * thickness);
+    previous = thickness;
   }
 });
 

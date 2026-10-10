@@ -36,11 +36,13 @@ export function createFrameGeometry() {
     let left = p.width, top = p.height, right = 0, bottom = 0;
     // Bound the same transformed rounded SDF, including its fusion expansion,
     // antialiasing and the full three-sigma shadow used by the fragment shader.
-    const shadowBlur = Number.isFinite(p.shadowBlur) ? p.shadowBlur! : LIQUID_GLASS_MATERIAL.shadowBlur;
+    const requestedShadowBlur = readMotion(p.shadowBlur ?? LIQUID_GLASS_MATERIAL.shadowBlur);
+    const shadowBlur = Number.isFinite(requestedShadowBlur) ? requestedShadowBlur : LIQUID_GLASS_MATERIAL.shadowBlur;
     const mergeDistance = readMotion(p.mergeDistance ?? LIQUID_GLASS_MATERIAL.mergeDistance);
     const padding = Math.max(18, shadowBlur * 3)
       + Math.max(.001, Number.isFinite(mergeDistance) ? mergeDistance : LIQUID_GLASS_MATERIAL.mergeDistance) * Math.max(0, count - 1) / 4 + 2 / ratio;
-    const shadowOffset = Number.isFinite(p.shadowOffset) ? p.shadowOffset! : LIQUID_GLASS_MATERIAL.shadowOffset;
+    const requestedShadowOffset = readMotion(p.shadowOffset ?? LIQUID_GLASS_MATERIAL.shadowOffset);
+    const shadowOffset = Number.isFinite(requestedShadowOffset) ? requestedShadowOffset : LIQUID_GLASS_MATERIAL.shadowOffset;
     for (let i = 0; i < count; i++) {
       const b = p.blobs[i];
       const ratio = b.refractionRatio ?? [1, 1];
@@ -86,7 +88,7 @@ export function createFrameGeometry() {
         const cx0 = Math.max(0, x0), cy0 = Math.max(0, y0), cx1 = Math.min(p.width, x1), cy1 = Math.min(p.height, y1);
         if (cx1 > cx0 && cy1 > cy0) regions.push({ left: cx0 / p.width, top: cy0 / p.height, width: (cx1 - cx0) / p.width, height: (cy1 - cy0) / p.height });
       }
-      const domeDepth = p.domeDepth ?? LIQUID_GLASS_MATERIAL.domeDepth;
+      const domeDepth = readMotion(p.domeDepth ?? LIQUID_GLASS_MATERIAL.domeDepth);
       if (domeInputs[i*3] !== domeDepth || domeInputs[i*3+1] !== sizes[i*2] || domeInputs[i*3+2] !== sizes[i*2+1]) {
         const dome = computeDomeConstants(domeDepth, sizes[i*2], sizes[i*2+1]);
         domes[i*4] = dome.Rx; domes[i*4+1] = dome.Ry;

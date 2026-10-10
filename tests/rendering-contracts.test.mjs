@@ -30,7 +30,7 @@ const readmeSource = readFileSync(new URL("../README.md", import.meta.url), "utf
 const additionalDemosSource = readFileSync(new URL("../packages/react-liquid-glass/src/controls/GlassActionButton.tsx", import.meta.url), "utf8");
 const liquidDemoSource = [
   "lib/controls/LiquidMenu.tsx", "lib/apple-motion/use-menu-motion.ts",
-  "lib/controls/use-menu-material.ts", "lib/apple-motion/menu.ts",
+  "lib/controls/use-menu-material.ts", "lib/apple-motion/menu.ts", "lib/controls/glass-thickness.ts",
 ].map(path => readFileSync(new URL(`../${path.startsWith("lib/") ? "packages/react-liquid-glass/src/" + path.slice(4) : "apps/docs/src/" + path}`, import.meta.url), "utf8")).join("\n");
 const liquidCanvasUrl = new URL("../packages/react-liquid-glass/src/liquid-glass/LiquidGlassCanvas.tsx", import.meta.url);
 const liquidRendererSource = ["webgl2-renderer.ts", "frame-geometry.ts", "render-frame.ts"].map(file => readFileSync(new URL(`../packages/react-liquid-glass/src/liquid-glass/${file}`, import.meta.url), "utf8")).join("\n");
@@ -213,8 +213,8 @@ test("liquid uses the shared smooth-union compositor for its full lifecycle", ()
   assert.match(liquidCanvasSource, /blurStrength\?: MotionInput/);
   assert.match(liquidCanvasSource, /tintStrength\?: MotionInput/);
   assert.match(liquidCanvasSource, /magnification\?: MotionInput/);
-  assert.match(liquidCanvasSource, /domeDepth\?: number/);
-  assert.match(liquidCanvasSource, /brightness\?: number/);
+  assert.match(liquidCanvasSource, /domeDepth\?: MotionInput/);
+  assert.match(liquidCanvasSource, /brightness\?: MotionInput/);
   assert.match(liquidCanvasSource, /vec2 deformed = direction \* along \+ tangent \* across/);
   assert.doesNotMatch(liquidCanvasSource, /vec2 deformed = vec2\(\s*dot\(delta, direction\)/s);
   assert.doesNotMatch(liquidCanvasSource, /uTrail|movingTrail|tailBlob/i);
@@ -222,14 +222,31 @@ test("liquid uses the shared smooth-union compositor for its full lifecycle", ()
   assert.match(libraryIndexSource, /LiquidGlassBlob/);
 });
 
+test("popups thicken with size under the same rule as the Morph Menu", () => {
+  const popover = readFileSync(new URL("../packages/react-liquid-glass/src/controls/LiquidPopover.tsx", import.meta.url), "utf8");
+  const thickness = readFileSync(new URL("../packages/react-liquid-glass/src/controls/glass-thickness.ts", import.meta.url), "utf8");
+  // Thin glass is the compact-control calibration; thick glass is the approved open menu.
+  assert.match(thickness, /refractionStrength: SURFACE_MATERIAL\.refractionStrength,[\s\S]*chromaAmount: DEFAULT_MATERIAL\.chromaAmount,[\s\S]*shadowBlur: SURFACE_MATERIAL\.shadowBlur,/s);
+  assert.match(thickness, /const thin = Math\.min\(12, shortSide \* \.12\);\s*return thin \+ \(26 - thin\) \* thickness;/);
+  assert.match(thickness, /return Math\.ceil\(Math\.max\(28, blur \* 3 \+ Math\.abs\(offset\)\)\)/);
+  assert.match(thickness, /material\[key\] = overrides\[key\] \?\? value/);
+  assert.match(popover, /const thickness = useTransform\(\(\) => liquidThickness\(model\.w\.get\(\) \* 2, model\.h\.get\(\) \* 2\)\)/);
+  assert.match(popover, /const thicknessMaterial = useGlassThickness\(thickness, dark, overrides\)/);
+  assert.match(popover, /const padding = glassShadowReach\(liquidThickness\(pw, ph\), overrides\)/);
+  assert.match(popover, /\{\.\.\.thicknessMaterial\} tintColor=\{dark \? DARK_GLASS_TINT : undefined\}/);
+  assert.match(popover, /edgeDepth=\{edgeDepth\} blurStrength=\{backgroundBlur\}/);
+  assert.doesNotMatch(popover, /shadowStrength=\{\.08\}|edgeDepth=\{10\}/);
+});
+
 test("liquid menu keeps one core-compatible Canvas material over the shared backdrop", () => {
   assert.doesNotMatch(liquidDemoSource, /buildQrGeometry|QR_SIZE|QR_GEOMETRY|occupancy|MENU_ACTIONS/);
-  assert.match(liquidDemoSource, /import type \{ LiquidLens \} from "\.\.\/liquid-glass\/lens\.js"/);
+  assert.match(liquidDemoSource, /import \{ DARK_GLASS_TINT, THIN_GLASS, glassEdgeDepth, useGlassThickness \} from "\.\/glass-thickness\.js"/);
   assert.match(liquidDemoSource, /import \{ LiquidGlassCanvas \} from "\.\.\/liquid-glass\/LiquidGlassCanvas\.js"/);
   assert.doesNotMatch(liquidDemoSource, /<Glass|coreOpacity|fusionOpacity/);
-  assert.match(liquidDemoSource, /const BASE_MENU_LENS = LIQUID_LENS/);
-  assert.match(liquidDemoSource, /const LIGHT_MENU_LENS: LiquidLens/);
-  assert.match(liquidDemoSource, /const DARK_MENU_LENS: LiquidLens/);
+  // The approved menu material is the thick end of the shared thickness rule.
+  assert.doesNotMatch(liquidDemoSource, /MENU_LENS|menuLens/);
+  assert.match(liquidDemoSource, /refractionStrength: LIQUID_GLASS_MATERIAL\.refractionStrength,[\s\S]*chromaAmount: LIQUID_GLASS_MATERIAL\.chromaAmount,[\s\S]*domeDepth: LIQUID_GLASS_MATERIAL\.domeDepth,[\s\S]*shadowBlur: LIQUID_GLASS_MATERIAL\.shadowBlur,/s);
+  assert.match(liquidDemoSource, /export const THICK_GLASS_DARK: Record<ThicknessKey, number> = \{ \.\.\.THICK_GLASS, brightness: \.035, glowStrength: \.38, edgeStrength: \.42 \}/);
   assert.equal(LIQUID_GLASS_MATERIAL.chromaAmount, .55);
   assert.equal(LIQUID_GLASS_MATERIAL.refractionStrength, .11);
   assert.equal(LIQUID_GLASS_MATERIAL.specularStrength, .72);
@@ -238,7 +255,7 @@ test("liquid menu keeps one core-compatible Canvas material over the shared back
   assert.equal(LIQUID_GLASS_MATERIAL.edgeWidth, 1.6);
   assert.equal(LIQUID_GLASS_MATERIAL.specularRotation, 90);
   assert.equal(LIQUID_GLASS_MATERIAL.edgeStrength, .36);
-  assert.match(liquidDemoSource, /edgeStrength: 0\.42/);
+  assert.equal(LIQUID_GLASS_MATERIAL.shadowStrength, .11);
   assert.match(liquidDemoSource, /const MIN_LENS_HALF = 1/);
   assert.doesNotMatch(liquidDemoSource, /BUTTON_MAP_SIZE|buttonLens/);
   assert.match(liquidDemoSource, /const halfWidth = useMotionValue\(MIN_LENS_HALF\)/);
@@ -278,11 +295,18 @@ test("liquid menu keeps one core-compatible Canvas material over the shared back
   assert.match(liquidDemoSource, /const triggerOffsetY = useTransform\(buttonCenterY/);
   assert.match(liquidDemoSource, /const transitioningRef = useRef\(false\)/);
   assert.match(liquidDemoSource, /const fusionBlobs = useMemo\(/);
-  assert.match(liquidDemoSource, /const materialProgress = useTransform\(halfWidth/);
-  assert.match(liquidDemoSource, /const materialBlur = useTransform\(materialProgress, \(progress\) => 0\.5 \+ progress \* 1\.1\)/);
-  assert.match(liquidDemoSource, /const materialDepth = useTransform\(\[materialProgress, depth, buttonDepth\], blendMaterialValue\)/);
-  assert.match(liquidDemoSource, /\[materialProgress, tintOpacity, buttonTintOpacity\],[\s\S]*blendMaterialValue/s);
-  assert.match(liquidDemoSource, /const materialZoom = useTransform\(\[materialProgress, zoom, buttonZoom\], blendMaterialValue\)/);
+  // Thickness follows the live body: a closed trigger is thin glass, the open menu thick.
+  assert.match(liquidDemoSource, /const thickness = useTransform\(\[halfWidth, halfHeight\], \(\[width, height\]: number\[\]\) => liquidThickness\(width \* 2, height \* 2\)\)/);
+  assert.match(liquidDemoSource, /useGlassThickness\(thickness, theme === "dark", materialOverrides, scale\)/);
+  assert.match(liquidDemoSource, /const materialBlur = useTransform\(\[halfWidth, halfHeight\], \(\[width, height\]: number\[\]\) => liquidSurfaceBlur\(width \* 2, height \* 2\) \/ scale\)/);
+  assert.match(liquidDemoSource, /const thinDepth = glassEdgeDepth\(TRIGGER_RADIUS \* 2, 0\)/);
+  assert.match(liquidDemoSource, /const materialDepth = useTransform\(\[thickness, depth\], \(\[t, value\]: number\[\]\) => thinDepth \+ \(value - thinDepth\) \* t\)/);
+  assert.match(liquidDemoSource, /const materialTintOpacity = useTransform\(\[thickness, tintOpacity\], \(\[t, value\]: number\[\]\) => THIN_GLASS\.tintStrength \+ \(value - THIN_GLASS\.tintStrength\) \* t\)/);
+  assert.match(liquidDemoSource, /const materialZoom = useTransform\(\[thickness, zoom\], \(\[t, value\]: number\[\]\) => 1 \+ \(value - 1\) \* t\)/);
+  // The trigger presses like other glass buttons: contact light and a 2.5% growth, no lens pulse.
+  assert.doesNotMatch(liquidDemoSource, /buttonDepth|buttonTintOpacity|buttonZoom|onPress: press/);
+  assert.match(liquidDemoSource, /const contact = useGlassContact\(triggerRef, \{ deform: false \}\)/);
+  assert.match(liquidDemoSource, /contactStrength: contact\.contactStrength,/);
   assert.doesNotMatch(liquidDemoSource, /morph\(triggerOffset[XY]/);
   assert.match(liquidDemoSource, /const finishTransition = \(\) => \{/);
   assert.match(liquidDemoSource, /transitioningRef\.current = false/);
@@ -313,15 +337,8 @@ test("liquid menu keeps one core-compatible Canvas material over the shared back
   assert.match(liquidDemoSource, /blurStrength=\{materialBlur\}/);
   assert.match(liquidDemoSource, /tintStrength=\{materialTintOpacity\}/);
   assert.match(liquidDemoSource, /magnification=\{materialZoom\}/);
-  assert.match(liquidDemoSource, /specularRotation=\{menuLens\.specularRotation\}/);
-  assert.match(liquidDemoSource, /glowStrength=\{menuLens\.glowStrength\}/);
-  assert.match(liquidDemoSource, /edgeStrength=\{menuLens\.edgeStrength\}/);
-  assert.match(liquidDemoSource, /specularStrength=\{menuLens\.specularStrength\}/);
-  assert.match(liquidDemoSource, /domeDepth=\{menuLens\.domeDepth\}/);
-  assert.match(liquidDemoSource, /brightness=\{menuLens\.brightness\}/);
-  assert.match(liquidDemoSource, /refractionStrength=\{menuLens\.scaleX\}/);
-  assert.match(liquidDemoSource, /chromaAmount=\{menuLens\.chromaAmount\}/);
-  assert.match(liquidDemoSource, /shadowStrength=\{0\.11\}/);
+  assert.match(liquidDemoSource, /\{\.\.\.material\}\s*edgeDepth=\{materialDepth\}/);
+  assert.match(liquidDemoSource, /inheritMaterial=\{false\}\s*\{\.\.\.materialOverrides\}/);
   assert.match(liquidDemoSource, /<div className="dg-liquid-menu__fusion-layer" aria-hidden="true">/);
   assert.match(liquidDemoSource, /className="dg-liquid-menu__fusion-source"/);
   assert.doesNotMatch(liquidDemoSource, /overlay=|opticalOpacity|dg-liquid-menu__optical/);
@@ -334,7 +351,8 @@ test("liquid menu keeps one core-compatible Canvas material over the shared back
   assert.match(liquidDemoSource, /duration: OPEN_CONTENT_DURATION,[\s\S]*times: \[0, 0\.06, 0\.62, 1\]/s);
   assert.match(liquidDemoSource, /animate\(reveal, \[reveal\.get\(\), reveal\.get\(\) \* 0\.3, reveal\.get\(\) \* 0\.02, 0\], \{[\s\S]*duration: CLOSE_CONTENT_DURATION \* transitionDuration \/ CLOSE_FUSION_DURATION,[\s\S]*times: \[0, 0\.28, 0\.52, 1\]/s);
   assert.doesNotMatch(liquidDemoSource, /ease:\s*"linear"|type:\s*"spring"/);
-  assert.match(liquidDemoSource, /tintColor=\{theme === "dark" \? \[74 \/ 255, 74 \/ 255, 70 \/ 255\] : \[1, 1, 1\]\}/);
+  assert.match(liquidDemoSource, /tintColor=\{theme === "dark" \? DARK_GLASS_TINT : \[1, 1, 1\]\}/);
+  assert.match(liquidDemoSource, /export const DARK_GLASS_TINT = \[74 \/ 255, 74 \/ 255, 70 \/ 255\] as const/);
   assert.match(liquidDemoSource, /tint: 0\.035/);
   assert.match(liquidDemoSource, /zoom: 1\.38/);
   assert.match(liquidDemoSource, /aria-expanded=\{open\}/);

@@ -54,9 +54,17 @@ const guides: Guide[] = [
         zh: "优先级",
         body: [
           ["Values resolve in this order, later winning: the renderer's base material, the shared defaults for ordinary glass (dispersion 0.33, dome depth 28), each component's calibration, the HDR highlight default, and finally explicit provider material.", "取值按以下顺序，后者优先：渲染器基础材质、普通玻璃的共享默认值（色散 0.33、弧面深度 28）、组件自身校准、HDR 高光默认值，最后是 Provider 中显式设置的材质。"],
-          ["Calibrated lenses such as the Switch and Slider thumbs, Tabs, Spotlight and the Morph Menu keep their own dispersion and dome depth unless you set them explicitly. Pass inherit={false} to start a subtree fresh; it still keeps the parent's HDR preference.", "Switch 与 Slider 滑块、Tabs、Spotlight 和 Morph Menu 等已校准的透镜，除非显式设置，否则保留自身的色散与弧面深度。传入 inherit={false} 可以让子树重新开始，但仍保留父级的 HDR 偏好。"],
+          ["Calibrated lenses such as the Switch and Slider thumbs, Tabs and Spotlight keep their own dispersion and dome depth unless you set them explicitly; popups and the Morph Menu take theirs from their thickness. Pass inherit={false} to start a subtree fresh; it still keeps the parent's HDR preference.", "Switch 与 Slider 滑块、Tabs、Spotlight 等已校准的透镜，除非显式设置，否则保留自身的色散与弧面深度；弹层与 Morph Menu 则由自身厚度决定。传入 inherit={false} 可以让子树重新开始，但仍保留父级的 HDR 偏好。"],
         ],
         code: '<LiquidGlassProvider material={{ refractionStrength: 0.3 }}>\n  {/* A comparison panel that ignores the page material */}\n  <LiquidGlassProvider material={{}} inherit={false}>\n    <GlassButton>Default</GlassButton>\n  </LiquidGlassProvider>\n</LiquidGlassProvider>;',
+      },
+      {
+        en: "Glass thickens with size",
+        zh: "玻璃越大越厚",
+        body: [
+          ["As on iOS, larger glass reads as a thicker material: a deeper, softer shadow, stronger lensing at the rim, softer light and more diffusion of busy content. liquidThickness(width, height) maps a body's short side from 48 CSS pixels, a control, to 320, a panel. Popover, Dropdown Menu, Select, Dialog, Sheet and the Morph Menu follow it live while they open, so a closed trigger is the same thin glass as a Button and panels of the same size look alike.", "和 iOS 一样，玻璃越大，看起来越像更厚的材质：阴影更深更柔，边缘的透镜折射更强，光线更柔和，对繁杂背景的扩散更充分。liquidThickness(width, height) 把形体的短边从 48 CSS 像素（控件）映射到 320（面板）。Popover、Dropdown Menu、Select、Dialog、Sheet 与 Morph Menu 在展开过程中实时遵循它，因此收起的触发器与 Button 是同样的薄玻璃，同样大小的面板看起来也一致。"],
+        ],
+        code: 'import { liquidThickness } from "rglass/liquid-glass";\n\nliquidThickness(44, 44);   // 0, a control\nliquidThickness(240, 210); // about 0.64\nliquidThickness(404, 748); // 1, a panel',
       },
       {
         en: "HDR",

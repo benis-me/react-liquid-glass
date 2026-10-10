@@ -5,7 +5,7 @@ export { createLiquidGlassRenderer, LIQUID_GLASS_MATERIAL } from "./renderer.js"
 export type { LiquidGlassBlob, LiquidGlassFrame, LiquidGlassSource, LiquidRendererStats, GlassRendererBackend, LiquidGlassRenderer, LiquidRendererOptions } from "./renderer.js";
 export type { LiquidSourceFactory, LiquidSourcePainter } from "./source.js";
 export { paintLiquidGrid } from "./source.js";
-export { liquidContentPose, liquidContentOptics, liquidSurfaceBlur } from "./geometry.js";
+export { liquidContentPose, liquidContentOptics, liquidSurfaceBlur, liquidThickness } from "./geometry.js";
 export { LiquidGlassProvider, useGlassMaterial, useGlassMaterialOverrides, useDisplayHDR, DEFAULT_MATERIAL, PRISM_MATERIAL, HDR_SPECULAR_STRENGTH, type GlassMaterial } from "./provider.js";
 export { paintLiquidBackdrop, readLiquidTone, type LiquidTone } from "./backdrop.js";
 export type { LiquidLightSource } from "./light.js";
