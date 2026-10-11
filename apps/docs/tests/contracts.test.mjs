@@ -29,9 +29,14 @@ test('every catalog entry has a real exported component and a type-correct stand
       writeFileSync(join(folder, `${entry.id}.tsx`), exampleCode(entry.id));
     }
     writeFileSync(join(folder, 'public-api.tsx'), `import { LiquidGlass, GlassSwitch, LiquidGlassCanvas, type LiquidLens } from "rglass";
+import { glassMaterial, LIFTED_GLASS, type GlassVariant } from "rglass/liquid-glass";
 import { createLiquidGlassRenderer } from "rglass/liquid-glass/renderer";
 export const api = [LiquidGlass, GlassSwitch, LiquidGlassCanvas, createLiquidGlassRenderer];
-export const lens: LiquidLens = { depth: 10, domeDepth: 28, chromaAmount: .33 };
+export const lens: LiquidLens = { lensW: 40, lensH: 40, borderRadius: 40 };
+const variant: GlassVariant = "clear";
+export const material = { ...glassMaterial(.5, { variant }), ...LIFTED_GLASS };
+// @ts-expect-error Material values belong to material, under the renderer's names.
+export const optics: LiquidLens = { depth: 10, chromaAmount: .33 };
 // @ts-expect-error SVG map generation is no longer a lens parameter.
 export const obsolete: LiquidLens = { mapSize: 256 };`);
     // Consumers resolve the published types with a bundler or with Node's ESM rules.

@@ -53,8 +53,8 @@ const guides: Guide[] = [
         en: "Precedence",
         zh: "优先级",
         body: [
-          ["Values resolve in this order, later winning: the renderer's base material, the shared defaults for ordinary glass (dispersion 0.33, dome depth 28), each component's calibration, the HDR highlight default, and finally explicit provider material.", "取值按以下顺序，后者优先：渲染器基础材质、普通玻璃的共享默认值（色散 0.33、弧面深度 28）、组件自身校准、HDR 高光默认值，最后是 Provider 中显式设置的材质。"],
-          ["Calibrated lenses such as the Switch and Slider thumbs, Tabs and Spotlight keep their own dispersion and dome depth unless you set them explicitly; popups and the Morph Menu take theirs from their thickness. Pass inherit={false} to start a subtree fresh; it still keeps the parent's HDR preference.", "Switch 与 Slider 滑块、Tabs、Spotlight 等已校准的透镜，除非显式设置，否则保留自身的色散与弧面深度；弹层与 Morph Menu 则由自身厚度决定。传入 inherit={false} 可以让子树重新开始，但仍保留父级的 HDR 偏好。"],
+          ["One rule applies to every glass: its own values, then the HDR highlight default, then explicit provider material above its constants. What neither sets follows the glass's size. Values a component animates, such as a lifted lens's magnification or the Morph Menu's tint and zoom, keep animating; a provider constant never freezes them.", "所有玻璃遵循同一条规则：先取玻璃自身的值，再叠加 HDR 高光默认值，最后由 Provider 中显式设置的材质覆盖其中的常量。两者都未设置的参数由玻璃的尺寸决定。组件自己驱动的动画值（例如抬升透镜的放大、Morph Menu 的着色与缩放）会继续动画，Provider 的常量不会冻结它们。"],
+          ["Pass inherit={false} to start a subtree fresh; it still keeps the parent's HDR preference.", "传入 inherit={false} 可以让子树重新开始，但仍保留父级的 HDR 偏好。"],
         ],
         code: '<LiquidGlassProvider material={{ refractionStrength: 0.3 }}>\n  {/* A comparison panel that ignores the page material */}\n  <LiquidGlassProvider material={{}} inherit={false}>\n    <GlassButton>Default</GlassButton>\n  </LiquidGlassProvider>\n</LiquidGlassProvider>;',
       },
@@ -62,9 +62,9 @@ const guides: Guide[] = [
         en: "Glass thickens with size",
         zh: "玻璃越大越厚",
         body: [
-          ["As on iOS, larger glass reads as a thicker material: a deeper, softer shadow, stronger lensing at the rim, softer light and more diffusion of busy content. liquidThickness(width, height) maps a body's short side from 48 CSS pixels, a control, to 320, a panel. Popover, Dropdown Menu, Select, Dialog, Sheet and the Morph Menu follow it live while they open, so a closed trigger is the same thin glass as a Button and panels of the same size look alike.", "和 iOS 一样，玻璃越大，看起来越像更厚的材质：阴影更深更柔，边缘的透镜折射更强，光线更柔和，对繁杂背景的扩散更充分。liquidThickness(width, height) 把形体的短边从 48 CSS 像素（控件）映射到 320（面板）。Popover、Dropdown Menu、Select、Dialog、Sheet 与 Morph Menu 在展开过程中实时遵循它，因此收起的触发器与 Button 是同样的薄玻璃，同样大小的面板看起来也一致。"],
+          ["As on iOS, larger glass reads as a thicker material: a deeper, softer shadow, stronger lensing at the rim, softer light and more diffusion of busy content. liquidThickness(width, height) maps a body's short side from 48 CSS pixels, a control, to 320, a panel, and every glass follows it: a Button is thin, a Card thicker, an open menu thick, and popups follow it live while they open, so glass of the same size looks alike whichever component draws it. glassMaterial(thickness) returns the material at any thickness.", "和 iOS 一样，玻璃越大，看起来越像更厚的材质：阴影更深更柔，边缘的透镜折射更强，光线更柔和，对繁杂背景的扩散更充分。liquidThickness(width, height) 把形体的短边从 48 CSS 像素（控件）映射到 320（面板）。所有玻璃都遵循它：Button 是薄玻璃，Card 更厚，展开的菜单最厚；弹层在展开过程中实时遵循它，因此同样大小的玻璃无论由哪个组件绘制都看起来一致。glassMaterial(thickness) 返回任意厚度下的材质。"],
         ],
-        code: 'import { liquidThickness } from "rglass/liquid-glass";\n\nliquidThickness(44, 44);   // 0, a control\nliquidThickness(240, 210); // about 0.64\nliquidThickness(404, 748); // 1, a panel',
+        code: 'import { glassMaterial, liquidThickness } from "rglass/liquid-glass";\n\nliquidThickness(44, 44);   // 0, a control\nliquidThickness(240, 210); // about 0.64\nliquidThickness(404, 748); // 1, a panel\nglassMaterial(.64).shadowBlur; // 21.7',
       },
       {
         en: "HDR",
@@ -73,14 +73,13 @@ const guides: Guide[] = [
         code: 'import { useDisplayHDR } from "rglass/liquid-glass";\n\nconst hdr = useDisplayHDR(); // true on HDR displays\n<LiquidGlassProvider material={{ hdr: false }}>…</LiquidGlassProvider>;',
       },
       {
-        en: "Lens profile and light",
-        zh: "透镜轮廓与光源",
+        en: "Lifted lens and light",
+        zh: "抬升透镜与光源",
         body: [
-          ["Pressed tabs and held thumbs lift into iOS 27's lens: clear glass whose rim pulls in what surrounds it all round, so the bar seen through the rim looks smaller and its edges, ends included, follow the rim in one concentric outline. At its ends the rim compresses what it passes over toward the edge, so labels a dragged lens slides across stay in order. What lies under the lens is slightly magnified, held or dragged, without a glow. While a tab is pressed, the whole bar grows slightly about its centre. In light mode the lens's edge is a fine, even grey line and it casts a soft shadow. Its rim is thick: along the top and bottom the outer slope mirrors what lies just inside it, gathering warm and cool crescents at opposite ends, and its edge is a fine dark contour with a white rim line hugging it. On all glass the rim highlight now reaches round the corners toward the sides, faint there. Custom glass can use the lens with refractionModel: \"lens\" and lensMagnification.", "按下的标签与按住的滑块会抬升为 iOS 27 的透镜：清透的玻璃边缘一整圈把周围的内容拉进来，因此透过边缘看到的工具栏会显得更小，它的边线连同两端一起顺着透镜边缘围成同心的轮廓。在透镜两端，边缘会把经过的内容按顺序朝边缘压缩，因此拖动透镜划过的文字不会错乱。按住的标签会在它下面略微放大，拖动时也保持放大，不会发光。按住标签时，整个标签栏会以中心为基准略微放大。浅色模式下，透镜的边缘是一条均匀的细灰线，并投下柔和的阴影。它的边缘是厚的：上下两侧的外侧斜面映出紧挨着它内侧的内容，暖色与冷色的弧光分别聚在两端；它的边缘是一条细的深色轮廓，内侧紧贴一条白色边缘高光。所有玻璃的边缘高光现在都会绕过转角，淡淡地延伸到两侧。自定义玻璃可通过 refractionModel: \"lens\" 与 lensMagnification 使用这种透镜。"],
-          ["refractionModel: \"bevel\" models a flat slab with a rounded rim: the top stays clear, the rim refracts by Snell's law, and dispersion follows physical order with blue bending most. The default \"dome\" is the calibrated spherical-cap lens.", "refractionModel: \"bevel\" 模拟带圆角边缘的平板玻璃：顶部保持清晰，边缘按斯涅尔定律折射，色散遵循蓝光偏折最大的物理顺序。默认的 \"dome\" 是经过校准的球冠透镜。"],
+          ["Pressed tabs and held thumbs lift into iOS 27's lens: clear glass whose rim pulls in what surrounds it all round, so the bar seen through the rim looks smaller and its edges, ends included, follow the rim in one concentric outline. At its ends the rim compresses what it passes over toward the edge, so labels a dragged lens slides across stay in order. What lies under the lens is slightly magnified, held or dragged, without a glow. While a tab is pressed, the whole bar grows slightly about its centre. In light mode the lens's edge is a fine, even grey line and it casts a soft shadow. Its rim is thick: along the top and bottom the outer slope mirrors what lies just inside it, gathering warm and cool crescents at opposite ends, and its edge is a fine dark contour with a white rim line hugging it. On all glass the rim highlight now reaches round the corners toward the sides, faint there. Custom glass lifts the same way with material={{ ...LIFTED_GLASS, lensMagnification }}.", "按下的标签与按住的滑块会抬升为 iOS 27 的透镜：清透的玻璃边缘一整圈把周围的内容拉进来，因此透过边缘看到的工具栏会显得更小，它的边线连同两端一起顺着透镜边缘围成同心的轮廓。在透镜两端，边缘会把经过的内容按顺序朝边缘压缩，因此拖动透镜划过的文字不会错乱。按住的标签会在它下面略微放大，拖动时也保持放大，不会发光。按住标签时，整个标签栏会以中心为基准略微放大。浅色模式下，透镜的边缘是一条均匀的细灰线，并投下柔和的阴影。它的边缘是厚的：上下两侧的外侧斜面映出紧挨着它内侧的内容，暖色与冷色的弧光分别聚在两端；它的边缘是一条细的深色轮廓，内侧紧贴一条白色边缘高光。所有玻璃的边缘高光现在都会绕过转角，淡淡地延伸到两侧。自定义玻璃可通过 material={{ ...LIFTED_GLASS, lensMagnification }} 以同样的方式抬升。"],
           ["lightSource: \"pointer\" steers highlights toward a mouse or pen; \"device\" follows orientation events where the platform grants them (on iOS, call DeviceOrientationEvent.requestPermission() from a user gesture first). Reduced motion keeps the light fixed.", "lightSource: \"pointer\" 让高光朝向鼠标或触控笔；\"device\" 在平台允许时跟随设备方向（在 iOS 上需先在用户手势中调用 DeviceOrientationEvent.requestPermission()）。开启减少动态效果时光源保持固定。"],
         ],
-        code: '<LiquidGlassProvider material={{ refractionModel: "bevel", lightSource: "pointer" }}>\n  <App />\n</LiquidGlassProvider>;',
+        code: '<LiquidGlassProvider material={{ lightSource: "pointer" }}>\n  <App />\n</LiquidGlassProvider>;',
       },
     ],
   },

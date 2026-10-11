@@ -16,6 +16,11 @@ import { useRendererBackend } from "../liquid-glass/use-renderer-backend.js";
 import { createLiquidGlassRenderer, type LiquidGlassBlob } from "../liquid-glass/renderer.js";
 import { usePointerReleaseFallback } from "../apple-motion/react.js";
 import { useReducedMotionPreference } from "../liquid-glass/light.js";
+import { glassMaterial } from "../liquid-glass/material.js";
+
+// Media controls are clear control glass, as Apple's are over video. The canvas spans the whole
+// player, so refraction is calibrated to it: 0.11 of the canvas, unmagnified, in a 9px band.
+const VIDEO_GLASS = { ...glassMaterial(0, { variant: "clear" }), refractionStrength: .11, magnification: 1, edgeDepth: 9 };
 
 function SourceVideoIcon({ source }: { source: string }) {
   return <span className="dg-video-player__source-icon" aria-hidden="true" dangerouslySetInnerHTML={{ __html: source }} />;
@@ -233,11 +238,11 @@ export function GlassVideo({ src, sources, poster, caption, autoPlay = false, lo
         bar.style.transform = `scaleX(${1 + Math.abs(barStretch) / layout.bar[2]})`;
       }
       const rendered = renderer.draw({
-        source: video, sourceRevision, width, height, blobs, pixelRatio: ratio,
-        opacity: strengthRef.current, edgeDepth: 9, tintStrength: .045,
-        shadowStrength: .11,
+        ...VIDEO_GLASS,
         ...materialRef.current,
-        mergeDistance: 0,
+        // The player's own: its resolution, its fade, and buttons that never fuse.
+        source: video, sourceRevision, width, height, blobs, pixelRatio: ratio,
+        opacity: strengthRef.current, mergeDistance: 0,
       });
       if (progressRef.current && Number.isFinite(video.duration) && video.duration > 0) {
         progressRef.current.style.width = `${(video.currentTime / video.duration) * 100}%`;

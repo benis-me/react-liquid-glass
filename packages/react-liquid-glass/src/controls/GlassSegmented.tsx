@@ -1,9 +1,10 @@
-import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentType, type ReactNode } from "react";
+import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { animate, motion, useMotionValue, useReducedMotion, useTransform } from "motion/react";
 import { LiquidGlass } from "../liquid-glass/LiquidGlass.js";
-import { LIFT_MAGNIFICATION, LIFT_SHADOW, LIFT_SHADOW_BLUR, LIFT_SHADOW_OFFSET, liftedLens, useLiftedOptics } from "./use-thumb-motion.js";
+import { LIFT_MAGNIFICATION, useLiftedOptics, useLiftedShadow } from "./use-thumb-motion.js";
 import { GlassSurface } from "./GlassSurface.js";
-import { liquidScreenScale, liquidTheme, subscribeLiquidTheme } from "../liquid-glass/source.js";
+import { liquidScreenScale } from "../liquid-glass/source.js";
+import { LIFTED_GLASS, useHostDark } from "../liquid-glass/material.js";
 import { rubberBand, springTo, useGlassContact, usePointerReleaseFallback, waitForRest, useDerivedMotion2, useVelocityDeformation, type SpringRun } from "../apple-motion/react.js";
 import { SEGMENTED_TRAVEL_SPRING, SEGMENTED_PRESS_SPRING, SEGMENTED_DRAG_CATCHUP_SPRING, SEGMENTED_RELEASE_SPRING, SEGMENTED_HEIGHT_RELEASE_SPRING, SEGMENTED_IMPACT_RETENTION, SEGMENTED_TRAIL_BIAS, SEGMENTED_HOLD_IMPACT_SCRIPT, SEGMENTED_HANDOFF, SEGMENTED_DEFORMATION, SEGMENTED_LIFT_OUTSET, SEGMENTED_LIFT_SPRING, SEGMENTED_OVERDRAG } from "../apple-motion/presets.js";
 import { createVelocityTracker } from "../apple-motion/velocity.js";
@@ -57,6 +58,7 @@ const clipBounds = (root: HTMLElement) => {
   }
   return { left, right };
 };
+const LENS_AT_REST = { strength: 0, offset: 0, blur: 0 };
 export interface GlassSegmentItem { value: string; label: string; href?: string; Icon?: ComponentType<{ className?: string }>; color1?: string; color2?: string; }
 export interface GlassSegmentedProps {
   items?: readonly GlassSegmentItem[];
@@ -74,7 +76,7 @@ export interface GlassSegmentedProps {
 export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, onNavigate, className, labels, items: suppliedItems, tablist = false, idPrefix, ariaLabel = "Options" }: GlassSegmentedProps) {
   const reduce = useReducedMotion();
   // The lens brightens slightly on dark pages; follow theme changes, not just the first render.
-  const dark = useSyncExternalStore(subscribeLiquidTheme, liquidTheme, () => "light").startsWith("dark");
+  const dark = useHostDark();
   const segments = useMemo<readonly GlassSegmentItem[]>(() => suppliedItems?.length ? suppliedItems.map(item => ({ color1: "currentColor", color2: "currentColor", ...item })) : DEFAULT_SEGMENTS, [suppliedItems]);
   const [local, setLocal] = useState(defaultValue);
   // While a press drags, the lens passes over the tabs without lighting them up.
@@ -167,19 +169,14 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
     active * (0.18 - Math.min(0.10, Math.max(0, amount) * 0.55)));
   const minimumGlassH = useDerivedMotion2(lensH, heightBoost, (height, boost) => height * (1 + boost));
   const renderedLensH = useDerivedMotion2(expandedLensH, minimumGlassH, (height, minimum) => Math.max(height, minimum));
-  const { band, bulge } = useLiftedOptics(renderedLensW, renderedLensH, interaction);
+  const { band, bulge, magnify } = useLiftedOptics(renderedLensW, renderedLensH, interaction, LIFT_MAGNIFICATION);
   // 1 while the press stays put, easing to 0 once it drags.
   const still = useMotionValue(0);
-  const magnify = useTransform(() => 1 + (LIFT_MAGNIFICATION - 1) * Math.min(1, Math.max(0, interaction.get())));
   // The native lens barely lights where it is touched, and not at all once the press drags.
   const touchLight = useTransform(() => contact.contactStrength.get() * .3 * still.get());
   // In light mode the lifted lens casts a soft shadow below it, as iOS 27's does; on dark pages
-  // the native lens shows none.
-  const lightTheme = useMotionValue(dark ? 0 : 1);
-  useEffect(() => { lightTheme.set(dark ? 0 : 1); }, [dark, lightTheme]);
-  const liftShadow = useTransform(() => LIFT_SHADOW * Math.min(1, Math.max(0, interaction.get())) * lightTheme.get());
-  const liftShadowOffset = useTransform(() => renderedLensH.get() * LIFT_SHADOW_OFFSET);
-  const liftShadowBlur = useTransform(() => renderedLensH.get() * LIFT_SHADOW_BLUR);
+  // the native lens shows none. At rest the lens has dissolved, so it casts nothing there.
+  const liftShadow = useLiftedShadow(renderedLensH, interaction, dark, LENS_AT_REST);
   const stops = useRef<SpringRun[]>([]);
   const interactionStop = useRef<SpringRun | null>(null);
   const stillStop = useRef<SpringRun | null>(null);
@@ -468,7 +465,6 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
     stopDragCatchup();
     releaseInteraction(0, dragMoved.current);
   });
-  const lens = liftedLens(dark, { lensW: 50, lensH: 20, borderRadius: 16, depth: 2.5, domeDepth: 8 });
   // The bar never changes with the selection; skipping its re-render keeps it from redrawing,
   // and the lens, which refracts it, from recapturing.
   const container = useMemo(() => <GlassSurface className="dg-tabs__container" radius={999} />, []);
@@ -614,8 +610,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
           sharpInk
           refractionPixels={1}
           zoom={bulge}
-          material={{ refractionModel: "lens", lensMagnification: magnify, shadowStrength: liftShadow, shadowOffset: liftShadowOffset, shadowBlur: liftShadowBlur }}
-          lens={lens}
+          material={{ ...LIFTED_GLASS, domeDepth: 8, lensMagnification: magnify, shadowStrength: liftShadow.strength, shadowOffset: liftShadow.offset, shadowBlur: liftShadow.blur }}
           x={impactX}
           y={y}
           lensW={renderedLensW}

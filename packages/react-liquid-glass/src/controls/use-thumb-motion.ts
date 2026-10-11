@@ -3,29 +3,9 @@ import { springTo, useVelocityDeformation, type SpringRun } from "../apple-motio
 import type { PhysicalSpring } from "../apple-motion/index.js";
 import { THUMB_DEFORMATION } from "../apple-motion/presets.js";
 import { animate, useMotionValue, useTransform, type MotionValue, type ValueAnimationTransition } from "motion/react";
-import { LIQUID_LENS } from "../liquid-glass/LiquidGlass.js";
-import type { LiquidLens } from "../liquid-glass/lens.js";
 
-/** Thumb glass shared by Switch, Slider and Segmented: low dispersion, a fine rim, a theme-aware lift. */
-export const thumbLens = (dark: boolean, lens: LiquidLens): LiquidLens => ({
-  ...LIQUID_LENS, chromaAmount: .24, edgeWidth: .9, brightness: dark ? .035 : .015, ...lens,
-});
-
-/**
- * iOS 27's lifted lens, a pressed tab or thumb, calibrated against a native screenshot: clear
- * glass with no glow, tint or brightening and a thick rim: a fine dark contour, a white rim
- * line all the way round, and an outer slope that mirrors what lies inside it, gathering warm
- * and cool crescents at opposite ends.
- */
-// Its rim line rides on edge strength, so the lower SDR highlight an HDR display uses keeps it.
-export const liftedLens = (dark: boolean, lens: LiquidLens): LiquidLens => thumbLens(dark, {
-  chromaAmount: 1.5, blurAmount: .7, edgeWidth: 1.2, edgeStrength: .81, specularStrength: 1,
-  glowStrength: 0, brightness: 0, tint: 0, ...lens,
-});
 type Readable = { get(): number };
 const unit = (value: number) => Math.min(1, Math.max(0, value));
-/** The lifted lens draws with the lens refraction model. */
-export const LIFTED_MODEL = { refractionModel: "lens" } as const;
 /**
  * The lifted lens magnifies what lies under it for the whole press, held or dragged, as both
  * iOS 27 screenshots show, while its rim pulls in what surrounds it. It never shrinks back mid-drag.

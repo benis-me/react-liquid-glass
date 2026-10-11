@@ -6,7 +6,8 @@ import { createLiquidBackdrop } from "../liquid-glass/backdrop.js";
 import { useGlassTone } from "../liquid-glass/provider.js";
 import { useLiquidToneTracker } from "../liquid-glass/tone.js";
 import { MAX_BLOBS } from "../liquid-glass/render-frame.js";
-import { FusionTriggerContext, SURFACE_MATERIAL } from "./GlassSurface.js";
+import { glassEdgeDepth, liquidThickness } from "../liquid-glass/material.js";
+import { FusionTriggerContext } from "./GlassSurface.js";
 
 export interface GlassGroupProps extends HTMLAttributes<HTMLDivElement> {
   /**
@@ -45,8 +46,8 @@ export function GlassGroup({ spacing = 20, children, className = "", ...props }:
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [count, setCount] = useState(0);
   const shapes = useRef<Shape[]>([]);
-  // Optics follow the smallest member, like a standalone surface of that height.
-  const [smallest, setSmallest] = useState(42);
+  // The fused glass is as thick as its smallest member, so a toolbar's buttons stay control glass.
+  const [smallest, setSmallest] = useState({ width: 42, height: 42 });
   const publishTone = useLiquidToneTracker(root, useGlassTone());
 
   useLayoutEffect(() => {
@@ -61,7 +62,7 @@ export function GlassGroup({ spacing = 20, children, className = "", ...props }:
       let geometry = `${width}x${height}`;
       const children = [...list.children].filter(child => child.getClientRects().length).slice(0, MAX_BLOBS);
       while (shapes.current.length < children.length) shapes.current.push(createShape());
-      let smallest = Infinity;
+      let smallest = { width: Infinity, height: Infinity };
       children.forEach((child, index) => {
         const rect = child.getBoundingClientRect(), shape = shapes.current[index];
         geometry += `|${(rect.left - box.left).toFixed(2)},${(rect.top - box.top).toFixed(2)},${rect.width.toFixed(2)},${rect.height.toFixed(2)}`;
@@ -73,11 +74,14 @@ export function GlassGroup({ spacing = 20, children, className = "", ...props }:
         // Each shape refracts like a standalone surface of its own size.
         shape.refractionRatio[0] = (rect.width + 28) / (width + PAD * 2);
         shape.refractionRatio[1] = (rect.height + 28) / (height + PAD * 2);
-        smallest = Math.min(smallest, rect.height);
+        if (Math.min(rect.width, rect.height) < Math.min(smallest.width, smallest.height)) smallest = { width: rect.width, height: rect.height };
       });
       setCount(children.length);
       setSize(old => old.width === width && old.height === height ? old : { width, height });
-      if (Number.isFinite(smallest)) setSmallest(Math.round(smallest));
+      if (Number.isFinite(smallest.width)) {
+        const next = { width: Math.round(smallest.width), height: Math.round(smallest.height) };
+        setSmallest(old => old.width === next.width && old.height === next.height ? old : next);
+      }
       return geometry;
     };
     // Positions change without resizing during transitions: follow them per frame
@@ -126,12 +130,13 @@ export function GlassGroup({ spacing = 20, children, className = "", ...props }:
   }, [revision, publishTone]);
 
   const blobs = useMemo(() => shapes.current.slice(0, count), [count]);
+  const thickness = liquidThickness(smallest.width, smallest.height);
   return (
     <div {...props} ref={root} className={`dg-glass-group ${className}`}>
       {size.width > 0 && count > 0 && (
         <span className="dg-glass-group__optics" aria-hidden="true" style={{ inset: -PAD }}>
           <LiquidGlassCanvas
-            {...SURFACE_MATERIAL}
+            thickness={thickness}
             shared
             pixelRatio={2}
             sourceRef={source}
@@ -140,7 +145,7 @@ export function GlassGroup({ spacing = 20, children, className = "", ...props }:
             height={size.height + PAD * 2}
             blobs={blobs}
             mergeDistance={Math.max(0, spacing)}
-            edgeDepth={Math.min(12, smallest * .12)}
+            edgeDepth={glassEdgeDepth(Math.min(smallest.width, smallest.height), thickness)}
             transparentOutside
             style={{ width: "100%", height: "100%" }}
           />

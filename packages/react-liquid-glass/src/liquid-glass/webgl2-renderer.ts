@@ -44,7 +44,6 @@ uniform float uSpecular;
 uniform float uBlur;
 uniform float uDepth;
 uniform vec4 uDome[8];
-uniform float uDomeDepth;
 uniform float uBrightness;
 uniform float uSpecularRotation;
 uniform float uGlowStrength;
@@ -66,7 +65,6 @@ uniform bool uTransparentOutside;
 uniform bool uDebug;
 uniform vec4 uBounds[8];
 uniform vec2 uOutputSize;
-uniform bool uBevel;
 uniform bool uLens;
 uniform float uLensZoom;
 
@@ -169,13 +167,11 @@ vec2 blobNormal(vec2 local, int index) {
   return world / max(length(world), .0001);
 }
 
-// Where each colour channel reads the source. The dome keeps its calibrated red-outermost
-// fringe; the bevel model follows physical dispersion, where blue bends most.
+// Where each colour channel reads the source: the calibrated red-outermost fringe.
 struct Bend { vec2 r; vec2 g; vec2 b; };
 Bend bendOf(vec2 displacement) {
   vec2 outer = displacement * (1. + .2 * uChroma);
   vec2 middle = displacement * (1. + .1 * uChroma);
-  if (uBevel) return Bend(displacement, middle, outer);
   return Bend(outer, middle, displacement);
 }
 vec3 sampleChroma(sampler2D source, vec2 uv, Bend bend) {
@@ -278,8 +274,8 @@ void main() {
   float materialWeight = 0.;
   float blendRadius = max(uMergeDistance * .35, 1.);
   float contactLight = 0.;
-  vec2 bevelNormal = vec2(0.);
-  vec2 bevelRatio = vec2(0.);
+  vec2 rimNormal = vec2(0.);
+  vec2 rimRatio = vec2(0.);
   vec2 lensOffset = vec2(0.);
   vec2 lensAxis = vec2(0.);
   float lensShort = 0.;
@@ -310,17 +306,14 @@ void main() {
       contactLight += uContact[index].z * weight * (spread * (.16 + .5 * falloff) + crest * .26);
     }
     vec2 normalizedLocal = clamp(lensLocal / extent, vec2(-1.), vec2(1.));
-    vec2 gradient = normalizedLocal;
-    if (uDomeDepth > .001) {
-      vec4 dome = uDome[index];
-      vec2 capped = min(abs(lensLocal), dome.xy * .999);
-      vec2 denominator = sqrt(max(dome.xy * dome.xy - capped * capped, vec2(.001)));
-      gradient = sign(lensLocal) * capped / denominator * dome.zw;
-    }
-    glassGradient += gradient * uBlobRefractionRatio[index] * weight;
-    if (uBevel || uLens) {
-      bevelNormal += blobNormal(local, index) * weight;
-      bevelRatio += uBlobRefractionRatio[index] * weight;
+    // The spherical cap's slope, normalized so its mean displacement matches a linear ramp's.
+    vec4 dome = uDome[index];
+    vec2 capped = min(abs(lensLocal), dome.xy * .999);
+    vec2 denominator = sqrt(max(dome.xy * dome.xy - capped * capped, vec2(.001)));
+    glassGradient += sign(lensLocal) * capped / denominator * dome.zw * uBlobRefractionRatio[index] * weight;
+    if (uLens) {
+      rimNormal += blobNormal(local, index) * weight;
+      rimRatio += uBlobRefractionRatio[index] * weight;
       lensOffset += (point - uBlobs[index].xy - uContactOffset[index]) * weight;
       lensAxis += (uHalfSize[index].x >= uHalfSize[index].y ? vec2(0., 1.) : vec2(1., 0.)) * weight;
       lensShort += min(uHalfSize[index].x, uHalfSize[index].y) * weight;
@@ -342,7 +335,7 @@ void main() {
     // its rim band (the edge depth) bulges outward, pulling in what surrounds the glass,
     // before meeting the surface flush at the rim.
     float band = clamp(1. - inside / max(uDepth, .001), 0., 1.);
-    lensNormal = bevelNormal / max(length(bevelNormal), .0001);
+    lensNormal = rimNormal / max(length(rimNormal), .0001);
     // The magnification fades as the square root of the band, and the bulge,
     // (sqrt(band) * (1 - band))^1.5, peaks at 1 a third of the way out, so the middle
     // stays magnified close to the band before the rim pulls in its surroundings.
@@ -360,7 +353,7 @@ void main() {
     // the rim than 0.22 of the lens's half-height, so what lies beyond it stays out.
     longSide = smoothstep(.3, .9, abs(dot(lensNormal, lensAxis / max(length(lensAxis), .0001))));
     float squeeze = 1.5 * clamp(1. - inside / max(2. * uDepth, .001), 0., 1.);
-    displacement = -lensNormal * mix(squeeze, swell * sqrt(swell) * 4.1877, longSide) * (bevelRatio / max(materialWeight, .001)) * (uRefraction * .5);
+    displacement = -lensNormal * mix(squeeze, swell * sqrt(swell) * 4.1877, longSide) * (rimRatio / max(materialWeight, .001)) * (uRefraction * .5);
     // The magnification centres on the lens's middle, so it pushed what the ends' band shows
     // further out than the sides', by how much further the ends lie: across the ends' band it
     // centres on the end's own round instead, and the ends' gap matches the sides'.
@@ -370,14 +363,6 @@ void main() {
     lensZoom = (fromMiddle - lensNormal * excess) / uSourceSize * (1. - 1. / max(uLensZoom, 1.)) * (1. - rise) * coverage;
     // Only the outer band scatters; the refracted edge and magnified middle stay clear.
     frost *= smoothstep(.45, .9, band);
-  } else if (uBevel) {
-    // Opt-in bevel: a flat slab whose quarter-circle rim (twice the edge depth)
-    // refracts by Snell's law at n = 1.5. The top stays clear; the rim lenses inward.
-    float rise = 1. - clamp(inside / max(uDepth * 2., 1.), 0., 1.);
-    float tilt = atan(rise / max(sqrt(1. - rise * rise), .05));
-    float deviation = tilt - asin(sin(tilt) / 1.5);
-    vec2 normal = bevelNormal / max(length(bevelNormal), .0001);
-    displacement = normal * (tan(deviation) * 2.5) * (bevelRatio / max(materialWeight, .001)) * (uRefraction * .5);
   }
   displacement *= coverage * uZoom * uRefractionRatio;
   Bend bend = bendOf(displacement);
@@ -394,7 +379,7 @@ void main() {
     float blueReach = (.02 + .6 * diagonal) * uChroma;
     float rimDepth = inside / max(.22 * uDepth, .001);
     // The mirror keeps to the long sides; at the ends the squeeze would fold back on it.
-    vec2 mirror = lensNormal * (.45 * uRefraction * longSide) * (bevelRatio / max(materialWeight, .001)) * coverage * uZoom * uRefractionRatio;
+    vec2 mirror = lensNormal * (.45 * uRefraction * longSide) * (rimRatio / max(materialWeight, .001)) * coverage * uZoom * uRefractionRatio;
     bend = Bend(
       lensZoom + displacement * (1. + spread) + mirror * max(1. + redReach - rimDepth, 0.),
       lensZoom + displacement + mirror * max(1. - rimDepth, 0.),
@@ -554,16 +539,16 @@ const uniformNames = [
   "uSourceSize", "uBlobs[0]", "uHalfSize[0]", "uCornerRadius[0]", "uVelocity[0]",
   "uContact[0]", "uContactInverse[0]", "uContactOffset[0]", "uEmissionOnly",
   "uDome[0]", "uBlobRefractionRatio[0]", "uBlobCount", "uMergeDistance", "uRefraction", "uRefractionRatio",
-  "uChroma", "uSpecular", "uBlur", "uDepth", "uDomeDepth", "uBrightness",
+  "uChroma", "uSpecular", "uBlur", "uDepth", "uBrightness",
   "uSpecularRotation", "uGlowStrength", "uGlowSpread", "uGlowExponent",
   "uEdgeStrength", "uEdgeWidth", "uEdgeExponent", "uTintColor", "uTint", "uZoom",
   "uShadow", "uShadowOffset", "uShadowBlur", "uOpacity", "uTransparentOutside", "uDebug",
-  "uBounds[0]", "uOutputSize", "uBevel", "uLens", "uLensZoom",
+  "uBounds[0]", "uOutputSize", "uLens", "uLensZoom",
 ] as const;
 const scalarUniforms = {
   mergeDistance: "uMergeDistance", refractionStrength: "uRefraction",
   chromaAmount: "uChroma", specularStrength: "uSpecular", blurStrength: "uBlur",
-  edgeDepth: "uDepth", domeDepth: "uDomeDepth", brightness: "uBrightness",
+  edgeDepth: "uDepth", brightness: "uBrightness",
   specularRotation: "uSpecularRotation", glowStrength: "uGlowStrength",
   glowSpread: "uGlowSpread", glowExponent: "uGlowExponent", edgeStrength: "uEdgeStrength",
   edgeWidth: "uEdgeWidth", edgeExponent: "uEdgeExponent", tintStrength: "uTint",
@@ -860,7 +845,6 @@ export function createWebGL2GlassRenderer(
     gl.uniform1i(u.uContentSource, p.contentSpace === "source" ? 1 : 0);
     gl.uniform1i(u.uTransparentOutside, p.transparentOutside ? 1 : 0);
     gl.uniform1i(u.uDebug, p.debug ? 1 : 0);
-    gl.uniform1i(u.uBevel, p.refractionModel === "bevel" ? 1 : 0);
     gl.uniform1i(u.uLens, p.refractionModel === "lens" ? 1 : 0);
     if (clipped) {
       const x0 = Math.max(0, Math.min(width, Math.floor(left * width / p.width))), y0 = Math.max(0, Math.min(height, Math.floor(top * height / p.height)));
@@ -879,7 +863,7 @@ export function createWebGL2GlassRenderer(
         const record = (value: number) => { if (!Object.is(highlightState[index], value)) changed = true; highlightState[index++] = value; };
         for (const values of [blobs, sizes, corners, velocities, contacts, contactInverses, contactOffsets, domes, refractionRatios]) for (const value of values) record(value);
         for (const key of scalarKeys) record(readMotion(p[key] ?? LIQUID_GLASS_MATERIAL[key]));
-        for (const value of [width, height, p.width, p.height, count, ...refraction, readMotion(p.contentOpacity ?? 0), readMotion(p.contentRefraction ?? 0), readMotion(p.contentBlur ?? 0), Number(p.contentSpace === "source"), p.refractionModel === "lens" ? 2 : Number(p.refractionModel === "bevel")]) record(value);
+        for (const value of [width, height, p.width, p.height, count, ...refraction, readMotion(p.contentOpacity ?? 0), readMotion(p.contentRefraction ?? 0), readMotion(p.contentBlur ?? 0), Number(p.contentSpace === "source"), Number(p.refractionModel === "lens")]) record(value);
         if (changed) {
           gl.uniform1i(u.uEmissionOnly, 1); gl.drawArrays(gl.TRIANGLES, 0, 6);
           presentHighlightHDR(device.canvas, { x: 0, y: sourceTop, width, height }); stats.emissionDraws++;

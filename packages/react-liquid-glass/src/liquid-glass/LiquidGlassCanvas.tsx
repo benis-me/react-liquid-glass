@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, type CSSProperties, type RefObject } fr
 import { cancelFrame, frame } from "motion";
 import { isMotionValue, readMotion, type MotionInput } from "../shared/values.js";
 import { createLiquidGlassRenderer, type GlassRendererBackend, type LiquidGlassFrame, type LiquidGlassSource } from "./renderer.js";
-import { resolveGlassMaterial, useGlassMaterialOverrides } from "./provider.js";
+import { resolveGlassMaterial, useGlassMaterial } from "./provider.js";
+import { glassEdgeDepth, glassMaterial, liquidThickness, useHostDark, type GlassVariant } from "./material.js";
 import { useRendererBackend } from "./use-renderer-backend.js";
 import { readLiquidLightAngle, subscribeLiquidLight, useReducedMotionPreference, type LiquidLightSource } from "./light.js";
 
@@ -15,8 +16,15 @@ export interface LiquidGlassCanvasProps extends Omit<LiquidGlassFrame, "source" 
   /** Share a context for many small surfaces; direct media rendering avoids copies. */
   shared?: boolean;
   backend?: GlassRendererBackend;
-  /** Interaction adapters resolve the provider before composing their live state. */
+  /** `false` ignores the provider's material; the glass keeps only its own values. */
   inheritMaterial?: boolean;
+  /** `regular` (default) is frosted UI glass; `clear` keeps media beneath it vivid, without frost or tint. */
+  variant?: GlassVariant;
+  /**
+   * How thick the glass reads, from 0 (a control) to 1 (a panel). Values the glass does not set
+   * come from this thickness. Default: from the first body's live size (see liquidThickness).
+   */
+  thickness?: MotionInput;
   /** Enable extended highlights on supported HDR displays. Default: true. */
   hdr?: boolean;
   /**
@@ -32,12 +40,15 @@ export interface LiquidGlassCanvasProps extends Omit<LiquidGlassFrame, "source" 
 }
 
 export function LiquidGlassCanvas(props: LiquidGlassCanvasProps) {
-  const overrides = useGlassMaterialOverrides(props.hdr);
+  const overrides = useGlassMaterial(props.hdr);
+  const dark = useHostDark();
   const { requested, backend, fallback, onFallback } = useRendererBackend(props.backend);
   props = props.inheritMaterial === false ? props : { ...resolveGlassMaterial(props, overrides), hdr: props.hdr ?? overrides.hdr };
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const config = useRef(props);
   config.current = props;
+  const darkRef = useRef(dark);
+  darkRef.current = dark;
   const drawRef = useRef<() => void>(() => undefined);
   const lightAngle = useRef<number | undefined>(undefined);
   const drawFrame = useCallback(() => drawRef.current(), []);
@@ -58,8 +69,15 @@ export function LiquidGlassCanvas(props: LiquidGlassCanvasProps) {
       // rendered, such as into a popover before it opens; observe it afresh.
       if (unrendered && !document.hidden) { unrendered = false; observer.unobserve(canvas); observer.observe(canvas); }
       if (!visible || document.hidden || !source) return;
+      // One material for every glass: what this glass does not set follows its live thickness.
+      const body = p.blobs[0];
+      const halfWidth = body ? Math.max(0, readMotion(body.halfWidth ?? body.radius)) : 0;
+      const halfHeight = body ? Math.max(0, readMotion(body.halfHeight ?? body.radius)) : 0;
+      const thickness = p.thickness === undefined ? liquidThickness(halfWidth * 2, halfHeight * 2) : readMotion(p.thickness);
+      const values: Record<string, unknown> = { ...glassMaterial(thickness, { variant: p.variant, dark: darkRef.current }), edgeDepth: glassEdgeDepth(Math.min(halfWidth, halfHeight) * 2, thickness, p.variant) };
+      for (const [key, value] of Object.entries(p)) if (value !== undefined) values[key] = value;
       renderer.draw({
-        ...p, source, content: p.contentRef?.current,
+        ...(values as unknown as typeof p), source, content: p.contentRef?.current,
         specularRotation: lightAngle.current ?? p.specularRotation,
         sourceRevision: readMotion(p.sourceRevision ?? 0),
         contentRevision: readMotion(p.contentRevision ?? 0),

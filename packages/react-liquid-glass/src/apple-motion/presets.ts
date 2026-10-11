@@ -62,5 +62,3 @@ export const SPOTLIGHT_DRIFT_SPEED = 90;
 /** Ambient drift eases to rest after this long without page activity, and resumes on activity. */
 export const SPOTLIGHT_IDLE_MS = 30_000;
 
-export const ACTION_PRESS_SPRING = { mass: 1, stiffness: 280, damping: 22 };
-export const ACTION_RELEASE_SPRING = { mass: 1, stiffness: 210, damping: 20 };

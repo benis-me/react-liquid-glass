@@ -415,7 +415,7 @@ html:is([data-theme="dark"], :where(.dark:not([data-theme]))) .dg-tabs__item:not
 .dg-surface { position: relative; display: block; isolation: isolate; min-width: 0; }
 .dg-surface__optics { position: absolute; inset: -14px; pointer-events: none; z-index: -1; }
 .dg-surface__content { border-radius: inherit; position: relative; display: block; min-width: 0; }
-.dg-button, .dg-action__button { touch-action: none; }
+.dg-button { touch-action: none; }
 .dg-button { appearance: none; display: inline-block; color: inherit; font: inherit; font-size: 13px; font-weight: 650; line-height: 1; background: transparent; border: 0; padding: 0; cursor: pointer; border-radius: 16px; vertical-align: middle; -webkit-tap-highlight-color: transparent; }
 .dg-button > .dg-surface > .dg-surface__content { min-height: 42px; padding: 0 18px; display: flex; align-items: center; justify-content: center; gap: 8px; }
 .dg-button[data-size="small"] > .dg-surface > .dg-surface__content { min-height: 34px; padding: 0 12px; font-size: 12px; }
@@ -518,47 +518,6 @@ html:is([data-theme="dark"], :where(.dark:not([data-theme]))) .dg-tabs__item:not
   .dg-progress__fill, .dg-check, .dg-radio-dot, .dg-tabs__solid-thumb, .dg-tabs__item { transition: none; }
 }
 
-
-
-.dg-action { flex: 1; min-height: 320px; position: relative; }
-
-.dg-action__glass { height: 100%; }
-.dg-action__surface {
-  width: 100%;
-  height: 100%;
-  min-height: 320px;
-  overflow: hidden;
-}
-.dg-action__button {
-  z-index: 3;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 176px;
-  height: 52px;
-  padding: 0 22px;
-  color: var(--text, CanvasText);
-  background: transparent;
-  border: 0;
-  border-radius: 999px;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 650;
-  line-height: 1;
-  white-space: nowrap;
-  user-select: none;
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-}
-.dg-action__button svg { display: block; flex: none; }
-.dg-action__button span { display: block; line-height: 1; }
-.dg-action__button:active { transform: translate(-50%, -50%) scale(.98); }
-
-.dg-action { width: 100%; --dg-action-tint: light-dark(#fff, #4a4a46); }
-.dg-action__button:disabled { opacity: .4; cursor: not-allowed; }
-html:is([data-theme="dark"], :where(.dark:not([data-theme]))) .dg-action { --action-glass-tint: #4a4a46; }
 
 /* Scrollbars overlay the viewport; they never reserve a native scrollbar gutter. */
 .dg-scroll-area { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }

@@ -118,7 +118,8 @@ export function Home({ locale, theme }: PageProps) {
           backgroundImage={PHOTO}
           backgroundSrcSet={PHOTO_SRCSET}
           backgroundSizes={PHOTO_SIZES}
-          lens={{ lensW: 118, lensH: 118, borderRadius: 118, chromaAmount: 0.24 }}
+          lens={{ lensW: 118, lensH: 118, borderRadius: 118 }}
+          material={{ chromaAmount: 0.24 }}
         />
       </div>
 

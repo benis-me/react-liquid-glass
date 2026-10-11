@@ -11,7 +11,7 @@ import {
 } from "react";
 import { motionValue } from "../shared/values.js";
 import type { LiquidLens } from "../liquid-glass/lens.js";
-import { LiquidGlass } from "../liquid-glass/LiquidGlass.js";
+import { LiquidGlass, type LiquidGlassProps } from "../liquid-glass/LiquidGlass.js";
 
 export interface GlassSpotlightProps {
   variant?: "primary" | "secondary";
@@ -20,7 +20,10 @@ export interface GlassSpotlightProps {
   /** Responsive candidates for the background image, as for `<img srcset>`. */
   backgroundSrcSet?: string;
   backgroundSizes?: string;
+  /** The lens's resting half-extents and corner radius in CSS pixels. Default 80. */
   lens?: LiquidLens;
+  /** The lens's own material values; the provider's and the glass's thickness fill the rest. */
+  material?: LiquidGlassProps["material"];
 }
 
 const clamp = (value: number, low: number, high: number) => Math.max(low, Math.min(high, value));
@@ -43,14 +46,14 @@ export function GlassSpotlight({
   backgroundSrcSet,
   backgroundSizes,
   lens: lensOverrides,
+  material,
 }: GlassSpotlightProps) {
   // A missing or blocked image falls back to the plain frame instead of a broken image.
   const [imageFailed, setImageFailed] = useState(false);
   useEffect(() => setImageFailed(false), [backgroundImage, backgroundSrcSet]);
   const scale = useMobileScale();
   const reduce = useReducedMotion();
-  // Only calibrated values are passed on; LiquidGlass fills the shared defaults.
-  const sourceLens = { lensW: 80, lensH: 80, borderRadius: 80, tint: 0, ...lensOverrides };
+  const sourceLens = { lensW: 80, lensH: 80, borderRadius: 80, ...lensOverrides };
   const targetW = sourceLens.lensW * scale;
   const targetH = sourceLens.lensH * scale;
   const targetRadius = sourceLens.borderRadius * scale;
@@ -214,13 +217,6 @@ export function GlassSpotlight({
     else wakeDrift.current();
   }, [interactive, reduce, x, y, lensW, lensH]);
 
-  const lens: LiquidLens = {
-    ...sourceLens,
-    lensW: targetW,
-    lensH: targetH,
-    borderRadius: targetRadius,
-    ...(sourceLens.domeDepth === undefined ? {} : { domeDepth: (sourceLens.domeDepth / Math.max(1, sourceLens.lensW)) * Math.min(targetW, targetH) }),
-  };
 
   return (
     <div
@@ -253,8 +249,10 @@ export function GlassSpotlight({
         }, 400);
       } : undefined}
     >
+      {/* A magnifier over a photograph: clear glass, which keeps the photograph vivid. */}
       <LiquidGlass
-        lens={lens}
+        variant="clear"
+        material={material}
         lensW={lensW}
         lensH={lensH}
         borderRadius={radius}

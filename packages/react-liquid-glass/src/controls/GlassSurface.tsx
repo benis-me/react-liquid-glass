@@ -20,19 +20,12 @@ import { contactTransform } from "../apple-motion/contact.js";
 import { SURFACE_PRESS_SPRING } from "../apple-motion/presets.js";
 import { LiquidGlassCanvas } from "../liquid-glass/LiquidGlassCanvas.js";
 import { createLiquidBackdrop } from "../liquid-glass/backdrop.js";
-import { PRISM_MATERIAL, useGlassTone } from "../liquid-glass/provider.js";
+import { useGlassTone } from "../liquid-glass/provider.js";
 import { useLiquidToneTracker } from "../liquid-glass/tone.js";
 import { liquidScreenScale, paintLiquidGrid } from "../liquid-glass/source.js";
+import { glassValue, liquidSurfaceBlur, liquidThickness } from "../liquid-glass/material.js";
 
 export type GlassBackground = "grid" | "lines" | "plain";
-// Compact controls need less broad shading than the original, deep menu lens. They keep
-// the shared default dispersion and dome depth rather than the prism preset's.
-const { chromaAmount: _prismChroma, ...PRISM_SURFACE } = PRISM_MATERIAL;
-export const SURFACE_MATERIAL = {
-  ...PRISM_SURFACE,
-  glowStrength: .1, glowSpread: .6, edgeStrength: .26, edgeWidth: 1.2,
-  shadowStrength: .055, shadowBlur: 14, shadowOffset: 4,
-} as const;
 export const StageContext = createContext(false);
 
 /** Visible demo substrate; all glass reads it through the shared DOM backdrop. */
@@ -106,7 +99,10 @@ export interface GlassSurfaceProps {
   className?: string;
   style?: CSSProperties;
   radius?: number;
-  /** Frost strength in CSS pixels, for larger surfaces such as inspectors. */
+  /**
+   * Frost, in CSS pixels, at a panel's thickness; smaller surfaces scale it down with their
+   * size, as all glass does. Default 12. Inspectors use more.
+   */
   blurStrength?: number;
   pressed?: boolean;
   /** Contact light and elastic pull; use "light" to keep application-owned dragging. */
@@ -156,13 +152,19 @@ function OpticalSurface({
     const run = springTo(scale, pressed ? 1.025 : 1, SURFACE_PRESS_SPRING);
     return () => run.stop();
   }, [pressed, reduce, scale]);
+  // The canvas reaches as far as the visible shadow of glass this thick: 40px for a control.
+  const pad = (width: number, height: number) => {
+    const thickness = liquidThickness(width, height);
+    return Math.max(40, Math.ceil(glassValue("shadowBlur", thickness) * 2.5 + glassValue("shadowOffset", thickness)));
+  };
   useLayoutEffect(() => {
     const element = root.current;
     if (!element) return;
     const backdrop = createLiquidBackdrop(element, () => {
       // On screen, so a surface under a scaled ancestor still samples what lies behind it.
       const rect = element.getBoundingClientRect(), scale = liquidScreenScale(element, rect);
-      return { left: rect.left - 40 * scale.x, top: rect.top - 40 * scale.y, width: (element.offsetWidth + 80) * scale.x, height: (element.offsetHeight + 80) * scale.y };
+      const reach = pad(element.offsetWidth, element.offsetHeight);
+      return { left: rect.left - reach * scale.x, top: rect.top - reach * scale.y, width: (element.offsetWidth + reach * 2) * scale.x, height: (element.offsetHeight + reach * 2) * scale.y };
     }, canvas => {
       const width = element.offsetWidth,
         height = element.offsetHeight;
@@ -174,10 +176,12 @@ function OpticalSurface({
       heightValue.set(height);
       source.current = canvas;
       revision.set(revision.get() + 1);
-      publishTone(canvas, { left: 40 / (width + 80), top: 40 / (height + 80), width: width / (width + 80), height: height / (height + 80) });
+      const reach = pad(width, height);
+      publishTone(canvas, { left: reach / (width + reach * 2), top: reach / (height + reach * 2), width: width / (width + reach * 2), height: height / (height + reach * 2) });
     });
     return () => backdrop.dispose();
   }, [revision, widthValue, heightValue, publishTone]);
+  const reach = pad(size.width, size.height);
   return (
     <span
       ref={root}
@@ -185,16 +189,15 @@ function OpticalSurface({
       style={{ ...style, borderRadius: radius }}
     >
       {size.width > 0 && (
-        <span className="dg-surface__optics" aria-hidden="true" style={{ inset: -40 }}>
+        <span className="dg-surface__optics" aria-hidden="true" style={{ inset: -reach }}>
           <LiquidGlassCanvas
-            {...SURFACE_MATERIAL}
-            blurStrength={blurStrength ?? SURFACE_MATERIAL.blurStrength}
+            blurStrength={blurStrength === undefined ? undefined : liquidSurfaceBlur(size.width, size.height) * blurStrength / 12}
             shared
             pixelRatio={2}
             sourceRef={source}
             sourceRevision={revision}
-            width={size.width + 80}
-            height={size.height + 80}
+            width={size.width + reach * 2}
+            height={size.height + reach * 2}
             blobs={[
               {
                 x: 0.5,
@@ -206,8 +209,7 @@ function OpticalSurface({
                 ...contact,
               },
             ]}
-            edgeDepth={Math.min(12, size.height * 0.12)}
-            refractionRatio={[(size.width + 28) / (size.width + 80), (size.height + 28) / (size.height + 80)]}
+            refractionRatio={[(size.width + 28) / (size.width + reach * 2), (size.height + 28) / (size.height + reach * 2)]}
             transparentOutside
             style={{ width: "100%", height: "100%" }}
           />

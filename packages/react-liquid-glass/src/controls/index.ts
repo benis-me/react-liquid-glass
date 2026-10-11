@@ -9,7 +9,6 @@ export type { GlassSegmentItem } from "./GlassSegmented.js";
 export { GlassSpotlight, type GlassSpotlightProps } from "./GlassSpotlight.js";
 export { GlassVideo, type GlassVideoProps } from "./GlassVideo.js";
 
-export { GlassActionButton } from "./GlassActionButton.js";
 export { GlassButtonGroup, type GlassButtonGroupProps } from "./GlassButtonGroup.js";
 export { GlassGroup, type GlassGroupProps } from "./GlassGroup.js";
 export { ScrollArea, type ScrollAreaProps } from "./ScrollArea.js";

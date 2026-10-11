@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type InputHTMLAttributes } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type InputHTMLAttributes } from "react";
 import { animate, motion, useMotionValue, useReducedMotion, useTransform } from "motion/react";
 import { LiquidGlass } from "../liquid-glass/LiquidGlass.js";
-import { liquidTheme, liquidTrackSource, subscribeLiquidTheme } from "../liquid-glass/source.js";
+import { liquidTrackSource } from "../liquid-glass/source.js";
 import { usePointerReleaseFallback, useGlassContact, rubberBand } from "../apple-motion/react.js";
 import { SWITCH_FLICK_PROJECTION, SWITCH_RELEASE_SPRING } from "../apple-motion/presets.js";
-import { LIFTED_MODEL, LIFT_MAGNIFICATION, liftedLens, settleThumb, useLiftedOptics, useLiftedShadow, useThumbMotion } from "./use-thumb-motion.js";
+import { LIFT_MAGNIFICATION, settleThumb, useLiftedOptics, useLiftedShadow, useThumbMotion } from "./use-thumb-motion.js";
+import { LIFTED_GLASS, useHostDark } from "../liquid-glass/material.js";
 import { createVelocityTracker } from "../apple-motion/velocity.js";
 
 /** Native input attributes (id, aria-*, required, form, onBlur…) pass through to the switch's checkbox. */
@@ -39,8 +40,8 @@ export function GlassSwitch({
   const [local, setLocal] = useState(defaultChecked);
   const current = checked ?? local;
   const currentRef = useRef(current); currentRef.current = current;
-  // The thumb brightens slightly on dark pages; follow theme changes, not just the first render.
-  const dark = useSyncExternalStore(subscribeLiquidTheme, liquidTheme, () => "light").startsWith("dark");
+  // Held, the thumb casts a shadow on light pages only; follow theme changes, not just the first render.
+  const dark = useHostDark();
   const compact = size === "small";
   const width = compact ? 52 : 74;
   const height = compact ? 20 : 28;
@@ -153,8 +154,6 @@ export function GlassSwitch({
     trackHeight: refractedTrackHeight, travel, offset,
     scaleX: targetScaleX, scaleY: targetScaleY,
   }), [width, height, padding, refractedTrackHeight, thumbWidth, travel, offset, targetScaleX, targetScaleY]);
-  // Keep a thin refracting band and shallow cap at both thumb sizes.
-  const lens = liftedLens(dark, { depth: thumbHeight / 11, domeDepth: thumbHeight * (6 / 22) });
 
   return (
     <label ref={rootRef} data-size={size} className={["dg-switch", className].filter(Boolean).join(" ")} style={{ ...style, width, height, "--dg-switch-progress": current ? 1 : 0 } as React.CSSProperties}>
@@ -182,8 +181,8 @@ export function GlassSwitch({
         refractionPixels={1}
         zoom={bulge}
         depth={band}
-        material={{ ...LIFTED_MODEL, lensMagnification: magnify, shadowStrength: liftShadow.strength, shadowOffset: liftShadow.offset, shadowBlur: liftShadow.blur }}
-        lens={lens}
+        // A shallow cap at both thumb sizes.
+        material={{ ...LIFTED_GLASS, domeDepth: thumbHeight * (6 / 22), lensMagnification: magnify, shadowStrength: liftShadow.strength, shadowOffset: liftShadow.offset, shadowBlur: liftShadow.blur }}
         x={x}
         y={0.5}
         lensW={lensW}

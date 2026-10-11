@@ -1,10 +1,11 @@
 import { SLIDER_CLICK_SPRING } from "../apple-motion/presets.js";
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type InputHTMLAttributes } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type InputHTMLAttributes } from "react";
 import { animate, motion, useMotionValue, useReducedMotion, useTransform } from "motion/react";
 import { LiquidGlass } from "../liquid-glass/LiquidGlass.js";
-import { liquidTheme, liquidTrackSource, subscribeLiquidTheme } from "../liquid-glass/source.js";
+import { liquidTrackSource } from "../liquid-glass/source.js";
 import { usePointerReleaseFallback, useGlassContact, rubberBand, type SpringRun } from "../apple-motion/react.js";
-import { LIFTED_MODEL, LIFT_END_PINCH, LIFT_MAGNIFICATION, liftedLens, settleThumb, useLiftedOptics, useLiftedShadow, useThumbMotion } from "./use-thumb-motion.js";
+import { LIFT_END_PINCH, LIFT_MAGNIFICATION, settleThumb, useLiftedOptics, useLiftedShadow, useThumbMotion } from "./use-thumb-motion.js";
+import { LIFTED_GLASS, useHostDark } from "../liquid-glass/material.js";
 
 /** Native input attributes (id, aria-*, required, form, onBlur…) pass through to the slider's range input. */
 type NativeSliderProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "min" | "max" | "step" | "value" | "defaultValue" | "disabled" | "name" | "onChange" | "size" | "children" | "className" | "style">;
@@ -43,8 +44,8 @@ export function GlassSlider({
   const [local, setLocal] = useState(defaultValue);
   const controlled = value !== undefined;
   const current = controlled ? value : local;
-  // The thumb brightens slightly on dark pages; follow theme changes, not just the first render.
-  const dark = useSyncExternalStore(subscribeLiquidTheme, liquidTheme, () => "light").startsWith("dark");
+  // Held, the thumb casts a shadow on light pages only; follow theme changes, not just the first render.
+  const dark = useHostDark();
   // Within one gesture, report each snapped value once rather than once per pointer
   // event. Each gesture starts from the owner's value, so a rejected value can be
   // requested again.
@@ -147,7 +148,6 @@ export function GlassSlider({
     trackHeight: refractedTrackHeight, travel, offset,
     scaleX: targetScaleX, scaleY: targetScaleY,
   }), [width, thumbHeight, padding, refractedTrackHeight, thumbWidth, travel, offset, targetScaleX, targetScaleY]);
-  const lens = liftedLens(dark, { depth: thumbHeight / 11, domeDepth: thumbHeight * (5 / 22) });
 
   return (
     <div ref={wrapperRef} data-size={size} className={["dg-slider", className].filter(Boolean).join(" ")} style={{ ...style, width, height: thumbHeight, "--dg-slider-fill": `${thumbWidth / 2 + toOffset(current)}px`, "--dg-slider-progress": toOffset(current) / travel } as React.CSSProperties}>
@@ -159,8 +159,8 @@ export function GlassSlider({
         refractionPixels={1}
         zoom={bulge}
         depth={band}
-        material={{ ...LIFTED_MODEL, lensMagnification: magnify, shadowStrength: liftShadow.strength, shadowOffset: liftShadow.offset, shadowBlur: liftShadow.blur }}
-        lens={lens}
+        // A shallow cap at both thumb sizes.
+        material={{ ...LIFTED_GLASS, domeDepth: thumbHeight * (5 / 22), lensMagnification: magnify, shadowStrength: liftShadow.strength, shadowOffset: liftShadow.offset, shadowBlur: liftShadow.blur }}
         x={x}
         y={0.5}
         lensW={lensW}

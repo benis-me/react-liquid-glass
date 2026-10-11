@@ -104,13 +104,11 @@ fn blobNormal(local: vec2f, index: u32) -> vec2f {
   let world = transpose(mat2x2f(b.inverse.xy, b.inverse.zw)) * deformed;
   return world / max(length(world), 0.0001);
 }
-// Where each colour channel reads the source. The dome keeps its calibrated red-outermost
-// fringe; the bevel model follows physical dispersion, where blue bends most.
+// Where each colour channel reads the source: the calibrated red-outermost fringe.
 struct Bend { r: vec2f, g: vec2f, b: vec2f }
 fn bendOf(displacement: vec2f) -> Bend {
   let outer = displacement * (1.0 + 0.2 * p.refraction.z);
   let middle = displacement * (1.0 + 0.1 * p.refraction.z);
-  if (p.flags.w > 0.5) { return Bend(displacement, middle, outer); }
   return Bend(outer, middle, displacement);
 }
 fn sampleChroma(uv: vec2f, bend: Bend) -> vec3f {
@@ -203,8 +201,8 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
   var materialWeight = 0.0;
   let blendRadius = max(p.refraction.x * 0.35, 1.0);
   var contactLight = 0.0;
-  var bevelNormal = vec2f(0.0);
-  var bevelRatio = vec2f(0.0);
+  var rimNormal = vec2f(0.0);
+  var rimRatio = vec2f(0.0);
   var lensOffset = vec2f(0.0);
   var lensAxis = vec2f(0.0);
   var lensShort = 0.0;
@@ -228,16 +226,13 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
       contactLight += b.contact.z * weight * (spread * (0.16 + 0.5 * falloff) + crest * 0.26);
     }
     let normalizedLocal = clamp(lensLocal / extent, vec2f(-1.0), vec2f(1.0));
-    var gradient = normalizedLocal;
-    if (p.frost.z > 0.001) {
-      let capped = min(abs(lensLocal), b.dome.xy * 0.999);
-      let denominator = sqrt(max(b.dome.xy * b.dome.xy - capped * capped, vec2f(0.001)));
-      gradient = sign(lensLocal) * capped / denominator * b.dome.zw;
-    }
-    glassGradient += gradient * b.ratio.xy * weight;
+    // The spherical cap's slope, normalized so its mean displacement matches a linear ramp's.
+    let capped = min(abs(lensLocal), b.dome.xy * 0.999);
+    let denominator = sqrt(max(b.dome.xy * b.dome.xy - capped * capped, vec2f(0.001)));
+    glassGradient += sign(lensLocal) * capped / denominator * b.dome.zw * b.ratio.xy * weight;
     if (p.flags.w > 0.5) {
-      bevelNormal += blobNormal(local, index) * weight;
-      bevelRatio += b.ratio.xy * weight;
+      rimNormal += blobNormal(local, index) * weight;
+      rimRatio += b.ratio.xy * weight;
       lensOffset += (point - b.shape.xy - b.offset.xy) * weight;
       lensAxis += select(vec2f(1.0, 0.0), vec2f(0.0, 1.0), b.sizeVelocity.x >= b.sizeVelocity.y) * weight;
       lensShort += min(b.sizeVelocity.x, b.sizeVelocity.y) * weight;
@@ -249,7 +244,7 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
   materialUv /= max(materialWeight, 0.001);
   contactLight /= max(materialWeight, 0.001);
   var displacement = glassGradient * (p.refraction.y * 0.5 * falloff);
-  let lens = p.flags.w > 1.5;
+  let lens = p.flags.w > 0.5;
   var lensZoom = vec2f(0.0);
   var lensNormal = vec2f(0.0);
   var longSide = 0.0;
@@ -259,7 +254,7 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
     // its rim band (the edge depth) bulges outward, pulling in what surrounds the glass,
     // before meeting the surface flush at the rim.
     let band = clamp(1.0 - inside / max(p.frost.y, 0.001), 0.0, 1.0);
-    lensNormal = bevelNormal / max(length(bevelNormal), 0.0001);
+    lensNormal = rimNormal / max(length(rimNormal), 0.0001);
     // The magnification fades as the square root of the band, and the bulge,
     // (sqrt(band) * (1 - band))^1.5, peaks at 1 a third of the way out, so the middle
     // stays magnified close to the band before the rim pulls in its surroundings.
@@ -277,7 +272,7 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
     // the rim than 0.22 of the lens's half-height, so what lies beyond it stays out.
     longSide = smoothstep(0.3, 0.9, abs(dot(lensNormal, lensAxis / max(length(lensAxis), 0.0001))));
     let squeeze = 1.5 * clamp(1.0 - inside / max(2.0 * p.frost.y, 0.001), 0.0, 1.0);
-    displacement = -lensNormal * mix(squeeze, swell * sqrt(swell) * 4.1877, longSide) * (bevelRatio / max(materialWeight, 0.001)) * (p.refraction.y * 0.5);
+    displacement = -lensNormal * mix(squeeze, swell * sqrt(swell) * 4.1877, longSide) * (rimRatio / max(materialWeight, 0.001)) * (p.refraction.y * 0.5);
     // The magnification centres on the lens's middle, so it pushed what the ends' band shows
     // further out than the sides', by how much further the ends lie: across the ends' band it
     // centres on the end's own round instead, and the ends' gap matches the sides'.
@@ -287,14 +282,6 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
     lensZoom = (fromMiddle - lensNormal * excess) / p.size.xy * (1.0 - 1.0 / max(p.ratio.z, 1.0)) * (1.0 - rise) * coverage;
     // Only the outer band scatters; the refracted edge and magnified middle stay clear.
     frost *= smoothstep(0.45, 0.9, band);
-  } else if (p.flags.w > 0.5) {
-    // Opt-in bevel: a flat slab whose quarter-circle rim (twice the edge depth)
-    // refracts by Snell's law at n = 1.5. The top stays clear; the rim lenses inward.
-    let rise = 1.0 - clamp(inside / max(p.frost.y * 2.0, 1.0), 0.0, 1.0);
-    let tilt = atan(rise / max(sqrt(1.0 - rise * rise), 0.05));
-    let deviation = tilt - asin(sin(tilt) / 1.5);
-    let normal = bevelNormal / max(length(bevelNormal), 0.0001);
-    displacement = normal * (tan(deviation) * 2.5) * (bevelRatio / max(materialWeight, 0.001)) * (p.refraction.y * 0.5);
   }
   displacement *= coverage * p.tint.w * p.ratio.xy;
   var bend = bendOf(displacement);
@@ -311,7 +298,7 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
     let blueReach = (0.02 + 0.6 * diagonal) * p.refraction.z;
     let rimDepth = inside / max(0.22 * p.frost.y, 0.001);
     // The mirror keeps to the long sides; at the ends the squeeze would fold back on it.
-    let mirror = lensNormal * (0.45 * p.refraction.y * longSide) * (bevelRatio / max(materialWeight, 0.001)) * coverage * p.tint.w * p.ratio.xy;
+    let mirror = lensNormal * (0.45 * p.refraction.y * longSide) * (rimRatio / max(materialWeight, 0.001)) * coverage * p.tint.w * p.ratio.xy;
     bend = Bend(
       lensZoom + displacement * (1.0 + spread) + mirror * max(1.0 + redReach - rimDepth, 0.0),
       lensZoom + displacement + mirror * max(1.0 - rimDepth, 0.0),

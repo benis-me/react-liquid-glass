@@ -913,8 +913,9 @@ export async function checkContactHDR() {
 
 export async function checkMaterialOptics() {
   const { createWebGL2GlassRenderer } = await import('../../../packages/react-liquid-glass/src/liquid-glass/webgl2-renderer.ts');
-  const { liquidSurfaceBlur } = await import('rglass/liquid-glass');
-  const { SURFACE_MATERIAL } = await import('../../../packages/react-liquid-glass/src/controls/GlassSurface.tsx');
+  const { glassMaterial, liquidSurfaceBlur } = await import('rglass/liquid-glass');
+  // A control's glass, the thin end of the one material.
+  const SURFACE_MATERIAL = glassMaterial(0);
   const source=document.createElement('canvas'), canvas=document.createElement('canvas'), mask=document.createElement('canvas');
   source.width=mask.width=320; source.height=mask.height=220;
   const ctx=source.getContext('2d'), capture=surface => { mask.width=surface.width; mask.height=surface.height; mask.getContext('2d').drawImage(surface,0,0); };

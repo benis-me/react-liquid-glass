@@ -90,17 +90,14 @@ export interface LiquidGlassFrame {
   opacity?: MotionInput;
   transparentOutside?: boolean;
   /**
-   * `dome` (default) is the calibrated spherical-cap lens. `bevel` models a flat
-   * slab with a rounded rim: Snell refraction at the rim, a clear top, and
-   * physical dispersion order. Rim width is twice `edgeDepth`. `lens` is a lifted
-   * lens, as iOS 27's pressed tab: it magnifies its middle by `lensMagnification`,
-   * and along its long sides its rim band (`edgeDepth` wide) bulges outward by
-   * `refractionStrength`, pulling in what surrounds the glass, before meeting the
-   * surface flush at the rim, while its ends stay clear; its rim's outer slope mirrors
-   * what lies just inside it, red reaching furthest on one diagonal and blue on the
-   * other, so warm and cool crescents gather at opposite ends of the rim.
+   * `dome` (default) is resting glass, a calibrated spherical cap. `lens` is the same glass
+   * lifted, as iOS 27's pressed tab: it magnifies its middle by `lensMagnification`, and its
+   * rim band (`edgeDepth` wide) pulls in what surrounds the glass by `refractionStrength`,
+   * bulging along the long sides and compressing toward the rim at the ends; along the long
+   * sides its outer slope mirrors what lies just inside it, red reaching furthest on one
+   * diagonal and blue on the other, so warm and cool crescents gather at opposite ends.
    */
-  refractionModel?: "dome" | "bevel" | "lens";
+  refractionModel?: "dome" | "lens";
   /** Visualize this exact shader's live displacement and coverage, without CPU maps. */
   debug?: boolean;
   pixelRatio?: number;

@@ -6,10 +6,14 @@ Notable changes to `rglass`. Versions follow semantic versioning; before 1.0, a 
 
 ### Changed
 
+- All glass is one material, and it thickens with size, as Apple's does. A Button, a Card, a popup, the Morph Menu, Spotlight and Video take their look from one table, instead of four separately calibrated families, by one rule from a 48px control to a 320px panel: as the body grows, its shadow deepens and softens, its rim lenses more strongly, its light softens and busy backgrounds diffuse more. The two ends are the Button's material and the open Morph Menu's, so glass of the same size looks alike whichever component draws it, and tooltips stay thin. Cards, accordions, toasts and inspectors now thicken as popups do, and a popup's frost at a control's size matches a Button's (0.2px, was 0.4px). On dark pages all regular glass tints toward the page.
+- Glass comes in two variants, as Apple's does: `regular`, frosted UI glass, and `clear`, for media. Clear glass has no frost or tint, and its lensing stays in a narrow rim without extra magnification, so what lies beneath stays vivid and legible at any size. Spotlight and Video are clear glass; Video's controls are thin control glass.
+- Glass has one resting optical profile, the calibrated dome, and lifts into the lens when a tab is pressed or a thumb held (`LIFTED_GLASS`). One precedence rule applies to every glass: its own values, then the provider's above its constants, never above values it animates; what neither sets follows the glass's size.
+- `GlassSurface`'s `blurStrength` is the frost at a panel's thickness (default 12, as popups take it), and smaller surfaces scale it with their size like all glass. It was a fixed frost.
+- `LiquidMenu`'s `theme` is optional and follows the host page.
 - HDR light is restrained. A press now peaks near 1.5× SDR white instead of nearly 3×, the static rim near 1.2×, and overlapping light never stacks into glare: contact and rim share one soft cap, identical on WebGPU and WebGL2.
 - Glass edges follow iOS 27's darkened border and brighter static highlights. The contour depends on edge strength alone, so it no longer thins on HDR displays. The static top and bottom highlight is about a third brighter over light content and more than twice as bright over dark content, so dark-mode glass keeps a crisp, defined edge. Like the lifted lens's rim line, it now reaches round the corners toward the sides, faint there.
 - Pointer feedback is quieter. Tabs and Morph Menu rows fill on hover at once instead of fading, Tabs labels keep their color on hover, and `GlassGroup` and `GlassButtonGroup` buttons press to 97% over 100ms.
-- Glass thickens with size, as Apple's does. Popover, Dropdown Menu, Select, Dialog, Sheet and the Morph Menu follow one rule from a 48px control to a 320px panel: as the live body grows, its shadow deepens and softens, its rim lenses more strongly, its light softens and busy backgrounds diffuse more. The two ends are the Button's material and the open Morph Menu's, so panels of the same size now look alike whichever component opened them, and tooltips stay thin.
 - A pressed `GlassTabs` lens and held `GlassSwitch` and `GlassSlider` thumbs are iOS 27's lifted lens, matched to native screenshots. The glass is clear instead of milky. Its rim bulges outward and pulls in what surrounds it, so the bar seen through it looks smaller, while a held tab's icon and label grow slightly; it keeps magnifying while the press drags, with the tab under it in the selected colour and no glow. In light mode its edge is a fine, even grey line, its rim stays white and it casts a soft shadow, as iOS 27's does. Its rim pulls in what surrounds it all the way round, so the bar's edges follow the rim in one smooth outline and the end of a bar it overhangs bends into an arc concentric with it, as far from the rim as the bar's top and bottom. At its ends the rim compresses what it passes over toward the edge instead of folding it back, so labels a dragged lens slides across stay in order. It grows past its tab in proportion to the tab's height, so it overflows small and large bars by the same share as iOS 27's. Its rim is thick: along the top and bottom the outer slope mirrors what lies just inside it, so warm and cool crescents gather at opposite ends of the rim. Held thumbs show their track at its own size and magnify it as a pressed tab magnifies the bar, so its edges run flat into the rim instead of denting near the lens's ends. They cast the same soft shadow in light mode and none on dark pages, stop lighting up once dragged, and fill back in with white as soon as they are released, so no grey ghost of the track lingers inside them.
 - Dragged glass moves like a soft body on a spring. The `GlassTabs` lens and held `GlassSwitch` and `GlassSlider` thumbs stretch along their motion with speed, by up to about a fifth, and when they stop or land they overshoot into a brief squash and rebound; a pressed tab's lens lifts with a slight overshoot. Held thumbs stay round while still instead of squashing narrower and taller, and the stretch no longer depends on the display's frame rate.
 - A dragged `GlassTabs` lens follows the finger a little past the first or last tab with the same rubber band as a `GlassSwitch` thumb, by at most the thumb's 11px, carrying the whole bar slightly along, and both spring back on release. It never reaches into a clipping ancestor, so tab bars in scrollers stay whole. It used to stop dead at the end tab.
@@ -18,6 +22,9 @@ Notable changes to `rglass`. Versions follow semantic versioning; before 1.0, a 
 
 ### Fixed
 
+- A provider constant no longer freezes values glass animates: the lifted lens's magnification and shadow in Tabs, Switch and Slider, and the Morph Menu's edge depth and fusion neck.
+- A provider's `refractionModel` can no longer turn every Tabs, Switch and Slider lens into resting glass.
+- `GlassVideo` keeps its own rendering resolution and unfused buttons under a provider's `pixelRatio` or `mergeDistance`.
 - Fusion necks refract continuously: a body's rim slope no longer draws straight seams or shard-like patches inside fused glass.
 - Pressed Switch and Slider thumbs no longer cut their shadow at the edge of the control's canvas.
 - `LiquidGlassCanvas` honors instance material values over the shared defaults. Provider presets no longer freeze the Morph Menu's animated blur, tint and zoom, and an instance `hdr={false}` also removes the HDR highlight default.
@@ -34,8 +41,8 @@ Notable changes to `rglass`. Versions follow semantic versioning; before 1.0, a 
 
 ### Added
 
-- `refractionModel: "lens"` with `lensMagnification` draws that lifted lens on any glass, on WebGPU and WebGL2 alike.
-- `LiquidGlass` accepts a negative `refractionPixels`, which bends the rim the other way so it pulls in what surrounds the glass.
+- `glassMaterial(thickness, { variant, dark })` returns the one glass material at a thickness, and `GlassVariant` names its `regular` and `clear` variants. `LiquidGlassCanvas` takes `variant` and `thickness` (by default, its first body's live size), `LiquidGlass` takes `variant`, and `GlassSpotlight` takes `material`.
+- `LIFTED_GLASS` with `lensMagnification` draws the lifted lens on any glass, on WebGPU and WebGL2 alike.
 - `springTo` takes an explicit starting velocity. `useVelocityDeformation` takes `smoothing`, which averages the source's speed, and its function `stiffness` and `damping` receive the deformation and its target, so a spring can relax differently than it builds. `THUMB_DEFORMATION`, `SEGMENTED_LIFT_SPRING` and `SEGMENTED_OVERDRAG` join the motion presets.
 - `liquidThickness(width, height)` exposes the size-to-thickness rule, and `LiquidGlassCanvas` accepts MotionValues for every scalar material value, so custom glass can thicken as it grows.
 - The Morph Menu moves focus into its panel on opening, prefers the checked item, supports arrow keys, Home and End, and makes its closed panel inert.
@@ -43,6 +50,16 @@ Notable changes to `rglass`. Versions follow semantic versioning; before 1.0, a 
 - `LiquidGlass` accepts `shadowBleed`, which lets a lens's shadow extend past the element instead of ending at its box.
 - `LiquidGlass` accepts `sharpInk`, which keeps the captured text and icons crisp under frosted glass. They refract and disperse with the backdrop, and only the backdrop and the lens rim take the material's blur. `LiquidGlassCanvas` exposes the same layer as `contentSpace: "source"`.
 - `GlassSwitch` and `GlassSlider` pass native input attributes (`id`, `aria-*`, `required`, `form`, `onBlur` and so on) to their input and accept `style`. A host label, either `id` with `<label htmlFor>` or `aria-labelledby`, replaces the fallback name.
+
+### Removed
+
+These were redundant or superseded; there is now one glass and one way to tune it.
+
+- `refractionModel: "bevel"`, the opt-in flat-slab profile from 0.2.0. Provider material no longer takes `refractionModel`; glass lifts into the lens itself.
+- `GlassActionButton`, the former Liquid Button kept for compatibility. Use `GlassButton`.
+- `LIQUID_LENS` and `DEFAULT_MATERIAL`: glass takes its defaults from its size (`glassMaterial`). `useGlassMaterialOverrides` is now `useGlassMaterial`, which returns the provider's material.
+- `LiquidLens` holds a lens's geometry only (`lensW`, `lensH`, `borderRadius`). Its optical keys move to `material` under the renderer's names: `depth` is `edgeDepth`, `scaleX`/`scaleY` are `refractionStrength`, `blurAmount` is `blurStrength`, `tint` is `tintStrength`.
+- `LiquidGlass`'s `sourceBackground` and `shadowOpacity`. A negative `refractionPixels` no longer bends resting glass outward; the lifted lens pulls in its surroundings.
 
 ### Documentation
 
