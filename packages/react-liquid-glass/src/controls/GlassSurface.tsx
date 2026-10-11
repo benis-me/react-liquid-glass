@@ -22,7 +22,7 @@ import { createLiquidBackdrop } from "../liquid-glass/backdrop.js";
 import { useGlassTone } from "../liquid-glass/provider.js";
 import { useLiquidToneTracker } from "../liquid-glass/tone.js";
 import { liquidScreenScale, paintLiquidGrid } from "../liquid-glass/source.js";
-import { glassValue, liquidSurfaceBlur, liquidThickness, type GlassLook } from "../liquid-glass/material.js";
+import { glassCanvasReach, liquidSurfaceBlur, liquidThickness, type GlassLook } from "../liquid-glass/material.js";
 import { useReducedMotionPreference } from "../shared/reduced-motion.js";
 
 export type GlassBackground = "grid" | "lines" | "plain";
@@ -156,10 +156,7 @@ function OpticalSurface({
     return () => run.stop();
   }, [pressed, reduce, scale]);
   // The canvas reaches as far as the visible shadow of glass this thick: 40px for a control.
-  const pad = (width: number, height: number) => {
-    const thickness = liquidThickness(width, height);
-    return Math.max(40, Math.ceil(glassValue("shadowBlur", thickness) * 2.5 + glassValue("shadowOffset", thickness)));
-  };
+  const pad = (width: number, height: number) => glassCanvasReach(liquidThickness(width, height));
   useLayoutEffect(() => {
     const element = root.current;
     if (!element) return;

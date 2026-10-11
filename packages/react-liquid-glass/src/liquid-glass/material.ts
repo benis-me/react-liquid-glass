@@ -69,6 +69,11 @@ export function glassEdgeDepth(shortSide: number, thickness: number, variant: Gl
   return variant === "clear" ? thin : thin + (26 - thin) * thickness;
 }
 
+/** How far a surface's canvas reaches past its box: the visible shadow of glass this thick, at least 40px. */
+export function glassCanvasReach(thickness: number) {
+  return Math.max(40, Math.ceil(glassValue("shadowBlur", thickness) * 2.5 + glassValue("shadowOffset", thickness)));
+}
+
 /** The reach of the soft shadow at this thickness, for reserving canvas padding. */
 export function glassShadowReach(thickness: number, overrides: { shadowBlur?: number; shadowOffset?: number } = {}) {
   const blur = overrides.shadowBlur ?? THIN_GLASS.shadowBlur + (THICK_GLASS.shadowBlur - THIN_GLASS.shadowBlur) * thickness;

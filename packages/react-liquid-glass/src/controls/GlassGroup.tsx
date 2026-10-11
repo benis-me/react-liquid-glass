@@ -9,7 +9,7 @@ import { createLiquidBackdrop } from "../liquid-glass/backdrop.js";
 import { useGlassTone } from "../liquid-glass/provider.js";
 import { useLiquidToneTracker } from "../liquid-glass/tone.js";
 import { MAX_BLOBS } from "../liquid-glass/render-frame.js";
-import { glassEdgeDepth, liquidThickness } from "../liquid-glass/material.js";
+import { glassCanvasReach, glassEdgeDepth, liquidThickness } from "../liquid-glass/material.js";
 import { FusionTriggerContext } from "./GlassSurface.js";
 
 export interface GlassGroupProps extends HTMLAttributes<HTMLDivElement> {
@@ -20,7 +20,6 @@ export interface GlassGroupProps extends HTMLAttributes<HTMLDivElement> {
   spacing?: number;
 }
 
-const PAD = 40;
 // Children render as plain content; the group owns one fused optical body.
 const joinedSurface = () => {};
 type Shape = ReturnType<typeof createShape>;
@@ -57,6 +56,9 @@ export function GlassGroup({ spacing = 20, children, className = "", ...props }:
   const publishTone = useLiquidToneTracker(root, useGlassTone());
   const reduce = useReducedMotionPreference();
   const reduceRef = useRef(reduce); reduceRef.current = reduce;
+  const thickness = liquidThickness(smallest.width, smallest.height);
+  // The canvas reaches as far as the shadow of glass this thick, as a surface's does.
+  const pad = glassCanvasReach(thickness);
 
   useLayoutEffect(() => {
     const element = root.current, list = items.current;
@@ -104,13 +106,13 @@ export function GlassGroup({ spacing = 20, children, className = "", ...props }:
         owners.set(child, shape);
         geometry += `|${(rect.left - box.left).toFixed(2)},${(rect.top - box.top).toFixed(2)},${rect.width.toFixed(2)},${rect.height.toFixed(2)}`;
         const half = [rect.width / 2, rect.height / 2], corner = Math.min(cornerOf(child), half[0], half[1]);
-        shape.x.set((rect.left - box.left + PAD + half[0]) / (width + PAD * 2));
-        shape.y.set((rect.top - box.top + PAD + half[1]) / (height + PAD * 2));
+        shape.x.set((rect.left - box.left + pad + half[0]) / (width + pad * 2));
+        shape.y.set((rect.top - box.top + pad + half[1]) / (height + pad * 2));
         shape.halfWidth.set(half[0]); shape.halfHeight.set(half[1]);
         shape.radius.set(corner); shape.cornerRadius.set(corner);
         // Each shape refracts like a standalone surface of its own size.
-        shape.refractionRatio[0] = (rect.width + 28) / (width + PAD * 2);
-        shape.refractionRatio[1] = (rect.height + 28) / (height + PAD * 2);
+        shape.refractionRatio[0] = (rect.width + 28) / (width + pad * 2);
+        shape.refractionRatio[1] = (rect.height + 28) / (height + pad * 2);
         if (Math.min(rect.width, rect.height) < Math.min(smallest.width, smallest.height)) smallest = { width: rect.width, height: rect.height };
       });
       setCount(children.length);
@@ -138,12 +140,12 @@ export function GlassGroup({ spacing = 20, children, className = "", ...props }:
     };
     const backdrop = createLiquidBackdrop(element, () => {
       const rect = element.getBoundingClientRect();
-      return { left: rect.left - PAD, top: rect.top - PAD, width: element.offsetWidth + PAD * 2, height: element.offsetHeight + PAD * 2 };
+      return { left: rect.left - pad, top: rect.top - pad, width: element.offsetWidth + pad * 2, height: element.offsetHeight + pad * 2 };
     }, canvas => {
       source.current = canvas;
       revision.set(revision.get() + 1);
       const width = element.offsetWidth, height = element.offsetHeight;
-      if (width && height) publishTone(canvas, { left: PAD / (width + PAD * 2), top: PAD / (height + PAD * 2), width: width / (width + PAD * 2), height: height / (height + PAD * 2) });
+      if (width && height) publishTone(canvas, { left: pad / (width + pad * 2), top: pad / (height + pad * 2), width: width / (width + pad * 2), height: height / (height + pad * 2) });
     });
     signature = measure();
     const resize = new ResizeObserver(() => wake());
@@ -164,7 +166,8 @@ export function GlassGroup({ spacing = 20, children, className = "", ...props }:
     for (const type of events) list.addEventListener(type, wake);
     // The touched shape lights where it is pressed, following the pointer, and fades on release.
     let grip: { id: number; shape: Shape; x: number; y: number; clientX: number; clientY: number; width: number; height: number } | null = null;
-    let light: Array<{ stop: () => void }> = [];
+    const lights = new Map<Shape, Array<{ stop: () => void }>>();
+    const settle = (shape: Shape) => { lights.get(shape)?.forEach(run => run.stop()); lights.delete(shape); };
     const move = (event: PointerEvent) => {
       if (!grip || event.pointerId !== grip.id) return;
       grip.shape.contactX.set(unit(grip.x + (event.clientX - grip.clientX) / grip.width * 2));
@@ -176,8 +179,8 @@ export function GlassGroup({ spacing = 20, children, className = "", ...props }:
       grip = null;
       window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", release);
       window.removeEventListener("pointercancel", release); window.removeEventListener("blur", release);
-      light.forEach(run => run.stop());
-      light = [animate(shape.contactStrength, 0, { duration: reduceRef.current ? .1 : .22, ease: "easeOut" })];
+      settle(shape);
+      lights.set(shape, [animate(shape.contactStrength, 0, { duration: reduceRef.current ? .1 : .22, ease: "easeOut" })]);
     };
     const down = (event: PointerEvent) => {
       if (grip || event.button !== 0 || !event.isPrimary) return;
@@ -188,10 +191,11 @@ export function GlassGroup({ spacing = 20, children, className = "", ...props }:
       if (!rect.width || !rect.height) return;
       const x = unit((event.clientX - rect.left) / rect.width * 2 - 1), y = unit((event.clientY - rect.top) / rect.height * 2 - 1);
       shape.contactX.set(x); shape.contactY.set(y);
-      light.forEach(run => run.stop());
-      light = [animate(shape.contactStrength, 1, { duration: .12, ease: "easeOut" })];
+      settle(shape);
+      const runs: Array<{ stop: () => void }> = [animate(shape.contactStrength, 1, { duration: .12, ease: "easeOut" })];
       if (reduceRef.current) shape.contactSpread.jump(1);
-      else { shape.contactSpread.jump(0); light.push(springTo(shape.contactSpread, 1, PRESS_GLOW_SPRING, 0)); }
+      else { shape.contactSpread.jump(0); runs.push(springTo(shape.contactSpread, 1, PRESS_GLOW_SPRING, 0)); }
+      lights.set(shape, runs);
       grip = { id: event.pointerId, shape, x, y, clientX: event.clientX, clientY: event.clientY, width: rect.width, height: rect.height };
       window.addEventListener("pointermove", move); window.addEventListener("pointerup", release);
       window.addEventListener("pointercancel", release); window.addEventListener("blur", release);
@@ -202,24 +206,24 @@ export function GlassGroup({ spacing = 20, children, className = "", ...props }:
       backdrop.dispose(); resize.disconnect(); attributes.disconnect(); children.disconnect();
       for (const type of events) list.removeEventListener(type, wake);
       release(); list.removeEventListener("pointerdown", down);
+      for (const shape of [...lights.keys()]) settle(shape);
       for (const [child, state] of scales) { state.run?.stop(); child.style.scale = ""; }
     };
-  }, [revision, publishTone]);
+  }, [revision, publishTone, pad]);
 
   const blobs = useMemo(() => shapes.current.slice(0, count), [count]);
-  const thickness = liquidThickness(smallest.width, smallest.height);
   return (
     <div {...props} ref={root} className={`dg-glass-group ${className}`}>
       {size.width > 0 && count > 0 && (
-        <span className="dg-glass-group__optics" aria-hidden="true" style={{ inset: -PAD }}>
+        <span className="dg-glass-group__optics" aria-hidden="true" style={{ inset: -pad }}>
           <LiquidGlassCanvas
             thickness={thickness}
             shared
             pixelRatio={2}
             sourceRef={source}
             sourceRevision={revision}
-            width={size.width + PAD * 2}
-            height={size.height + PAD * 2}
+            width={size.width + pad * 2}
+            height={size.height + pad * 2}
             blobs={blobs}
             mergeDistance={Math.max(0, spacing)}
             edgeDepth={glassEdgeDepth(Math.min(smallest.width, smallest.height), thickness)}

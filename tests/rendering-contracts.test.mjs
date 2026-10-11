@@ -1243,7 +1243,7 @@ test("a press lights the glass as a surface that spreads from the finger, identi
   // Glass Group shapes press like a Button and light up, so the glow reaches their neighbours.
   assert.match(group, /const target = child\.hasAttribute\("data-pressed"\) \? GLASS_PRESS_SCALE : 1;/);
   assert.match(group, /const run = springTo\(state\.scale, target, SURFACE_PRESS_SPRING\)/);
-  assert.match(group, /shape\.contactSpread\.jump\(0\); light\.push\(springTo\(shape\.contactSpread, 1, PRESS_GLOW_SPRING, 0\)\);/);
+  assert.match(group, /shape\.contactSpread\.jump\(0\); runs\.push\(springTo\(shape\.contactSpread, 1, PRESS_GLOW_SPRING, 0\)\);/);
   assert.doesNotMatch(libraryStylesSource, /\.dg-glass-group__items > \.dg-button\[data-pressed\]/);
 });
 
@@ -1304,6 +1304,15 @@ test("a group press grows a child from its own scale, and LiquidGlass keeps a ma
   assert.match(group, /if \(!state\.run && Math\.abs\(state\.scale\.get\(\) - 1\) < 1e-4\) \{\s*state\.own = child\.style\.scale;\s*const computed = getComputedStyle\(child\)\.scale;/);
   assert.match(group, /void run\.finished\.then\(\(\) => \{ if \(owner\.run === run\) owner\.run = undefined; \}\);/);
   assert.match(liquidAdapterSource, /tintColor=\{tint \?\? material\.tintColor\}/);
+  // Each shape's press light fades on its own: pressing another shape never strands a fade half way.
+  assert.match(group, /const settle = \(shape: Shape\) => \{ lights\.get\(shape\)\?\.forEach\(run => run\.stop\(\)\); lights\.delete\(shape\); \};/);
+  assert.equal((group.match(/settle\(shape\);/g) ?? []).length, 3, "a press, a release and teardown settle only their own shape");
+  assert.doesNotMatch(group, /let light\b/);
+  // A group of large members is thick glass; its canvas reaches as far as that glass's shadow, as a surface's does.
+  assert.match(group, /const pad = glassCanvasReach\(thickness\);/);
+  assert.doesNotMatch(group, /\bPAD\b/);
+  assert.match(group, /\}, \[revision, publishTone, pad\]\);/);
+  assert.match(readFileSync(new URL("../packages/react-liquid-glass/src/controls/GlassSurface.tsx", import.meta.url), "utf8"), /const pad = \(width: number, height: number\) => glassCanvasReach\(liquidThickness\(width, height\)\);/);
 });
 
 test("GlassSlider reports values at its step's precision", () => {
