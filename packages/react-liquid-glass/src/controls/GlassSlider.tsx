@@ -27,10 +27,10 @@ export interface GlassSliderProps extends NativeSliderProps {
   size?: "default" | "small";
 }
 
-/** Digits after the decimal point; exponent notation keeps ten. */
+/** Digits after the decimal point, exponent notation included: 1e-12 has twelve. */
 const decimals = (value: number) => {
-  const text = String(value), dot = text.indexOf(".");
-  return text.includes("e") ? 10 : dot < 0 ? 0 : text.length - dot - 1;
+  const [mantissa, exponent = "0"] = String(value).toLowerCase().split("e");
+  return Math.min(100, Math.max(0, (mantissa.split(".")[1]?.length ?? 0) - Number(exponent)));
 };
 
 export function GlassSlider({

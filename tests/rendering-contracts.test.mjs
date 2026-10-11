@@ -1311,10 +1311,13 @@ test("GlassSlider reports values at its step's precision", () => {
   assert.match(slider, /const snap = \(value: number\) => step > 0 \? Number\(\(Math\.round\(\(value - min\) \/ step\) \* step \+ min\)\.toFixed\(Math\.max\(decimals\(step\), decimals\(min\)\)\)\) : value;/);
   assert.equal((slider.match(/Math\.round\(\(/g) ?? []).length, 1, "one snap for dragging and reporting");
   // The arithmetic it guards against, and its result.
-  const decimals = value => { const text = String(value), dot = text.indexOf("."); return text.includes("e") ? 10 : dot < 0 ? 0 : text.length - dot - 1; };
+  const decimals = value => { const [mantissa, exponent = "0"] = String(value).toLowerCase().split("e"); return Math.min(100, Math.max(0, (mantissa.split(".")[1]?.length ?? 0) - Number(exponent))); };
+  assert.match(slider, /const \[mantissa, exponent = "0"\] = String\(value\)\.toLowerCase\(\)\.split\("e"\);\s*return Math\.min\(100, Math\.max\(0, \(mantissa\.split\("\."\)\[1\]\?\.length \?\? 0\) - Number\(exponent\)\)\);/);
   const snap = (value, min, step) => Number((Math.round((value - min) / step) * step + min).toFixed(Math.max(decimals(step), decimals(min))));
   assert.notEqual(-1 + 12 * .05, -.4);
   assert.equal(snap(-.4, -1, .05), -.4); assert.equal(snap(.3, 0, .1), .3); assert.equal(snap(.774, 0, .01), .77); assert.equal(snap(37, 0, 1), 37);
+  // Exponent-form steps keep their own precision, however small.
+  assert.equal(snap(5.2e-12, 0, 1e-12), 5e-12); assert.equal(snap(3e-7, 0, 1.5e-7), 3e-7); assert.equal(snap(2.5e21, 0, 1e21), 3e21);
 });
 
 test("HDR light is soft-capped and identical on both backends", () => {
