@@ -2,7 +2,7 @@
 
 Notable changes to `rglass`. Versions follow semantic versioning; before 1.0, a minor version may include breaking changes.
 
-## 0.3.0 — 2026-10-10
+## 0.3.0 — 2026-10-11
 
 ### Changed
 
