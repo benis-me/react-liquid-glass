@@ -54,9 +54,10 @@ export function GlassSwitch({
   const padding = Math.ceil(0.5 * Math.max(halfThumbWidth, halfThumbHeight) + overshoot) + 2;
   const filterWidth = width + padding * 2;
   const filterHeight = height + padding * 2;
-  // The held lens refracts the track at its own size, so it overflows the track by the share a
-  // pressed tab overflows its bar and the track's edges run flat into its rim: a smaller refracted
-  // track put them deep in the rim band, where they dipped and hooked at the lens's ends.
+  // The held lens refracts the track at its own size, so it overflows the track by 0.15 of its
+  // half-height, near the 0.12 a pressed tab overflows its bar, and the track's edges run flat into
+  // its rim: a smaller refracted track put them deep in the rim band, where they dipped and hooked
+  // at the lens's ends.
   const refractedTrackHeight = height;
   const restTintBlur = compact ? 0 : 4;
   const pressEase = [0.22, 1.15, 0.36, 1.06] as const;
