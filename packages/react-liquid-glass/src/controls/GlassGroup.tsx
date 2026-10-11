@@ -2,8 +2,8 @@ import { useLayoutEffect, useMemo, useRef, useState, type HTMLAttributes } from 
 import { animate, cancelFrame, frame, motionValue as liveValue, type MotionValue } from "motion";
 import { motionValue } from "../shared/values.js";
 import { springTo, type SpringRun } from "../apple-motion/react.js";
-import { PRESS_GLOW_SPRING, SURFACE_PRESS_SPRING } from "../apple-motion/presets.js";
-import { useReducedMotionPreference } from "../liquid-glass/light.js";
+import { GLASS_PRESS_SCALE, PRESS_GLOW_SPRING, SURFACE_PRESS_SPRING } from "../apple-motion/presets.js";
+import { useReducedMotionPreference } from "../shared/reduced-motion.js";
 import { LiquidGlassCanvas } from "../liquid-glass/LiquidGlassCanvas.js";
 import { createLiquidBackdrop } from "../liquid-glass/backdrop.js";
 import { useGlassTone } from "../liquid-glass/provider.js";
@@ -31,7 +31,6 @@ const createShape = () => ({
   contactX: motionValue(0), contactY: motionValue(0), contactStrength: liveValue(0), contactSpread: liveValue(1),
 });
 const unit = (value: number) => Math.max(-1, Math.min(1, value));
-const PRESSED_SCALE = 1.025;
 const cornerOf = (element: Element) => {
   for (const node of [element, element.querySelector(".dg-surface")]) {
     const radius = node ? parseFloat(getComputedStyle(node).borderTopLeftRadius) : 0;
@@ -73,7 +72,7 @@ export function GlassGroup({ spacing = 20, children, className = "", ...props }:
         scale.on("change", value => { child.style.scale = Math.abs(value - 1) < 1e-4 ? "" : String(value); });
         state = { scale }; scales.set(child, state);
       }
-      const target = child.hasAttribute("data-pressed") ? PRESSED_SCALE : 1;
+      const target = child.hasAttribute("data-pressed") ? GLASS_PRESS_SCALE : 1;
       state.run?.stop();
       if (reduceRef.current) state.scale.jump(target); else state.run = springTo(state.scale, target, SURFACE_PRESS_SPRING);
     };

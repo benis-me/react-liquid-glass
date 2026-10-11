@@ -1,7 +1,7 @@
-import { useReducedMotion } from "motion/react";
-import { tween } from "../apple-motion/index.js";
+import { useMotionValue, type MotionValue } from "motion/react";
 import { stepSpring } from "../apple-motion/spring.js";
-import { SPOTLIGHT_DRIFT_SPEED, SPOTLIGHT_FOLLOW_SPRING, SPOTLIGHT_IDLE_MS } from "../apple-motion/presets.js";
+import { springTo } from "../apple-motion/react.js";
+import { SPOTLIGHT_DRIFT_SPEED, SPOTLIGHT_FOLLOW_SPRING, SPOTLIGHT_IDLE_MS, SPOTLIGHT_RESIZE_SPRING } from "../apple-motion/presets.js";
 import {
   useCallback,
   useEffect,
@@ -12,6 +12,7 @@ import {
 import { motionValue } from "../shared/values.js";
 import type { LiquidLens } from "../liquid-glass/lens.js";
 import { LiquidGlass, type LiquidGlassProps } from "../liquid-glass/LiquidGlass.js";
+import { useReducedMotionPreference } from "../shared/reduced-motion.js";
 
 export interface GlassSpotlightProps {
   variant?: "primary" | "secondary";
@@ -52,7 +53,7 @@ export function GlassSpotlight({
   const [imageFailed, setImageFailed] = useState(false);
   useEffect(() => setImageFailed(false), [backgroundImage, backgroundSrcSet]);
   const scale = useMobileScale();
-  const reduce = useReducedMotion();
+  const reduce = useReducedMotionPreference();
   const sourceLens = { lensW: 80, lensH: 80, borderRadius: 80, ...lensOverrides };
   const targetW = sourceLens.lensW * scale;
   const targetH = sourceLens.lensH * scale;
@@ -65,32 +66,32 @@ export function GlassSpotlight({
   const velocity = useRef({ x: 0, y: 0 });
   const heading = useRef(Math.PI / 4);
   const lastActivity = useRef(0);
-  const lensW = useRef(motionValue(targetW)).current;
-  const lensH = useRef(motionValue(targetH)).current;
-  const radius = useRef(motionValue(targetRadius)).current;
+  const lensW = useMotionValue(targetW);
+  const lensH = useMotionValue(targetH);
+  const radius = useMotionValue(targetRadius);
   const rootRef = useRef<HTMLDivElement>(null);
   const hovering = useRef(false);
   const hoverTarget = useRef({ x: 0.5, y: 0.5 });
   const restoreTimer = useRef<number | null>(null);
-  const animationStops = useRef<Array<() => void>>([]);
+  const animationStops = useRef<Array<{ stop: () => void }>>([]);
   const visible = useRef(true);
   const driftFrame = useRef(0);
   const wakeDrift = useRef<() => void>(() => undefined);
   const viewport = useRef({ width: 0, height: 0 });
 
-  const stopTweens = () => {
-    animationStops.current.forEach((stop) => stop());
+  // The lens grows under the pointer and shrinks back on one spring, settling without overshoot.
+  const resize = (width: number, height: number, corner: number) => {
+    animationStops.current.forEach((run) => run.stop());
     animationStops.current = [];
+    const targets: Array<[MotionValue<number>, number]> = [[lensW, width], [lensH, height], [radius, corner]];
+    for (const [value, target] of targets) {
+      if (reduce) value.jump(target); else animationStops.current.push(springTo(value, target, SPOTLIGHT_RESIZE_SPRING));
+    }
   };
 
   useEffect(() => {
     if (hovering.current) return;
-    stopTweens();
-    animationStops.current.push(
-      tween(lensW, targetW, reduce ? 0 : 300),
-      tween(lensH, targetH, reduce ? 0 : 300),
-      tween(radius, targetRadius, reduce ? 0 : 300),
-    );
+    resize(targetW, targetH, targetRadius);
   }, [targetW, targetH, targetRadius, lensW, lensH, radius, reduce]);
 
   useEffect(() => {
@@ -199,7 +200,7 @@ export function GlassSpotlight({
   }, [interactive, reduce, x, y, lensW, lensH, velocityX, velocityY]);
 
   useEffect(() => () => {
-    stopTweens();
+    animationStops.current.forEach((run) => run.stop());
     if (restoreTimer.current !== null) clearTimeout(restoreTimer.current);
   }, []);
 
@@ -227,12 +228,7 @@ export function GlassSpotlight({
         if (restoreTimer.current !== null) clearTimeout(restoreTimer.current);
         hovering.current = true;
         hoverTarget.current = { x: x.get(), y: y.get() };
-        stopTweens();
-        animationStops.current.push(
-          tween(radius, 103 * scale, reduce ? 0 : 300),
-          tween(lensW, 95 * scale, reduce ? 0 : 300),
-          tween(lensH, 95 * scale, reduce ? 0 : 300),
-        );
+        resize(95 * scale, 95 * scale, 103 * scale);
       } : undefined}
       onPointerMove={interactive ? move : undefined}
       onPointerLeave={interactive ? () => {
@@ -240,12 +236,7 @@ export function GlassSpotlight({
         restoreTimer.current = window.setTimeout(() => {
           hovering.current = false;
           wakeDrift.current();
-          stopTweens();
-          animationStops.current.push(
-            tween(radius, targetRadius, reduce ? 0 : 300),
-            tween(lensW, targetW, reduce ? 0 : 300),
-            tween(lensH, targetH, reduce ? 0 : 300),
-          );
+          resize(targetW, targetH, targetRadius);
         }, 400);
       } : undefined}
     >

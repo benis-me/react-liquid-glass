@@ -1,11 +1,13 @@
-import { SLIDER_CLICK_SPRING } from "../apple-motion/presets.js";
+import { SLIDER_CLICK_SPRING, SWITCH_RELEASE_SPRING } from "../apple-motion/presets.js";
+import { createVelocityTracker } from "../apple-motion/velocity.js";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type InputHTMLAttributes } from "react";
-import { animate, motion, useMotionValue, useReducedMotion, useTransform } from "motion/react";
+import { motion, useMotionValue, useTransform } from "motion/react";
 import { LiquidGlass } from "../liquid-glass/LiquidGlass.js";
 import { liquidTrackSource } from "../liquid-glass/source.js";
 import { usePointerReleaseFallback, useGlassContact, rubberBand, type SpringRun } from "../apple-motion/react.js";
 import { LIFT_END_PINCH, LIFT_MAGNIFICATION, settleThumb, useLiftedOptics, useLiftedShadow, useThumbMotion } from "./use-thumb-motion.js";
 import { LIFTED_GLASS, useHostDark } from "../liquid-glass/material.js";
+import { useReducedMotionPreference } from "../shared/reduced-motion.js";
 
 /** Native input attributes (id, aria-*, required, form, onBlur…) pass through to the slider's range input. */
 type NativeSliderProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "min" | "max" | "step" | "value" | "defaultValue" | "disabled" | "name" | "onChange" | "size" | "children" | "className" | "style">;
@@ -40,7 +42,7 @@ export function GlassSlider({
   size = "default",
   ...inputProps
 }: GlassSliderProps) {
-  const reduce = useReducedMotion() ?? false;
+  const reduce = useReducedMotionPreference();
   const [local, setLocal] = useState(defaultValue);
   const controlled = value !== undefined;
   const current = controlled ? value : local;
@@ -69,7 +71,6 @@ export function GlassSlider({
   // dipped and hooked.
   const refractedTrackHeight = trackHeight * LIFT_END_PINCH;
   const restTintBlur = compact ? 0 : 4;
-  const releaseTransition = reduce ? { duration: 0 } : { ease: [0.22, 1, 0.36, 1] as const, duration: 0.52 };
   const toOffset = (next: number) => max > min ? ((next - min) / (max - min)) * travel : 0;
   const fromOffset = (position: number) => {
     const clamped = Math.max(0, Math.min(travel, position));
@@ -108,6 +109,13 @@ export function GlassSlider({
   const dragging = useRef(false);
   const pointerMoved = useRef(false);
   const clickAnimation = useRef<SpringRun | null>(null);
+  const thumbVelocity = useRef(createVelocityTracker());
+  // A thumb pulled past an end springs back into its track with the velocity of its last moves,
+  // as a Switch thumb settles; released inside the track it stays under the finger.
+  const settleIntoTrack = (velocity = 0) => {
+    const target = Math.max(0, Math.min(travel, offset.get()));
+    if (target !== offset.get()) clickAnimation.current = settleThumb(offset, target, SWITCH_RELEASE_SPRING, reduce, velocity);
+  };
 
   const cancelPointerInteraction = () => {
     const activePointerId = pointerId.current;
@@ -119,7 +127,7 @@ export function GlassSlider({
     dragging.current = false;
     pointerMoved.current = false;
     clickAnimation.current?.stop();
-    animate(offset, Math.max(0, Math.min(travel, offset.get())), releaseTransition);
+    settleIntoTrack();
     collapse();
   };
   const { arm: armPointerFallback, disarm: disarmPointerFallback } = usePointerReleaseFallback(cancelPointerInteraction);
@@ -225,6 +233,7 @@ export function GlassSlider({
               emit(clickedValue);
               pointerStart.current = event.clientX;
               offsetStart.current = offset.get();
+              thumbVelocity.current.reset();
               expand();
             }}
             onPointerMove={(event) => {
@@ -241,6 +250,7 @@ export function GlassSlider({
               if (next < 0) next = -rubberBand(-next, overshoot, overshoot * 30);
               else if (next > travel) next = travel + rubberBand(next - travel, overshoot, overshoot * 30);
               offset.set(next);
+              thumbVelocity.current.push(next, event.timeStamp);
               emit(fromOffset(next));
             }}
             onPointerUp={(event) => {
@@ -248,9 +258,7 @@ export function GlassSlider({
               disarmPointerFallback();
               pointerId.current = null;
               dragging.current = false;
-              if (pointerMoved.current) {
-                animate(offset, Math.max(0, Math.min(travel, offset.get())), releaseTransition);
-              }
+              if (pointerMoved.current) settleIntoTrack(thumbVelocity.current.velocity(event.timeStamp));
               collapse();
             }}
             onPointerCancel={(event) => {

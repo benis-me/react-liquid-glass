@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type InputHTMLAttributes } from "react";
-import { animate, motion, useMotionValue, useReducedMotion, useTransform } from "motion/react";
+import { motion, useMotionValue, useTransform } from "motion/react";
 import { LiquidGlass } from "../liquid-glass/LiquidGlass.js";
 import { liquidTrackSource } from "../liquid-glass/source.js";
 import { usePointerReleaseFallback, useGlassContact, rubberBand } from "../apple-motion/react.js";
@@ -7,6 +7,7 @@ import { SWITCH_FLICK_PROJECTION, SWITCH_RELEASE_SPRING } from "../apple-motion/
 import { LIFT_MAGNIFICATION, settleThumb, useLiftedOptics, useLiftedShadow, useThumbMotion } from "./use-thumb-motion.js";
 import { LIFTED_GLASS, useHostDark } from "../liquid-glass/material.js";
 import { createVelocityTracker } from "../apple-motion/velocity.js";
+import { useReducedMotionPreference } from "../shared/reduced-motion.js";
 
 /** Native input attributes (id, aria-*, required, form, onBlur…) pass through to the switch's checkbox. */
 type NativeSwitchProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "role" | "checked" | "defaultChecked" | "disabled" | "name" | "value" | "onChange" | "onClick" | "onKeyDown" | "size" | "children" | "className" | "style">;
@@ -36,7 +37,7 @@ export function GlassSwitch({
   size = "default",
   ...inputProps
 }: GlassSwitchProps) {
-  const reduce = useReducedMotion() ?? false;
+  const reduce = useReducedMotionPreference();
   const [local, setLocal] = useState(defaultChecked);
   const current = checked ?? local;
   const currentRef = useRef(current); currentRef.current = current;
@@ -61,8 +62,6 @@ export function GlassSwitch({
   // at the lens's ends.
   const refractedTrackHeight = height;
   const restTintBlur = compact ? 0 : 4;
-  const pressEase = [0.22, 1.15, 0.36, 1.06] as const;
-  const travelTransition = reduce ? { duration: 0 } : { ease: pressEase, duration: 0.6 };
 
   const offset = useMotionValue(current ? travel : 0);
   const x = useTransform(offset, (position) => (padding + inset + thumbWidth / 2 + position) / filterWidth);
@@ -90,6 +89,13 @@ export function GlassSwitch({
   const holdTimer = useRef<number | null>(null);
   const restoreTimer = useRef<number | null>(null);
   const travelAnimation = useRef<{ stop: () => void } | null>(null);
+  // A tapped thumb travels on the same spring as a flicked one, without its velocity.
+  const travelTo = (target: number, onSettled?: () => void) => {
+    travelAnimation.current?.stop();
+    const run = settleThumb(offset, target, SWITCH_RELEASE_SPRING, reduce);
+    travelAnimation.current = run;
+    if (onSettled) void run.finished.then(() => { if (travelAnimation.current === run) onSettled(); });
+  };
   // The dragged thumb's recent positions, for the velocity it is released with.
   const thumbVelocity = useRef(createVelocityTracker());
   const alive = useRef(true);
@@ -106,11 +112,7 @@ export function GlassSwitch({
     expand();
     if (restoreTimer.current !== null) clearTimeout(restoreTimer.current);
     restoreTimer.current = window.setTimeout(collapse, 330);
-    travelAnimation.current?.stop();
-    travelAnimation.current = animate(offset, next ? travel : 0, {
-      ...travelTransition,
-      onComplete: () => { if (alive.current && mode.current === "tap") mode.current = "idle"; },
-    });
+    travelTo(next ? travel : 0, () => { if (alive.current && mode.current === "tap") mode.current = "idle"; });
   };
   const cancelPointerInteraction = () => {
     const activePointerId = pointerId.current;
@@ -125,16 +127,12 @@ export function GlassSwitch({
     mode.current = "idle";
     suppressNative.current = false;
     collapse();
-    travelAnimation.current?.stop();
-    travelAnimation.current = animate(offset, current ? travel : 0, travelTransition);
+    travelTo(current ? travel : 0);
   };
   const { arm: armPointerFallback, disarm: disarmPointerFallback } = usePointerReleaseFallback(cancelPointerInteraction);
 
   useEffect(() => {
-    if (pointerId.current === null && mode.current !== "tap" && mode.current !== "release") {
-      travelAnimation.current?.stop();
-      travelAnimation.current = animate(offset, current ? travel : 0, travelTransition);
-    }
+    if (pointerId.current === null && mode.current !== "tap" && mode.current !== "release") travelTo(current ? travel : 0);
   }, [current, offset, travel]);
   useEffect(() => offset.on("change", (position) => {
     rootRef.current?.style.setProperty("--dg-switch-progress", String(Math.max(0, Math.min(1, position / travel))));
@@ -267,7 +265,7 @@ export function GlassSwitch({
                     mode.current = "idle";
                     // A controlled owner may have kept the previous state; settle where it is.
                     const rest = currentRef.current ? travel : 0;
-                    if (offset.get() !== rest) travelAnimation.current = animate(offset, rest, travelTransition);
+                    if (offset.get() !== rest) travelTo(rest);
                   });
                   if (next !== current) emit(next);
                   requestAnimationFrame(() => { suppressNative.current = false; });
@@ -278,14 +276,11 @@ export function GlassSwitch({
                   if (restoreTimer.current !== null) clearTimeout(restoreTimer.current);
                   restoreTimer.current = window.setTimeout(collapse, 330);
                   const next = !current;
-                  travelAnimation.current = animate(offset, next ? travel : 0, {
-                    ...travelTransition,
-                    onComplete: () => { if (alive.current && mode.current === "tap") mode.current = "idle"; },
-                  });
+                  travelTo(next ? travel : 0, () => { if (alive.current && mode.current === "tap") mode.current = "idle"; });
                 } else {
                   mode.current = "idle";
                   collapse();
-                  travelAnimation.current = animate(offset, current ? travel : 0, travelTransition);
+                  travelTo(current ? travel : 0);
                   requestAnimationFrame(() => { suppressNative.current = false; });
                 }
               }}

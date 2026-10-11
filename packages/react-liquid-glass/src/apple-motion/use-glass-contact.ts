@@ -1,9 +1,10 @@
 import { useEffect, useRef, type RefObject } from "react";
-import { animate, useMotionValue, useReducedMotion } from "motion/react";
+import { animate, useMotionValue } from "motion/react";
 import { springTo } from "./react.js";
 import { contactPull } from "./contact.js";
 import { PRESS_GLOW_SPRING } from "./presets.js";
 import { usePointerReleaseFallback } from "./use-pointer-release-fallback.js";
+import { useReducedMotionPreference } from "../shared/reduced-motion.js";
 
 const RETURN = { stiffness: 420, damping: 24, mass: 1 };
 const PRESS = { stiffness: 700, damping: 42, mass: 1 };
@@ -13,7 +14,7 @@ export function useGlassContact(root: RefObject<HTMLElement | null>, { deform = 
   const contactX = useMotionValue(0), contactY = useMotionValue(0), contactStrength = useMotionValue(0), contactSpread = useMotionValue(1);
   const anchorX = useMotionValue(0), anchorY = useMotionValue(0);
   const pullX = useMotionValue(0), pullY = useMotionValue(0);
-  const reduce = useReducedMotion();
+  const reduce = useReducedMotionPreference();
   const active = useRef<{ id: number; x: number; y: number; px: number; py: number; width: number; height: number; elastic: boolean; moved: boolean } | null>(null);
   const runs = useRef<Array<{ stop: () => void }>>([]);
   const cleanMove = useRef(() => {}), suppressClick = useRef(false);

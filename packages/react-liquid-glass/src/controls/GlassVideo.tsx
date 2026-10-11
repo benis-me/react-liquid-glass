@@ -1,4 +1,3 @@
-import { useReducedMotion } from "motion/react";
 import { stepSpring, SIDE_BUTTON_SPRING, PLAY_BUTTON_SPRING, BAR_DRAG_SPRING, BUTTON_HOVER_SCALE } from "../apple-motion/index.js";
 import {
   useCallback,
@@ -15,8 +14,8 @@ import { useGlassMaterial } from "../liquid-glass/provider.js";
 import { useRendererBackend } from "../liquid-glass/use-renderer-backend.js";
 import { createLiquidGlassRenderer, type LiquidGlassBlob } from "../liquid-glass/renderer.js";
 import { usePointerReleaseFallback } from "../apple-motion/react.js";
-import { useReducedMotionPreference } from "../liquid-glass/light.js";
 import { glassMaterial } from "../liquid-glass/material.js";
+import { useReducedMotionPreference } from "../shared/reduced-motion.js";
 
 // Media controls are clear control glass, as Apple's are over video. The canvas spans the whole
 // player, so refraction is calibrated to it: 0.11 of the canvas, unmagnified, in a 9px band.
@@ -81,7 +80,7 @@ function seekRubberBand(distance: number, limit: number) {
 export function GlassVideo({ src, sources, poster, caption, autoPlay = false, loop = true, muted = true, pauseWhenHidden = true, labels }: GlassVideoProps) {
   const material = useGlassMaterial();
   const { requested, backend, fallback, onFallback } = useRendererBackend();
-  const reduce = useReducedMotion();
+  const reduce = useReducedMotionPreference();
   const reduceRef = useRef(reduce); reduceRef.current = reduce;
   const [loadError, setLoadError] = useState(false);
   const materialRef = useRef(material); materialRef.current = material;
@@ -118,7 +117,6 @@ export function GlassVideo({ src, sources, poster, caption, autoPlay = false, lo
   // Reduced motion "stopped" autoplay's playback, and nothing resumes it afterwards,
   // neither a seek nor scrolling back into view. Playback the reader started with the
   // play control is "done": it stays theirs, and the play control always works.
-  const reducePreference = useReducedMotionPreference();
   const autoplay = useRef({ key: "", state: "pending" as "pending" | "waiting" | "playing" | "stopped" | "done" });
   const [controlsVisible, setControlsVisible] = useState(true);
   const text = { ...defaultLabels, ...labels };
@@ -380,7 +378,7 @@ export function GlassVideo({ src, sources, poster, caption, autoPlay = false, lo
     autoplay.current.state = "playing";
     // A rejection here is a blocked or interrupted start; it stays autoplay's playback.
     void video.play().catch(() => undefined);
-  }, [autoPlay, reducePreference, sourceKey]);
+  }, [autoPlay, reduce, sourceKey]);
 
   const togglePlayback = useCallback(() => {
     const video = videoRef.current;

@@ -5,7 +5,8 @@ import { createLiquidGlassRenderer, type GlassRendererBackend, type LiquidGlassF
 import { resolveGlassMaterial, useGlassMaterial } from "./provider.js";
 import { glassEdgeDepth, glassMaterial, liquidThickness, useHostDark, type GlassVariant } from "./material.js";
 import { useRendererBackend } from "./use-renderer-backend.js";
-import { readLiquidLightAngle, subscribeLiquidLight, useReducedMotionPreference, type LiquidLightSource } from "./light.js";
+import { readLiquidLightAngle, subscribeLiquidLight, type LiquidLightSource } from "./light.js";
+import { useReducedMotionPreference } from "../shared/reduced-motion.js";
 
 export type { LiquidGlassBlob } from "./renderer.js";
 export interface LiquidGlassCanvasProps extends Omit<LiquidGlassFrame, "source" | "content" | "sourceRevision" | "contentRevision"> {

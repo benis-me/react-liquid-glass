@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react";
 import { springTo, useVelocityDeformation, type SpringRun } from "../apple-motion/react.js";
 import type { PhysicalSpring } from "../apple-motion/index.js";
-import { THUMB_DEFORMATION } from "../apple-motion/presets.js";
-import { animate, useMotionValue, useTransform, type MotionValue, type ValueAnimationTransition } from "motion/react";
+import { LIFT_SPRING, SEGMENTED_PRESS_SPRING, SEGMENTED_RELEASE_SPRING, THUMB_DEFORMATION, THUMB_FILL_SPRING } from "../apple-motion/presets.js";
+import { useMotionValue, useTransform, type MotionValue } from "motion/react";
 
 type Readable = { get(): number };
 const unit = (value: number) => Math.min(1, Math.max(0, value));
@@ -57,16 +57,16 @@ export function useLiftedOptics(lensW: Readable, lensH: Readable, lift: Readable
 export function settleThumb(value: MotionValue<number>, target: number, spring: PhysicalSpring, reduce: boolean, velocity?: number): SpringRun {
   if (!reduce) return springTo(value, target, spring, velocity);
   value.jump(target);
-  return { stop() {}, finished: Promise.resolve() };
+  const finished = Promise.resolve();
+  return { stop() {}, finished, then: (onResolve, onReject) => finished.then(onResolve, onReject) };
 }
 
 export function useThumbMotion(offset: MotionValue<number>, halfThumbWidth: number, halfThumbHeight: number, restTintBlur: number, reduce = false) {
-  const pressTransition = { ease: [0.22, 1.15, 0.36, 1.06] as const, duration: 0.32 };
-  const releaseTransition = { ease: [0.22, 1, 0.36, 1] as const, duration: 0.52 };
-  // The white fills back in quickly as the lens starts to sink, then the white thumb settles: what
-  // the lens shows of the track has no counterpart on the resting thumb, so filling in with the
-  // sinking left it lingering as a grey ghost inside a half-white thumb.
-  const fillTransition = { ease: [0.22, 1, 0.36, 1] as const, duration: 0.24 };
+  // The thumb lifts into the lens and settles back on a pressed tab's springs. The white fills back
+  // in quickly (THUMB_FILL_SPRING) as the lens starts to sink, then the white thumb settles: what the
+  // lens shows of the track has no counterpart on the resting thumb, so filling in with the sinking
+  // left it lingering as a grey ghost inside a half-white thumb.
+  const lift = LIFT_SPRING, settle = SEGMENTED_RELEASE_SPRING, fill = THUMB_FILL_SPRING;
   const baseLensW = useMotionValue(halfThumbWidth);
   const baseLensH = useMotionValue(halfThumbHeight);
   const radius = useMotionValue(halfThumbHeight);
@@ -90,29 +90,28 @@ export function useThumbMotion(offset: MotionValue<number>, halfThumbWidth: numb
   const lensW = useTransform(() => baseLensW.get() * (1 + 0.6 * deformation.get()));
   const lensH = useTransform(() => baseLensH.get() * (1 - 0.45 * deformation.get()));
 
-  const to = (value: MotionValue<number>, target: number, transition: ValueAnimationTransition) => {
-    if (reduce) value.jump(target); else animate(value, target, transition);
-  };
+  const to = (value: MotionValue<number>, target: number, spring: PhysicalSpring) => { settleThumb(value, target, spring, reduce); };
   const expand = () => {
     still.jump(1);
-    to(baseLensW, halfThumbWidth * 1.5, pressTransition);
-    to(baseLensH, halfThumbHeight * 1.5, pressTransition);
-    to(radius, halfThumbHeight * 1.5, pressTransition);
-    to(tintOpacity, 0, pressTransition);
-    to(tintBlur, 0, pressTransition);
+    to(baseLensW, halfThumbWidth * 1.5, lift);
+    to(baseLensH, halfThumbHeight * 1.5, lift);
+    to(radius, halfThumbHeight * 1.5, lift);
+    to(tintOpacity, 0, lift);
+    to(tintBlur, 0, lift);
     // Held, the lens shows the track at its own size, as a pressed tab shows the bar, and magnifies it.
-    to(targetScaleX, 1, pressTransition);
-    to(targetScaleY, 1, pressTransition);
+    to(targetScaleX, 1, lift);
+    to(targetScaleY, 1, lift);
   };
   const collapse = () => {
-    to(baseLensW, halfThumbWidth, releaseTransition);
-    to(baseLensH, halfThumbHeight, releaseTransition);
-    to(radius, halfThumbHeight, releaseTransition);
-    to(tintOpacity, 1, fillTransition);
-    to(tintBlur, restTintBlur, fillTransition);
-    to(targetScaleX, 0.85, releaseTransition);
-    to(targetScaleY, 0.525, releaseTransition);
+    to(baseLensW, halfThumbWidth, settle);
+    to(baseLensH, halfThumbHeight, settle);
+    to(radius, halfThumbHeight, settle);
+    to(tintOpacity, 1, fill);
+    to(tintBlur, restTintBlur, fill);
+    to(targetScaleX, 0.85, settle);
+    to(targetScaleY, 0.525, settle);
   };
-  const drag = () => to(still, 0, { duration: 0.2, ease: [0.4, 0, 0.2, 1] });
+  // Once a press drags, the lens goes still as a dragged tab's does.
+  const drag = () => to(still, 0, SEGMENTED_PRESS_SPRING);
   return { lensW, lensH, radius, tintOpacity, targetScaleX, targetScaleY, tintBlur, still, expand, collapse, drag };
 }

@@ -12,18 +12,18 @@ import {
 import {
   motion,
   useMotionValue,
-  useReducedMotion,
   useTransform,
 } from "motion/react";
 import { springTo, useGlassContact } from "../apple-motion/react.js";
 import { contactTransform } from "../apple-motion/contact.js";
-import { SURFACE_PRESS_SPRING } from "../apple-motion/presets.js";
+import { GLASS_PRESS_SCALE, SURFACE_PRESS_SPRING } from "../apple-motion/presets.js";
 import { LiquidGlassCanvas } from "../liquid-glass/LiquidGlassCanvas.js";
 import { createLiquidBackdrop } from "../liquid-glass/backdrop.js";
 import { useGlassTone } from "../liquid-glass/provider.js";
 import { useLiquidToneTracker } from "../liquid-glass/tone.js";
 import { liquidScreenScale, paintLiquidGrid } from "../liquid-glass/source.js";
 import { glassValue, liquidSurfaceBlur, liquidThickness } from "../liquid-glass/material.js";
+import { useReducedMotionPreference } from "../shared/reduced-motion.js";
 
 export type GlassBackground = "grid" | "lines" | "plain";
 export const StageContext = createContext(false);
@@ -133,7 +133,7 @@ function OpticalSurface({
   const source = useRef<HTMLCanvasElement | null>(null);
   const revision = useMotionValue(0);
   const scale = useMotionValue(1);
-  const reduce = useReducedMotion();
+  const reduce = useReducedMotionPreference();
   const [size, setSize] = useState({ width: 0, height: 0 });
   const widthValue = useMotionValue(0),
     heightValue = useMotionValue(0);
@@ -146,10 +146,10 @@ function OpticalSurface({
   });
   useEffect(() => {
     if (reduce) {
-      scale.jump(pressed ? 1.025 : 1);
+      scale.jump(pressed ? GLASS_PRESS_SCALE : 1);
       return;
     }
-    const run = springTo(scale, pressed ? 1.025 : 1, SURFACE_PRESS_SPRING);
+    const run = springTo(scale, pressed ? GLASS_PRESS_SCALE : 1, SURFACE_PRESS_SPRING);
     return () => run.stop();
   }, [pressed, reduce, scale]);
   // The canvas reaches as far as the visible shadow of glass this thick: 40px for a control.

@@ -1,7 +1,10 @@
 import { useEffect, useRef } from "react";
-import { animate, useMotionValue, useReducedMotion, type MotionValue } from "motion/react";
+import { animate, useMotionValue, type MotionValue } from "motion/react";
 import { OPEN_MORPH_DURATION, OPEN_MORPH_TIMES, openWidthFrames, openHeightFrames, openRadiusFrames } from "./menu.js";
 import { liquidEasings, retargetLiquidFrames } from "./trajectory.js";
+import { springTo, type SpringRun } from "./react.js";
+import { GLASS_PRESS_SCALE, SURFACE_PRESS_SPRING } from "./presets.js";
+import { useReducedMotionPreference } from "../shared/reduced-motion.js";
 
 export interface PopoverLayout {
   triggerX: number; triggerY: number; triggerWidth: number; triggerHeight: number; triggerRadius: number;
@@ -52,9 +55,9 @@ export function popoverFrames(layout: PopoverLayout, open: boolean, morphTrigger
 export function usePopoverMotion() {
   const x = useMotionValue(0), y = useMotionValue(0), w = useMotionValue(1), h = useMotionValue(1), radius = useMotionValue(1);
   const trigger = useMotionValue(1), merge = useMotionValue(0), reveal = useMotionValue(0);
-  const reduce = useReducedMotion();
+  const reduce = useReducedMotionPreference();
   const running = useRef(false), token = useRef(0);
-  const runs = useRef<ReturnType<typeof animate>[]>([]);
+  const runs = useRef<Array<ReturnType<typeof animate> | SpringRun>>([]);
   const stop = () => { runs.current.forEach(run => run.stop()); runs.current = []; };
   useEffect(() => () => { token.current++; stop(); }, []);
   const transition = (layout: PopoverLayout, open: boolean, done: () => void, options: { morphTrigger?: boolean; duration?: number } = {}) => {
@@ -83,13 +86,14 @@ export function usePopoverMotion() {
       done();
     });
   };
+  // The closed trigger presses like any glass: it grows on the Button's spring.
   const press = (pressed: boolean) => {
     if (running.current) return;
-    const target = pressed ? 1.025 : 1;
+    const target = pressed ? GLASS_PRESS_SCALE : 1;
     if (reduce) { trigger.jump(target); return; }
     if (Math.abs(trigger.get() - target) < .001) return;
     stop();
-    runs.current.push(animate(trigger, target, { type: "spring", mass: 1, stiffness: 420, damping: 28, velocity: trigger.getVelocity() }));
+    runs.current.push(springTo(trigger, target, SURFACE_PRESS_SPRING));
   };
   return { x, y, w, h, radius, trigger, merge, reveal, transition, press };
 }

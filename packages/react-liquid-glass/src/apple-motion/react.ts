@@ -3,7 +3,8 @@ import { animate, cancelFrame, frame, useMotionValue, type MotionValue } from "m
 import { motionValue, type WritableMotionValue } from "../shared/values.js";
 import { stepSpring, type PhysicalSpring } from "./spring.js";
 
-export type SpringRun = { stop: () => void; finished: Promise<void> };
+/** A running spring: stop it, or await it like a Motion animation; both settle `finished`. */
+export type SpringRun = { stop: () => void; finished: Promise<void>; then: (onResolve: () => void, onReject?: () => void) => Promise<void> };
 
 /**
  * Spring `value` to `target`, carrying its current velocity. Pass `velocity` when the value was
@@ -25,6 +26,7 @@ export function springTo(value: MotionValue<number>, target: number, config: Phy
   return {
     stop: () => { animation.stop(); finish(); },
     finished,
+    then: (onResolve, onReject) => finished.then(onResolve, onReject),
   };
 }
 
@@ -51,17 +53,6 @@ export function waitForRest(values: readonly WritableMotionValue<number>[], erro
     check();
     timeout = window.setTimeout(finish, timeoutMs);
   });
-}
-
-export function useDerivedMotion(source: WritableMotionValue<number>, map: (value: number) => number) {
-  const mapRef = useRef(map);
-  mapRef.current = map;
-  const derived = useRef(motionValue(map(source.get()))).current;
-  useEffect(() => {
-    derived.set(mapRef.current(source.get()));
-    return source.on("change", (value) => derived.set(mapRef.current(value)));
-  }, [source, derived]);
-  return derived;
 }
 
 export function useDerivedMotion2(
@@ -104,13 +95,8 @@ export function useVelocityDeformation(
   const configRef = useRef(config);
   configRef.current = config;
   const deformation = useMotionValue(0);
-  const boostRef = useRef(0);
   const velocityImpulseRef = useRef(0);
   const wakeRef = useRef<() => void>(() => undefined);
-  const setBoost = useRef((value: number) => {
-    boostRef.current = value;
-    wakeRef.current();
-  }).current;
   const kick = useRef((impulse: number) => {
     velocityImpulseRef.current = impulse;
     wakeRef.current();
@@ -136,7 +122,7 @@ export function useVelocityDeformation(
         // A burst of input a few milliseconds after a frame is not a real speed.
         sourceVelocity += (Math.max(-MAX_SOURCE_SPEED, Math.min(MAX_SOURCE_SPEED, raw)) - sourceVelocity) * (1 - Math.exp(-elapsed / options.smoothing));
       } else sourceVelocity = raw;
-      const target = Math.max(options.target(Math.abs(sourceVelocity)), boostRef.current);
+      const target = options.target(Math.abs(sourceVelocity));
       const stiffness = typeof options.stiffness === "function" ? options.stiffness(position, target) : options.stiffness;
       const damping = typeof options.damping === "function" ? options.damping(position, target) : options.damping;
       velocity += velocityImpulseRef.current;
@@ -169,7 +155,7 @@ export function useVelocityDeformation(
     };
   }, [source, deformation]);
 
-  return { deformation, setBoost, kick };
+  return { deformation, kick };
 }
 
 export function rubberBand(distance: number, limit: number, dampening: number) {

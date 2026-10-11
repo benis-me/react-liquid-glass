@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { animate, cancelFrame, frame, useMotionValue, useReducedMotion, useTransform, type MotionValue, type AnimationPlaybackControlsWithThen } from "motion/react";
+import { animate, cancelFrame, frame, useMotionValue, useTransform, type MotionValue, type AnimationPlaybackControlsWithThen } from "motion/react";
 import { liquidEasings, retargetLiquidFrames } from "./trajectory.js";
 import { TRIGGER_RADIUS, MIN_LENS_HALF, OPEN_MORPH_DURATION, OPEN_CONTENT_DURATION, CLOSE_CONTENT_DURATION, CLOSE_FUSION_DURATION, CLOSE_IMPACT_DISTANCE, OPEN_MORPH_EASES, CLOSE_FUSION_EASES, PRESS_EASE, RELEASE_EASE, OPEN_MORPH_TIMES, CLOSE_FUSION_TIMES, openWidthFrames, openHeightFrames, openRadiusFrames, closeMenuWidthFrames, closeMenuHeightFrames, closeMenuRadiusFrames, closeButtonFrames } from "./menu.js";
 import { cubicBezier } from "motion";
+import { useReducedMotionPreference } from "../shared/reduced-motion.js";
+import { springTo } from "./react.js";
+import { GLASS_PRESS_SCALE, SURFACE_PRESS_SPRING } from "./presets.js";
 
 export interface StageSize {
   width: number;
@@ -71,7 +74,6 @@ export interface MenuMotionOptions {
   coordinateScale?: number;
   onBegin?: (transition: Omit<MenuTransition, "duration">) => void;
   onTransition?: (transition: MenuTransition) => AnimationControl[];
-  onPress?: (pressed: boolean) => AnimationControl[];
   onRest?: () => void;
   onOpenChange?: (open: boolean) => void;
 }
@@ -88,7 +90,7 @@ export function useMenuMotion(options: MenuMotionOptions) {
   const focusTimer = useRef<number | null>(null);
   const openRef = useRef(false);
   const transitioningRef = useRef(false);
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useReducedMotionPreference();
   const [open, setOpen] = useState(false);
   const [stageSize, setStageSize] = useState<StageSize>({ width: 1, height: 1 });
   const rightEdge = useMotionValue(MIN_LENS_HALF * 2);
@@ -507,22 +509,19 @@ export function useMenuMotion(options: MenuMotionOptions) {
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [open, setExpanded]);
 
+  // The closed trigger presses like any glass: it grows on the Button's spring.
   const pressTrigger = useCallback((pressed: boolean) => {
     if (openRef.current || transitioningRef.current) return;
     stopAnimations();
-    const duration = pressed ? 0.08 : 0.16;
-    const ease = pressed ? PRESS_EASE : RELEASE_EASE;
-    const pressHalf = pressed ? TRIGGER_RADIUS * 1.025 : TRIGGER_RADIUS;
+    const scale = pressed ? GLASS_PRESS_SCALE : 1;
+    if (reduceMotion) { buttonHalf.jump(TRIGGER_RADIUS * scale); triggerScale.jump(scale); return; }
     animations.current = [
-      ...callbacks.current.onPress?.(pressed) ?? [],
-      animate(buttonHalf, pressHalf, { duration, ease }),
-        animate(triggerScale, pressed ? 1.025 : 1, {
-        duration,
-        ease,
-      }),
+      springTo(buttonHalf, TRIGGER_RADIUS * scale, SURFACE_PRESS_SPRING),
+      springTo(triggerScale, scale, SURFACE_PRESS_SPRING),
     ];
   }, [
     buttonHalf,
+    reduceMotion,
     stopAnimations,
     triggerScale,
   ]);

@@ -1,13 +1,14 @@
 import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
-import { animate, motion, useMotionValue, useReducedMotion, useTransform } from "motion/react";
+import { animate, motion, useMotionValue, useTransform } from "motion/react";
 import { LiquidGlass } from "../liquid-glass/LiquidGlass.js";
 import { LIFT_MAGNIFICATION, useLiftedOptics, useLiftedShadow } from "./use-thumb-motion.js";
 import { GlassSurface } from "./GlassSurface.js";
 import { liquidScreenScale } from "../liquid-glass/source.js";
 import { LIFTED_GLASS, useHostDark } from "../liquid-glass/material.js";
 import { rubberBand, springTo, useGlassContact, usePointerReleaseFallback, waitForRest, useDerivedMotion2, useVelocityDeformation, type SpringRun } from "../apple-motion/react.js";
-import { SEGMENTED_TRAVEL_SPRING, SEGMENTED_PRESS_SPRING, SEGMENTED_DRAG_CATCHUP_SPRING, SEGMENTED_RELEASE_SPRING, SEGMENTED_HEIGHT_RELEASE_SPRING, SEGMENTED_IMPACT_RETENTION, SEGMENTED_TRAIL_BIAS, SEGMENTED_HOLD_IMPACT_SCRIPT, SEGMENTED_HANDOFF, SEGMENTED_DEFORMATION, SEGMENTED_LIFT_OUTSET, SEGMENTED_LIFT_SPRING, SEGMENTED_OVERDRAG } from "../apple-motion/presets.js";
+import { SEGMENTED_TRAVEL_SPRING, SEGMENTED_PRESS_SPRING, SEGMENTED_DRAG_CATCHUP_SPRING, SEGMENTED_RELEASE_SPRING, SEGMENTED_HEIGHT_RELEASE_SPRING, SEGMENTED_IMPACT_RETENTION, SEGMENTED_TRAIL_BIAS, SEGMENTED_HOLD_IMPACT_SCRIPT, SEGMENTED_HANDOFF, SEGMENTED_DEFORMATION, SEGMENTED_LIFT_OUTSET, LIFT_SPRING, SEGMENTED_OVERDRAG } from "../apple-motion/presets.js";
 import { createVelocityTracker } from "../apple-motion/velocity.js";
+import { useReducedMotionPreference } from "../shared/reduced-motion.js";
 
 
 type IconProps = { className?: string };
@@ -74,7 +75,7 @@ export interface GlassSegmentedProps {
 }
 
 export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, onNavigate, className, labels, items: suppliedItems, tablist = false, idPrefix, ariaLabel = "Options" }: GlassSegmentedProps) {
-  const reduce = useReducedMotion();
+  const reduce = useReducedMotionPreference();
   // The lens brightens slightly on dark pages; follow theme changes, not just the first render.
   const dark = useHostDark();
   const segments = useMemo<readonly GlassSegmentItem[]>(() => suppliedItems?.length ? suppliedItems.map(item => ({ color1: "currentColor", color2: "currentColor", ...item })) : DEFAULT_SEGMENTS, [suppliedItems]);
@@ -95,7 +96,6 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
   const dragClientX = useRef(0);
   const dragMoved = useRef(false);
   const suppressDragClick = useRef(false);
-  const releaseTimer = useRef<number | null>(null);
   const impactTargetX = useRef(0.5);
   const impactDirection = useRef(0);
   const impactLanded = useRef(false);
@@ -298,7 +298,6 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
     glassAnimation.current?.stop();
     solidAnimation.current?.stop();
     dragCatchupAnimation.current?.stop();
-    if (releaseTimer.current !== null) window.clearTimeout(releaseTimer.current);
   }, []);
 
   const choose = (next: string) => {
@@ -401,17 +400,9 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
       onUpdate: () => moveDrag(dragClientX.current),
     });
   };
-  const releaseInteraction = (delay = 0, settle = true) => {
+  const releaseInteraction = (settle = true) => {
     setDragging(false);
     pressBar(false);
-    if (releaseTimer.current !== null) window.clearTimeout(releaseTimer.current);
-    if (delay > 0) {
-      releaseTimer.current = window.setTimeout(() => {
-        releaseTimer.current = null;
-        releaseInteraction(0, settle);
-      }, delay);
-      return;
-    }
     const token = ++transitionToken.current;
     const travel = settle ? updateGeometry(selectedRef.current, false) : travelSettled.current;
     if (settle) travelSettled.current = travel;
@@ -453,7 +444,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
     disarmPointerFallback();
     stopDragCatchup();
     try { target.releasePointerCapture(pointerId); } catch {}
-    releaseInteraction(0, dragMoved.current);
+    releaseInteraction(dragMoved.current);
     if (dragMoved.current) {
       suppressDragClick.current = true;
       requestAnimationFrame(() => { suppressDragClick.current = false; });
@@ -463,7 +454,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
     if (dragPointer.current === null) return;
     dragPointer.current = null;
     stopDragCatchup();
-    releaseInteraction(0, dragMoved.current);
+    releaseInteraction(dragMoved.current);
   });
   // The bar never changes with the selection; skipping its re-render keeps it from redrawing,
   // and the lens, which refracts it, from recapturing.
@@ -522,7 +513,6 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
           stopDragCatchup();
           dragOffsetX.current = event.clientX - (nearest.rect.left + nearest.rect.width / 2);
           dragMoved.current = false;
-          if (releaseTimer.current !== null) window.clearTimeout(releaseTimer.current);
           transitionToken.current += 1;
           rootRef.current?.setAttribute("data-interacting", "");
           rootRef.current?.removeAttribute("data-crossfading");
@@ -533,7 +523,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
           solidAnimation.current?.stop();
           solidAnimation.current = animate(solidOpacity, 0, { duration: 0.1, ease: [0.22, 1, 0.36, 1] });
           interactionStop.current?.stop();
-          interactionStop.current = springTo(interaction, 1, SEGMENTED_LIFT_SPRING);
+          interactionStop.current = springTo(interaction, 1, LIFT_SPRING);
           pressBar(true);
           lensVelocity.current.reset();
           releaseVelocity.current = null;
@@ -583,7 +573,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
           if (event.pointerId === dragPointer.current) {
             dragPointer.current = null;
             stopDragCatchup();
-            releaseInteraction(0, dragMoved.current);
+            releaseInteraction(dragMoved.current);
           }
         }}
         onDragStart={(event) => event.preventDefault()}

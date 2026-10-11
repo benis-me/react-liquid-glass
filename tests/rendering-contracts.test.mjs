@@ -38,7 +38,7 @@ const liquidRendererSource = ["webgl2-renderer.ts", "frame-geometry.ts", "render
 const liquidAdapterSource = readFileSync(new URL("../packages/react-liquid-glass/src/liquid-glass/LiquidGlass.tsx", import.meta.url), "utf8");
 const liquidCanvasSource = readFileSync(liquidCanvasUrl, "utf8") + liquidRendererSource;
 const indexSource = readFileSync(new URL("../apps/docs/index.html", import.meta.url), "utf8");
-const heroSource = readFileSync(new URL("../packages/react-liquid-glass/src/controls/GlassSpotlight.tsx", import.meta.url), "utf8") + readFileSync(new URL("../packages/react-liquid-glass/src/apple-motion/tween.ts", import.meta.url), "utf8");
+const heroSource = readFileSync(new URL("../packages/react-liquid-glass/src/controls/GlassSpotlight.tsx", import.meta.url), "utf8");
 const stylesSource = readFileSync(new URL("../apps/docs/src/styles.css", import.meta.url), "utf8");
 const demoStylesSource = readFileSync(new URL("../apps/docs/src/styles/demos.css", import.meta.url), "utf8") + readFileSync(new URL("../packages/react-liquid-glass/src/controls.css", import.meta.url), "utf8");
 const pageStylesSource = readFileSync(new URL("../apps/docs/src/styles/page.css", import.meta.url), "utf8");
@@ -434,9 +434,11 @@ test("liquid menu keeps one core-compatible Canvas material over the shared back
   assert.match(liquidDemoSource, /frame\.preRender\(updateVelocity\)/);
   assert.doesNotMatch(liquidDemoSource, /direction\.[xy] \* 780/);
   assert.match(liquidDemoSource, /x: triggerOffsetX,[\s\S]*y: triggerOffsetY,/s);
-  assert.match(liquidDemoSource, /const pressHalf = pressed \? TRIGGER_RADIUS \* 1\.025 : TRIGGER_RADIUS/);
+  // The closed trigger presses like any glass, on the Button's spring, and jumps under reduced motion.
+  assert.match(liquidDemoSource, /const scale = pressed \? GLASS_PRESS_SCALE : 1;\s*if \(reduceMotion\) \{ buttonHalf\.jump\(TRIGGER_RADIUS \* scale\); triggerScale\.jump\(scale\); return; \}/);
   assert.match(liquidDemoSource, /if \(openRef\.current \|\| transitioningRef\.current\) return/);
-  assert.match(liquidDemoSource, /animate\(buttonHalf, pressHalf/);
+  assert.match(liquidDemoSource, /springTo\(buttonHalf, TRIGGER_RADIUS \* scale, SURFACE_PRESS_SPRING\),\s*springTo\(triggerScale, scale, SURFACE_PRESS_SPRING\),/);
+  assert.doesNotMatch(liquidDemoSource, /onPress\?:/);
   assert.match(liquidDemoSource, /if \(nextOpen\) triggerRef\.current\?\.blur\(\)/);
   assert.match(liquidDemoSource, /focusDelay = reduceMotion[\s\S]*transitionDuration \* 1000 \+ 32/s);
   assert.match(liquidDemoSource, /if \(reduceMotion\)[\s\S]*halfWidth\.jump\(target\.halfWidth\)/s);
@@ -665,11 +667,13 @@ test("the former Liquid Button stays retired: one Button, on the one glass", () 
 test("switch, slider, and toggle retain their source motion contracts", () => {
   assert.match(componentSource, /const offset = useMotionValue\(current \? travel : 0\)/);
   assert.match(componentSource, /window\.setTimeout\(\(\) => \{[\s\S]*mode\.current === "pending"[\s\S]*\}, 200\)/);
-  assert.match(componentSource, /to\(tintOpacity, 0, pressTransition\)/);
+  assert.match(componentSource, /to\(tintOpacity, 0, lift\)/);
   assert.match(componentSource, /rubberBand\(-next, overshoot/);
   assert.match(componentSource, /inputRef\.current\?\.focus/);
   assert.doesNotMatch(componentSource, /dg-slider__value/);
-  assert.match(componentSource, /duration: 0\.6/);
+  // A tapped thumb travels on the same spring as a flicked one; there is no tween.
+  assert.match(componentSource, /const run = settleThumb\(offset, target, SWITCH_RELEASE_SPRING, reduce\);/);
+  assert.doesNotMatch(componentSource, /travelTransition|pressTransition|releaseTransition|fillTransition|duration: 0\.6/);
   assert.match(componentSource, /return SEGMENTED_DEFORMATION\.max \* Math\.tanh\(speed \/ SEGMENTED_DEFORMATION\.speed\)/);
   // Held thumbs are the same soft body: they stretch along their motion and flatten with speed,
   // never squash narrower and taller while they move, and stay round while held still.
@@ -730,8 +734,9 @@ test("segmented click expands, travels as glass, then collapses", () => {
   // it, and the lens travels there from where it is with its own measured velocity.
   assert.match(componentSource, /if \(dragMoved\.current\) \{\s*(?:\/\/[^\n]*\n\s*)*const nearest = nearestSegment\(event\.clientX - dragOffsetX\.current\);\s*if \(nearest\) choose\(nearest\.value\);\s*releaseVelocity\.current = lensVelocity\.current\.velocity\(\);\s*\}/);
   assert.match(componentSource, /lensVelocity\.current\.push\(lensCenter - shift\);/);
-  assert.match(componentSource, /releaseInteraction\(0, dragMoved\.current\)/);
-  assert.match(componentSource, /const releaseInteraction = \(delay = 0, settle = true\)/);
+  assert.match(componentSource, /releaseInteraction\(dragMoved\.current\)/);
+  assert.match(componentSource, /const releaseInteraction = \(settle = true\)/);
+  assert.doesNotMatch(componentSource, /releaseTimer/);
   assert.match(componentSource, /const travel = settle \? updateGeometry\(selectedRef\.current, false\) : travelSettled\.current/);
   assert.match(componentSource, /const liftOutset = useTransform\(\(\) => interaction\.get\(\) \* SEGMENTED_LIFT_OUTSET \* 2 \* lensH\.get\(\)\);/);
   assert.match(componentSource, /useDerivedMotion2\(stretchedLensW, liftOutset, \(width, outset\) => width \+ outset\)/);
@@ -795,8 +800,8 @@ test("segmented motion uses velocity-preserving iOS-style physical springs", () 
   assert.match(componentSource, /\.\.\.config,\s*velocity,/);
   assert.match(componentSource, /const x = useMotionValue\(0\.5\)/);
   // A pressed tab's lens lifts with a slight overshoot before it settles.
-  assert.match(componentSource, /springTo\(interaction, 1, SEGMENTED_LIFT_SPRING\)/);
-  assert.match(componentSource, /SEGMENTED_LIFT_SPRING = \{ mass: 1, stiffness: 340, damping: 22 \}/);
+  assert.match(componentSource, /springTo\(interaction, 1, LIFT_SPRING\)/);
+  assert.match(componentSource, /LIFT_SPRING = \{ mass: 1, stiffness: 340, damping: 22 \}/);
   assert.match(componentSource, /springTo\(interaction, 0, SEGMENTED_RELEASE_SPRING\)/);
   assert.doesNotMatch(componentSource, /let velocity = 0;[\s\S]*velocity \+= \(stiffness/);
 });
@@ -878,7 +883,7 @@ test("the optical exit requires sustained geometric rest, not one zero crossing"
     now += ms;
     for (const [key, timer] of timers) if (timer.at <= now) { timers.delete(key); timer.fn(); }
   };
-  const source = componentSource.slice(componentSource.indexOf("function waitForRest("), componentSource.indexOf("export function useDerivedMotion("));
+  const source = componentSource.slice(componentSource.indexOf("function waitForRest("), componentSource.indexOf("export function useDerivedMotion2("));
   const wait = new Function("window", `${stripTypeScriptTypes(source)}; return waitForRest;`)(clock);
   const geometry = motionValue(5);
   let ended = false;
@@ -1042,7 +1047,7 @@ test("control optics retain size-independent pixel gain and the approved menu ma
   assert.match(componentSource, /const refractedTrackHeight = height;/);
   assert.match(componentSource, /const refractedTrackHeight = trackHeight \* LIFT_END_PINCH;/);
   assert.match(componentSource, /export const LIFT_END_PINCH = 1 \+ 1\.5 \* 0\.147;/);
-  assert.match(componentSource, /to\(targetScaleX, 1, pressTransition\);\s*to\(targetScaleY, 1, pressTransition\);/);
+  assert.match(componentSource, /to\(targetScaleX, 1, lift\);\s*to\(targetScaleY, 1, lift\);/);
   assert.doesNotMatch(componentSource, /Math\.round\((?:height|thumbHeight) \* 0\.75\)/);
   // A released Switch takes the velocity of its last moves, not of its last two pointer events.
   assert.match(componentSource, /const velocity = thumbVelocity\.current\.velocity\(event\.timeStamp\);/);
@@ -1075,15 +1080,17 @@ test("control optics retain size-independent pixel gain and the approved menu ma
   // tab's selection ink shows only through the moving lens, as on iOS 27.
   assert.equal((componentSource.match(/const touchLight = useTransform\(\(\) => contact\.contactStrength\.get\(\) \* \.3 \* still\.get\(\)\);/g) ?? []).length, 3, "held tabs and thumbs barely light where they are touched");
   assert.match(componentSource, /const expand = \(\) => \{\s*still\.jump\(1\);/);
-  assert.match(componentSource, /const drag = \(\) => to\(still, 0, \{ duration: 0\.2, ease: \[0\.4, 0, 0\.2, 1\] \}\);/);
+  assert.match(componentSource, /const drag = \(\) => to\(still, 0, SEGMENTED_PRESS_SPRING\);/);
   assert.match(componentSource, /if \(mode\.current !== "hold"\) \{ mode\.current = "hold"; expand\(\); \}\s*drag\(\);/);
   assert.match(componentSource, /offsetStart\.current = offset\.get\(\);\s*drag\(\);/);
   // Released, a thumb's white fills back in quickly while its lens sinks, so what the lens showed
   // of the track never lingers inside a half-white thumb.
-  assert.match(componentSource, /const fillTransition = \{ ease: \[0\.22, 1, 0\.36, 1\] as const, duration: 0\.24 \};/);
-  assert.match(componentSource, /to\(tintOpacity, 1, fillTransition\);\s*to\(tintBlur, restTintBlur, fillTransition\);/);
+  // The thumb lifts and settles on a pressed tab's springs, and its white fills back in on the quick one.
+  assert.match(componentSource, /const lift = LIFT_SPRING, settle = SEGMENTED_RELEASE_SPRING, fill = THUMB_FILL_SPRING;/);
+  assert.match(componentSource, /THUMB_FILL_SPRING = \{ mass: 1, stiffness: 1600, damping: 80 \}/);
+  assert.match(componentSource, /to\(tintOpacity, 1, fill\);\s*to\(tintBlur, restTintBlur, fill\);/);
   assert.match(componentSource, /stillStop\.current = springTo\(still, 0, SEGMENTED_PRESS_SPRING\);\s*setDragging\(true\);/);
-  assert.match(componentSource, /const releaseInteraction = \(delay = 0, settle = true\) => \{\s*setDragging\(false\);/);
+  assert.match(componentSource, /const releaseInteraction = \(settle = true\) => \{\s*setDragging\(false\);/);
   assert.match(componentSource, /data-dragging=\{dragging \? "" : undefined\}/);
   assert.doesNotMatch(componentSource, /dg-tabs__group--quiet/);
   const controlsCss = readFileSync(new URL("../packages/react-liquid-glass/src/controls.css", import.meta.url), "utf8");
@@ -1117,8 +1124,8 @@ test("a pressed tab bar grows about its centre and its glass stays registered", 
   // 399pt bar, which wider bars do not exceed. It grows on press and returns on release.
   assert.match(segmented, /const PRESS_SCALE = 1\.035;\s*const PRESS_OUTSET = 7;/);
   assert.match(segmented, /springTo\(barScale, pressed && width \? 1 \+ Math\.min\(PRESS_SCALE - 1, PRESS_OUTSET \* 2 \/ width\) : 1, SEGMENTED_PRESS_SPRING\)/);
-  assert.match(segmented, /interactionStop\.current = springTo\(interaction, 1, SEGMENTED_LIFT_SPRING\);\s*pressBar\(true\);/);
-  assert.match(segmented, /const releaseInteraction = \(delay = 0, settle = true\) => \{\s*setDragging\(false\);\s*pressBar\(false\);/);
+  assert.match(segmented, /interactionStop\.current = springTo\(interaction, 1, LIFT_SPRING\);\s*pressBar\(true\);/);
+  assert.match(segmented, /const releaseInteraction = \(settle = true\) => \{\s*setDragging\(false\);\s*pressBar\(false\);/);
   assert.match(segmented, /<motion\.div ref=\{rootRef\} style=\{\{ scale: barScale, x: barShift \}\}/);
   // The lens is laid out in the bar's own pixels: fractions of its padded frame on screen, and
   // sizes divided by the bar's current scale.
@@ -1230,10 +1237,37 @@ test("a press lights the glass as a surface that spreads from the finger, identi
   const { stiffness, damping, mass } = PRESS_GLOW_SPRING;
   assert.ok(Math.abs(damping / (2 * Math.sqrt(stiffness * mass)) - 1) < .01, "the glow spreads without overshoot");
   // Glass Group shapes press like a Button and light up, so the glow reaches their neighbours.
-  assert.match(group, /const PRESSED_SCALE = 1\.025;/);
+  assert.match(group, /const target = child\.hasAttribute\("data-pressed"\) \? GLASS_PRESS_SCALE : 1;/);
   assert.match(group, /state\.run = springTo\(state\.scale, target, SURFACE_PRESS_SPRING\)/);
   assert.match(group, /shape\.contactSpread\.jump\(0\); light\.push\(springTo\(shape\.contactSpread, 1, PRESS_GLOW_SPRING, 0\)\);/);
   assert.doesNotMatch(libraryStylesSource, /\.dg-glass-group__items > \.dg-button\[data-pressed\]/);
+});
+
+test("one physics: springs everywhere, one press, one live reduced-motion source", () => {
+  const library = new URL("../packages/react-liquid-glass/src/", import.meta.url);
+  const read = path => readFileSync(new URL(path, library), "utf8");
+  const files = ["apple-motion/react.ts", "apple-motion/use-glass-contact.ts", "apple-motion/use-popover-motion.ts", "apple-motion/use-menu-motion.ts",
+    "controls/GlassSurface.tsx", "controls/GlassGroup.tsx", "controls/GlassSwitch.tsx", "controls/GlassSlider.tsx", "controls/GlassSegmented.tsx",
+    "controls/GlassSpotlight.tsx", "controls/GlassVideo.tsx", "controls/primitives.tsx", "controls/use-thumb-motion.ts", "liquid-glass/LiquidGlassCanvas.tsx"];
+  const all = files.map(read).join("\n");
+  // Every spring is the same exact damped oscillator with a named preset (springTo, stepSpring or a
+  // Motion spring spread from a preset), never inline numbers, a frame tween or a bezier imitating a bounce.
+  assert.ok(!existsSync(new URL("apple-motion/tween.ts", library)));
+  assert.doesNotMatch(all + read("apple-motion/index.ts"), /type: "spring",(?!\s*\.\.\.(?:[A-Z_]+|config)\b)|\btween\(|\[0\.22, 1\.15, 0\.36, 1\.06\]|duration: 0\.6\b/);
+  // Motion's useReducedMotion reads once; one live preference serves both cores and every control.
+  assert.doesNotMatch(all, /useReducedMotion\b(?!Preference)/);
+  // react.ts and use-thumb-motion.ts take the preference from their callers.
+  assert.equal((all.match(/from "\.\.\/shared\/reduced-motion\.js"/g) ?? []).length, files.length - 2);
+  // Glass presses one way: it grows by GLASS_PRESS_SCALE on the Button's spring.
+  for (const path of ["controls/GlassSurface.tsx", "controls/GlassGroup.tsx", "apple-motion/use-popover-motion.ts", "apple-motion/use-menu-motion.ts"]) {
+    assert.match(read(path), /GLASS_PRESS_SCALE/, path);
+    assert.match(read(path), /SURFACE_PRESS_SPRING/, path);
+  }
+  // A thumb past its end springs back with the velocity of its last moves.
+  assert.match(read("controls/GlassSlider.tsx"), /if \(pointerMoved\.current\) settleIntoTrack\(thumbVelocity\.current\.velocity\(event\.timeStamp\)\);/);
+  // Springs are awaitable like Motion animations, so a morph can wait on either.
+  assert.match(read("apple-motion/react.ts"), /then: \(onResolve, onReject\) => finished\.then\(onResolve, onReject\),/);
+  assert.doesNotMatch(read("apple-motion/react.ts"), /useDerivedMotion\(|setBoost|boostRef/);
 });
 
 test("HDR light is soft-capped and identical on both backends", () => {
