@@ -44,17 +44,26 @@ const guides: Guide[] = [
     summary: ["One provider tunes every glass surface beneath it, without erasing each component's calibration.", "一个 Provider 调整其下所有玻璃，同时保留每个组件自身的校准。"],
     sections: [
       {
+        en: "Glass in Apple's terms",
+        zh: "用 Apple 的方式描述玻璃",
+        body: [
+          ["Describe glass as Apple does and let everything else follow from its size. variant is regular, frosted UI glass that adapts to the page, or clear, for media: no frost or tint and lensing kept to a narrow rim, so what lies beneath stays vivid. clarity runs from −1, more tinted, with more frost and a denser tint that stays legible over anything, through 0, the calibrated default, to 1, more clear, as Apple's Liquid Glass setting moves between Tinted and Clear. tint takes a CSS color for glass that marks a prominent action; tinted glass keeps its color however clear the rest is.", "像 Apple 一样描述玻璃，其余一切由玻璃的尺寸决定。variant 为 regular（常规：带磨砂、随页面主题变化的界面玻璃）或 clear（清透：用于媒体之上，没有磨砂与着色，透镜折射只留在窄窄的边缘，下方内容保持鲜明）。clarity 从 −1（更浓郁：磨砂更重、着色更浓，在任何背景上都清晰可读）经过 0（校准后的默认值）到 1（更清透），就像 Apple 的液态玻璃设置在 Tinted（着色）与 Clear（清透）之间切换。tint 接受一个 CSS 颜色，用于标记主要操作的玻璃；无论其余部分多清透，着色玻璃都保留它的颜色。"],
+          ["Every component starts from the glass its role calls for: Buttons and Tabs are thin control glass, Cards and popups thicken with their size, the open Morph Menu is a thick panel, and Spotlight and Video are clear glass over media. A pressed tab's or held thumb's lifted lens keeps its own calibration under every look. The renderer's own values, such as refractionStrength or blurStrength, remain for fine control; the look applies on top of them.", "每个组件都从符合其角色的玻璃出发：Button 与 Tabs 是薄的控件玻璃，Card 与弹层随尺寸变厚，展开的 Morph Menu 是厚面板，Spotlight 与 Video 是覆盖在媒体之上的清透玻璃。按下的标签与按住的滑块抬升出的透镜在任何外观下都保留自身的校准。渲染器自身的参数（例如 refractionStrength、blurStrength）仍可用于精细调整，外观设置叠加在它们之上。"],
+        ],
+        code: 'import { LiquidGlassProvider } from "rglass/liquid-glass";\nimport { GlassButton } from "rglass/controls";\n\n<LiquidGlassProvider material={{ clarity: -0.4 }}>\n  <GlassButton glass={{ tint: "var(--accent)" }}>Continue</GlassButton>\n</LiquidGlassProvider>;',
+      },
+      {
         en: "One provider",
         zh: "统一的 Provider",
-        body: [["LiquidGlassProvider applies optical material to every component below it. An empty material keeps every component's calibrated defaults; nested providers inherit their parent's values.", "LiquidGlassProvider 将光学材质应用到其下的所有组件。空材质保留每个组件的校准默认值；嵌套的 Provider 会继承父级的设置。"]],
-        code: 'import { LiquidGlassProvider } from "rglass/liquid-glass";\n\n<LiquidGlassProvider material={{ blurStrength: 2.8, chromaAmount: 0.2 }}>\n  <App />\n</LiquidGlassProvider>;',
+        body: [["LiquidGlassProvider applies a look and optical material to every component below it. An empty material keeps every component's calibrated defaults; nested providers inherit their parent's values.", "LiquidGlassProvider 将外观与光学材质应用到其下的所有组件。空材质保留每个组件的校准默认值；嵌套的 Provider 会继承父级的设置。"]],
+        code: 'import { LiquidGlassProvider } from "rglass/liquid-glass";\n\n<LiquidGlassProvider material={{ clarity: 0.3, chromaAmount: 0.2 }}>\n  <App />\n</LiquidGlassProvider>;',
       },
       {
         en: "Precedence",
         zh: "优先级",
         body: [
-          ["Values resolve in this order, later winning: the renderer's base material, the shared defaults for ordinary glass (dispersion 0.33, dome depth 28), each component's calibration, the HDR highlight default, and finally explicit provider material.", "取值按以下顺序，后者优先：渲染器基础材质、普通玻璃的共享默认值（色散 0.33、弧面深度 28）、组件自身校准、HDR 高光默认值，最后是 Provider 中显式设置的材质。"],
-          ["Calibrated lenses such as the Switch and Slider thumbs, Tabs and Spotlight keep their own dispersion and dome depth unless you set them explicitly; popups and the Morph Menu take theirs from their thickness. Pass inherit={false} to start a subtree fresh; it still keeps the parent's HDR preference.", "Switch 与 Slider 滑块、Tabs、Spotlight 等已校准的透镜，除非显式设置，否则保留自身的色散与弧面深度；弹层与 Morph Menu 则由自身厚度决定。传入 inherit={false} 可以让子树重新开始，但仍保留父级的 HDR 偏好。"],
+          ["One rule applies to every glass: its own values, then the HDR highlight default, then explicit provider material above its constants. What neither sets follows the glass's size. Values a component animates, such as a lifted lens's magnification or the Morph Menu's tint and zoom, keep animating; a provider constant never freezes them.", "所有玻璃遵循同一条规则：先取玻璃自身的值，再叠加 HDR 高光默认值，最后由 Provider 中显式设置的材质覆盖其中的常量。两者都未设置的参数由玻璃的尺寸决定。组件自己驱动的动画值（例如抬升透镜的放大、Morph Menu 的着色与缩放）会继续动画，Provider 的常量不会冻结它们。"],
+          ["Pass inherit={false} to start a subtree fresh; it still keeps the parent's HDR preference.", "传入 inherit={false} 可以让子树重新开始，但仍保留父级的 HDR 偏好。"],
         ],
         code: '<LiquidGlassProvider material={{ refractionStrength: 0.3 }}>\n  {/* A comparison panel that ignores the page material */}\n  <LiquidGlassProvider material={{}} inherit={false}>\n    <GlassButton>Default</GlassButton>\n  </LiquidGlassProvider>\n</LiquidGlassProvider>;',
       },
@@ -62,24 +71,24 @@ const guides: Guide[] = [
         en: "Glass thickens with size",
         zh: "玻璃越大越厚",
         body: [
-          ["As on iOS, larger glass reads as a thicker material: a deeper, softer shadow, stronger lensing at the rim, softer light and more diffusion of busy content. liquidThickness(width, height) maps a body's short side from 48 CSS pixels, a control, to 320, a panel. Popover, Dropdown Menu, Select, Dialog, Sheet and the Morph Menu follow it live while they open, so a closed trigger is the same thin glass as a Button and panels of the same size look alike.", "和 iOS 一样，玻璃越大，看起来越像更厚的材质：阴影更深更柔，边缘的透镜折射更强，光线更柔和，对繁杂背景的扩散更充分。liquidThickness(width, height) 把形体的短边从 48 CSS 像素（控件）映射到 320（面板）。Popover、Dropdown Menu、Select、Dialog、Sheet 与 Morph Menu 在展开过程中实时遵循它，因此收起的触发器与 Button 是同样的薄玻璃，同样大小的面板看起来也一致。"],
+          ["As on iOS, larger glass reads as a thicker material: a deeper, softer shadow, stronger lensing at the rim, softer light and more diffusion of busy content. liquidThickness(width, height) maps a body's short side from 48 CSS pixels, a control, to 320, a panel, and every glass follows it: a Button is thin, a Card thicker, an open menu thick, and popups follow it live while they open, so glass of the same size looks alike whichever component draws it. glassMaterial(thickness) returns the material at any thickness.", "和 iOS 一样，玻璃越大，看起来越像更厚的材质：阴影更深更柔，边缘的透镜折射更强，光线更柔和，对繁杂背景的扩散更充分。liquidThickness(width, height) 把形体的短边从 48 CSS 像素（控件）映射到 320（面板）。所有玻璃都遵循它：Button 是薄玻璃，Card 更厚，展开的菜单最厚；弹层在展开过程中实时遵循它，因此同样大小的玻璃无论由哪个组件绘制都看起来一致。glassMaterial(thickness) 返回任意厚度下的材质。"],
         ],
-        code: 'import { liquidThickness } from "rglass/liquid-glass";\n\nliquidThickness(44, 44);   // 0, a control\nliquidThickness(240, 210); // about 0.64\nliquidThickness(404, 748); // 1, a panel',
+        code: 'import { glassMaterial, liquidThickness } from "rglass/liquid-glass";\n\nliquidThickness(44, 44);   // 0, a control\nliquidThickness(240, 210); // about 0.64\nliquidThickness(404, 748); // 1, a panel\nglassMaterial(.64).shadowBlur; // 21.7',
       },
       {
         en: "HDR",
         zh: "HDR",
-        body: [["On a display that matches (dynamic-range: high), the fine reflection and touch light rise above SDR white under one soft cap: a full press peaks near 1.5× SDR white and the static rim near 1.2×, and overlapping light never stacks into glare. The SDR base highlight settles at 0.48 there; SDR displays keep each component's own highlight. Set hdr: false in material, or hdr={false} on a component, to stay in SDR.", "在匹配 (dynamic-range: high) 的显示器上，细反光与触控光会超过 SDR 白，但共用一条柔和上限：完整按压的峰值约为 SDR 白的 1.5 倍，静态边缘约 1.2 倍，叠加的光也不会堆成眩光。此时 SDR 基础高光为 0.48；SDR 显示器保留每个组件自身的高光。在材质中设置 hdr: false，或在组件上传入 hdr={false}，即可保持 SDR。"]],
+        body: [["On a display that matches (dynamic-range: high), the fine reflection and touch light rise above SDR white under one soft cap: a press lights the whole glass near 1.2× SDR white, up to about 1.3× toward the finger, the static rim reaches about 1.2×, and overlapping light never stacks into glare. The SDR base highlight settles at 0.48 there; SDR displays keep each component's own highlight. Set hdr: false in material, or hdr={false} on a component, to stay in SDR.", "在匹配 (dynamic-range: high) 的显示器上，细反光与触控光会超过 SDR 白，但共用一条柔和上限：按压会让整块玻璃亮到约 SDR 白的 1.2 倍，靠近手指处约 1.3 倍，静态边缘约 1.2 倍，叠加的光也不会堆成眩光。此时 SDR 基础高光为 0.48；SDR 显示器保留每个组件自身的高光。在材质中设置 hdr: false，或在组件上传入 hdr={false}，即可保持 SDR。"]],
         code: 'import { useDisplayHDR } from "rglass/liquid-glass";\n\nconst hdr = useDisplayHDR(); // true on HDR displays\n<LiquidGlassProvider material={{ hdr: false }}>…</LiquidGlassProvider>;',
       },
       {
-        en: "Lens profile and light",
-        zh: "透镜轮廓与光源",
+        en: "Lifted lens and light",
+        zh: "抬升透镜与光源",
         body: [
-          ["refractionModel: \"bevel\" models a flat slab with a rounded rim: the top stays clear, the rim refracts by Snell's law, and dispersion follows physical order with blue bending most. The default \"dome\" is the calibrated spherical-cap lens.", "refractionModel: \"bevel\" 模拟带圆角边缘的平板玻璃：顶部保持清晰，边缘按斯涅尔定律折射，色散遵循蓝光偏折最大的物理顺序。默认的 \"dome\" 是经过校准的球冠透镜。"],
+          ["Pressed tabs and held thumbs lift into iOS 27's lens: clear glass whose rim pulls in what surrounds it all round, so the bar seen through the rim looks smaller and its edges, ends included, follow the rim in one concentric outline. At its ends the rim compresses what it passes over toward the edge, so labels a dragged lens slides across stay in order. What lies under the lens is slightly magnified, held or dragged, without a glow. While a tab is pressed, the whole bar grows slightly about its centre. In light mode the lens's edge is a fine, even grey line and it casts a soft shadow. Its rim is thick: along the top and bottom the outer slope mirrors what lies just inside it, gathering warm and cool crescents at opposite ends, and its edge is a fine dark contour with a white rim line hugging it. On all glass the rim highlight now reaches round the corners toward the sides, faint there. Custom glass lifts the same way with material={{ ...LIFTED_GLASS, lensMagnification }}.", "按下的标签与按住的滑块会抬升为 iOS 27 的透镜：清透的玻璃边缘一整圈把周围的内容拉进来，因此透过边缘看到的工具栏会显得更小，它的边线连同两端一起顺着透镜边缘围成同心的轮廓。在透镜两端，边缘会把经过的内容按顺序朝边缘压缩，因此拖动透镜划过的文字不会错乱。按住的标签会在它下面略微放大，拖动时也保持放大，不会发光。按住标签时，整个标签栏会以中心为基准略微放大。浅色模式下，透镜的边缘是一条均匀的细灰线，并投下柔和的阴影。它的边缘是厚的：上下两侧的外侧斜面映出紧挨着它内侧的内容，暖色与冷色的弧光分别聚在两端；它的边缘是一条细的深色轮廓，内侧紧贴一条白色边缘高光。所有玻璃的边缘高光现在都会绕过转角，淡淡地延伸到两侧。自定义玻璃可通过 material={{ ...LIFTED_GLASS, lensMagnification }} 以同样的方式抬升。"],
           ["lightSource: \"pointer\" steers highlights toward a mouse or pen; \"device\" follows orientation events where the platform grants them (on iOS, call DeviceOrientationEvent.requestPermission() from a user gesture first). Reduced motion keeps the light fixed.", "lightSource: \"pointer\" 让高光朝向鼠标或触控笔；\"device\" 在平台允许时跟随设备方向（在 iOS 上需先在用户手势中调用 DeviceOrientationEvent.requestPermission()）。开启减少动态效果时光源保持固定。"],
         ],
-        code: '<LiquidGlassProvider material={{ refractionModel: "bevel", lightSource: "pointer" }}>\n  <App />\n</LiquidGlassProvider>;',
+        code: '<LiquidGlassProvider material={{ lightSource: "pointer" }}>\n  <App />\n</LiquidGlassProvider>;',
       },
     ],
   },
@@ -98,7 +107,7 @@ const guides: Guide[] = [
       {
         en: "Touching glass",
         zh: "触摸玻璃",
-        body: [["Buttons and surfaces light the actual press point, resist pulling while the opposite side stays anchored, and return elastically on release. Switch, Slider and Tabs keep their own gestures and add the same contact light. On GlassSurface, interactive=\"light\" keeps the light but leaves dragging to your application.", "按钮与表面会照亮真实的按压位置，拉伸时对侧保持锚定并产生阻力，松手后弹性回位。Switch、Slider 与 Tabs 保留各自的手势，并加入相同的接触光。GlassSurface 上的 interactive=\"light\" 保留光效，把拖动交给你的应用。"]],
+        body: [["Buttons and surfaces light the actual press point, resist pulling while the opposite side stays anchored, and return elastically on release. Switch, Slider and Tabs keep their own gestures and add the same contact light; dragged, their glass stretches along its motion and, when it stops or lands, overshoots into a brief squash and rebounds. Dragged past the first or last tab, the Tabs lens follows with the same rubber band as a Switch thumb, carrying the bar slightly along, and both spring back on release. On GlassSurface, interactive=\"light\" keeps the light but leaves dragging to your application.", "按钮与表面会照亮真实的按压位置，拉伸时对侧保持锚定并产生阻力，松手后弹性回位。Switch、Slider 与 Tabs 保留各自的手势，并加入相同的接触光；拖动时，玻璃会顺着运动方向拉伸，停下或落位时先略微压扁、再回弹一次。Tabs 的镜片拖过第一个或最后一个标签后，会像 Switch 的滑块一样带着阻力再跟出去一点，并略微带动整个标签栏，松手后一起弹回原位。GlassSurface 上的 interactive=\"light\" 保留光效，把拖动交给你的应用。"]],
       },
       {
         en: "Fusion",
@@ -195,7 +204,7 @@ const guides: Guide[] = [
       {
         en: "Contrast and motion",
         zh: "对比度与动态",
-        body: [["Glass floats over arbitrary content, so check contrast where it meets photos or video and enable data-dg-tone to adapt ink. Reduced motion is respected throughout, including GlassVideo's autoPlay, and forced-colors mode keeps visible focus. Keyboard focus underlines text, or the icon of an icon-only control, without an outer halo.", "玻璃会悬浮在任意内容之上，在照片或视频上请检查对比度，并启用 data-dg-tone 调整文字颜色。全程遵循减少动态效果设置（包括 GlassVideo 的 autoPlay），强制颜色模式下保留可见焦点。键盘焦点以下划线标出文字；纯图标控件则在图标下方显示短下划线，不使用外发光。"]],
+        body: [["Glass floats over arbitrary content, so check contrast where it meets photos or video and enable data-dg-tone to adapt ink. Glass follows Reduce Transparency, becoming its most tinted, and Increase Contrast, as tinted with a firmer edge, live; useGlassAccessibility() reads both. Reduced motion is respected throughout, including GlassVideo's autoPlay, and forced-colors mode keeps visible focus. Keyboard focus underlines text, or the icon of an icon-only control, without an outer halo.", "玻璃会悬浮在任意内容之上，在照片或视频上请检查对比度，并启用 data-dg-tone 调整文字颜色。玻璃会实时遵循「降低透明度」（变为最浓郁的状态）与「增强对比度」（同样最浓郁，且边缘更清晰），useGlassAccessibility() 可读取这两项设置。全程遵循减少动态效果设置（包括 GlassVideo 的 autoPlay），强制颜色模式下保留可见焦点。键盘焦点以下划线标出文字；纯图标控件则在图标下方显示短下划线，不使用外发光。"]],
       },
     ],
   },

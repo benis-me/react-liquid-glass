@@ -1,10 +1,13 @@
-import { SLIDER_CLICK_SPRING } from "../apple-motion/presets.js";
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type InputHTMLAttributes } from "react";
-import { animate, motion, useMotionValue, useReducedMotion, useTransform } from "motion/react";
+import { SLIDER_CLICK_SPRING, SWITCH_RELEASE_SPRING } from "../apple-motion/presets.js";
+import { createVelocityTracker } from "../apple-motion/velocity.js";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type InputHTMLAttributes } from "react";
+import { motion, useMotionValue, useTransform } from "motion/react";
 import { LiquidGlass } from "../liquid-glass/LiquidGlass.js";
-import { liquidTheme, liquidTrackSource, subscribeLiquidTheme } from "../liquid-glass/source.js";
+import { liquidTrackSource } from "../liquid-glass/source.js";
 import { usePointerReleaseFallback, useGlassContact, rubberBand, type SpringRun } from "../apple-motion/react.js";
-import { settleThumb, thumbLens, useThumbMotion } from "./use-thumb-motion.js";
+import { LIFT_END_PINCH, LIFT_MAGNIFICATION, settleThumb, useLiftedOptics, useLiftedShadow, useThumbMotion } from "./use-thumb-motion.js";
+import { LIFTED_GLASS, useHostDark } from "../liquid-glass/material.js";
+import { useReducedMotionPreference } from "../shared/reduced-motion.js";
 
 /** Native input attributes (id, aria-*, required, form, onBlur…) pass through to the slider's range input. */
 type NativeSliderProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "min" | "max" | "step" | "value" | "defaultValue" | "disabled" | "name" | "onChange" | "size" | "children" | "className" | "style">;
@@ -24,6 +27,12 @@ export interface GlassSliderProps extends NativeSliderProps {
   size?: "default" | "small";
 }
 
+/** Digits after the decimal point, exponent notation included: 1e-12 has twelve. */
+const decimals = (value: number) => {
+  const [mantissa, exponent = "0"] = String(value).toLowerCase().split("e");
+  return Math.min(100, Math.max(0, (mantissa.split(".")[1]?.length ?? 0) - Number(exponent)));
+};
+
 export function GlassSlider({
   value,
   defaultValue = 50,
@@ -39,12 +48,12 @@ export function GlassSlider({
   size = "default",
   ...inputProps
 }: GlassSliderProps) {
-  const reduce = useReducedMotion() ?? false;
+  const reduce = useReducedMotionPreference();
   const [local, setLocal] = useState(defaultValue);
   const controlled = value !== undefined;
   const current = controlled ? value : local;
-  // The thumb brightens slightly on dark pages; follow theme changes, not just the first render.
-  const dark = useSyncExternalStore(subscribeLiquidTheme, liquidTheme, () => "light").startsWith("dark");
+  // Held, the thumb casts a shadow on light pages only; follow theme changes, not just the first render.
+  const dark = useHostDark();
   // Within one gesture, report each snapped value once rather than once per pointer
   // event. Each gesture starts from the owner's value, so a rejected value can be
   // requested again.
@@ -62,17 +71,22 @@ export function GlassSlider({
   const padding = Math.ceil(0.5 * Math.max(halfThumbWidth, halfThumbHeight) + overshoot) + 2;
   const filterWidth = width + padding * 2;
   const filterHeight = thumbHeight + padding * 2;
-  const refractedTrackHeight = Math.round(thumbHeight * 0.75);
+  // The held lens refracts the track as it is, with the ends' squeeze made up: it meets the rim at
+  // its own height and swells toward the middle, as through a magnifier. A track drawn three
+  // quarters of the thumb's height crossed the rim band near the lens's ends, where its edges
+  // dipped and hooked.
+  const refractedTrackHeight = trackHeight * LIFT_END_PINCH;
   const restTintBlur = compact ? 0 : 4;
-  const releaseTransition = reduce ? { duration: 0 } : { ease: [0.22, 1, 0.36, 1] as const, duration: 0.52 };
   const toOffset = (next: number) => max > min ? ((next - min) / (max - min)) * travel : 0;
+  // Snapping in binary leaves float noise (-1 + 12 × 0.05 is -0.3999999999999999), so values
+  // keep the precision of the step and the minimum they are counted in.
+  const snap = (value: number) => step > 0 ? Number((Math.round((value - min) / step) * step + min).toFixed(Math.max(decimals(step), decimals(min)))) : value;
   const fromOffset = (position: number) => {
     const clamped = Math.max(0, Math.min(travel, position));
-    const raw = travel > 0 ? min + (clamped / travel) * (max - min) : min;
-    return step > 0 ? Math.round((raw - min) / step) * step + min : raw;
+    return snap(travel > 0 ? min + (clamped / travel) * (max - min) : min);
   };
   const emit = (next: number) => {
-    const snapped = step > 0 ? Math.round((next - min) / step) * step + min : next;
+    const snapped = snap(next);
     const clamped = Math.max(min, Math.min(max, snapped));
     if (clamped === reported.current) return;
     reported.current = clamped;
@@ -82,12 +96,19 @@ export function GlassSlider({
 
   const offset = useMotionValue(toOffset(current));
   const x = useTransform(offset, (position) => (padding + thumbWidth / 2 + position) / filterWidth);
-  const { lensW, lensH, radius, tintOpacity, targetScaleX, targetScaleY, tintBlur, shadowOpacity, setDeformationBoost, expand, collapse } = useThumbMotion(offset, halfThumbWidth, halfThumbHeight, restTintBlur, reduce);
+  const { lensW, lensH, radius, tintOpacity, targetScaleX, targetScaleY, tintBlur, still, expand, collapse, drag } = useThumbMotion(offset, halfThumbWidth, halfThumbHeight, restTintBlur, reduce);
+  // Held, the thumb is iOS 27's lifted lens, magnifying the track as a pressed tab magnifies the bar.
+  const held = useTransform(tintOpacity, opacity => 1 - opacity);
+  const { band, bulge, magnify } = useLiftedOptics(lensW, lensH, held, LIFT_MAGNIFICATION);
+  // Held, the thumb casts the lifted lens's shadow, as a pressed tab does; at rest it keeps its own.
+  const liftShadow = useLiftedShadow(lensH, held, dark, { strength: .04, offset: Math.min(18, filterHeight * .12), blur: Math.min(26, filterHeight * .2) });
 
   const wrapperRef = useRef<HTMLDivElement>(null);
   const contact = useGlassContact(wrapperRef, { deform: false, enabled: !disabled });
   const contactX = useTransform(() => ((contact.contactX.get() + 1) * width / 2 - halfThumbWidth - offset.get()) / lensW.get());
   const contactY = useTransform(() => contact.contactY.get() * thumbHeight / 2 / lensH.get());
+  // The lifted lens barely lights where it is touched, and not at all once the press drags.
+  const touchLight = useTransform(() => contact.contactStrength.get() * .3 * still.get());
   const trackRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const pointerId = useRef<number | null>(null);
@@ -96,6 +117,13 @@ export function GlassSlider({
   const dragging = useRef(false);
   const pointerMoved = useRef(false);
   const clickAnimation = useRef<SpringRun | null>(null);
+  const thumbVelocity = useRef(createVelocityTracker());
+  // A thumb pulled past an end springs back into its track with the velocity of its last moves,
+  // as a Switch thumb settles; released inside the track it stays under the finger.
+  const settleIntoTrack = (velocity = 0) => {
+    const target = Math.max(0, Math.min(travel, offset.get()));
+    if (target !== offset.get()) clickAnimation.current = settleThumb(offset, target, SWITCH_RELEASE_SPRING, reduce, velocity);
+  };
 
   const cancelPointerInteraction = () => {
     const activePointerId = pointerId.current;
@@ -107,8 +135,7 @@ export function GlassSlider({
     dragging.current = false;
     pointerMoved.current = false;
     clickAnimation.current?.stop();
-    setDeformationBoost(0);
-    animate(offset, Math.max(0, Math.min(travel, offset.get())), releaseTransition);
+    settleIntoTrack();
     collapse();
   };
   const { arm: armPointerFallback, disarm: disarmPointerFallback } = usePointerReleaseFallback(cancelPointerInteraction);
@@ -137,17 +164,19 @@ export function GlassSlider({
     trackHeight: refractedTrackHeight, travel, offset,
     scaleX: targetScaleX, scaleY: targetScaleY,
   }), [width, thumbHeight, padding, refractedTrackHeight, thumbWidth, travel, offset, targetScaleX, targetScaleY]);
-  const lens = thumbLens(dark, { depth: thumbHeight / 11, domeDepth: thumbHeight * (5 / 22) });
 
   return (
     <div ref={wrapperRef} data-size={size} className={["dg-slider", className].filter(Boolean).join(" ")} style={{ ...style, width, height: thumbHeight, "--dg-slider-fill": `${thumbWidth / 2 + toOffset(current)}px`, "--dg-slider-progress": toOffset(current) / travel } as React.CSSProperties}>
       <LiquidGlass
-        contact={{ ...contact, contactX, contactY }}
+        contact={{ ...contact, contactX, contactY, contactStrength: touchLight }}
         sourceFactory={sourceFactory}
         backdropRoot={wrapperRef}
         sourceValues={[offset, targetScaleX, targetScaleY]}
-        refractionPixels={thumbHeight * .22}
-        lens={lens}
+        refractionPixels={1}
+        zoom={bulge}
+        depth={band}
+        // A shallow cap at both thumb sizes.
+        material={{ ...LIFTED_GLASS, domeDepth: thumbHeight * (5 / 22), lensMagnification: magnify, shadowStrength: liftShadow.strength, shadowOffset: liftShadow.offset, shadowBlur: liftShadow.blur }}
         x={x}
         y={0.5}
         lensW={lensW}
@@ -156,7 +185,6 @@ export function GlassSlider({
         tintColor="white"
         tintOpacity={tintOpacity}
         tintBlur={tintBlur}
-        shadowOpacity={shadowOpacity}
         shadowBleed
         pixelRatio={2}
         pixelAlign
@@ -213,8 +241,8 @@ export function GlassSlider({
               emit(clickedValue);
               pointerStart.current = event.clientX;
               offsetStart.current = offset.get();
+              thumbVelocity.current.reset();
               expand();
-              setDeformationBoost(0.175);
             }}
             onPointerMove={(event) => {
               if (event.pointerId !== pointerId.current) return;
@@ -224,11 +252,13 @@ export function GlassSlider({
                 pointerMoved.current = true;
                 pointerStart.current = event.clientX;
                 offsetStart.current = offset.get();
+                drag();
               }
               let next = offsetStart.current + (event.clientX - pointerStart.current);
               if (next < 0) next = -rubberBand(-next, overshoot, overshoot * 30);
               else if (next > travel) next = travel + rubberBand(next - travel, overshoot, overshoot * 30);
               offset.set(next);
+              thumbVelocity.current.push(next, event.timeStamp);
               emit(fromOffset(next));
             }}
             onPointerUp={(event) => {
@@ -236,10 +266,7 @@ export function GlassSlider({
               disarmPointerFallback();
               pointerId.current = null;
               dragging.current = false;
-              setDeformationBoost(0);
-              if (pointerMoved.current) {
-                animate(offset, Math.max(0, Math.min(travel, offset.get())), releaseTransition);
-              }
+              if (pointerMoved.current) settleIntoTrack(thumbVelocity.current.velocity(event.timeStamp));
               collapse();
             }}
             onPointerCancel={(event) => {

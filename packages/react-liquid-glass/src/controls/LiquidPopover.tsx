@@ -5,12 +5,13 @@ import { cancelFrame, frame as motionFrame } from "motion";
 import { usePopoverMotion, type PopoverLayout } from "../apple-motion/use-popover-motion.js";
 import { useGlassContact } from "../apple-motion/use-glass-contact.js";
 import { paintLiquidMenuContent } from "../liquid-glass/menu-content.js";
-import { liquidContentOptics, liquidSurfaceBlur, liquidThickness } from "../liquid-glass/geometry.js";
+import { liquidContentOptics } from "../liquid-glass/geometry.js";
+import { glassEdgeDepth, glassShadowReach, liquidSurfaceBlur, liquidThickness, useHostDark } from "../liquid-glass/material.js";
 import { LiquidGlassCanvas } from "../liquid-glass/LiquidGlassCanvas.js";
 import { paintLiquidBackdrop, observeLiquidBackdrop, scheduleLiquidBackdrop, cancelLiquidBackdrop } from "../liquid-glass/backdrop.js";
-import { useGlassMaterial, useGlassMaterialOverrides } from "../liquid-glass/provider.js";
-import { StageContext, FusionTriggerContext, SURFACE_MATERIAL } from "./GlassSurface.js";
-import { DARK_GLASS_TINT, glassEdgeDepth, glassShadowReach, useGlassThickness, useHostDark } from "./glass-thickness.js";
+import { useGlassMaterial } from "../liquid-glass/provider.js";
+import { StageContext, FusionTriggerContext } from "./GlassSurface.js";
+import { useGlassThickness } from "./glass-thickness.js";
 import { ScrollArea } from "./ScrollArea.js";
 
 const ClosePopoverContext = createContext<() => void>(() => undefined);
@@ -61,7 +62,7 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
   const settled = useRef(false);
   const hasOpened = useRef(false);
   const stage = useContext(StageContext);
-  const material = useGlassMaterial(), overrides = useGlassMaterialOverrides(), dark = useHostDark();
+  const overrides = useGlassMaterial(), dark = useHostDark();
   const model = usePopoverMotion();
   // A closed trigger is a compact control; the panel's glass thickens as it grows, as iOS's does.
   const thickness = useTransform(() => liquidThickness(model.w.get() * 2, model.h.get() * 2));
@@ -115,7 +116,7 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
     if (!source.current || !anchor.current || !topLayer.current) return;
     const rect = (opener.current ?? anchor.current).getBoundingClientRect();
     // Custom frost/refraction may sample farther; retain their full source area.
-    const full = showing() || material.blurStrength !== undefined || material.refractionStrength !== undefined;
+    const full = showing() || overrides.blurStrength !== undefined || overrides.refractionStrength !== undefined;
     const region = full ? backdropBounds.current : { left: rect.left - 24, top: rect.top - 24, width: rect.width + 48, height: rect.height + 48 };
     if (paintLiquidBackdrop(document.body, source.current, backdropBounds.current, [anchor.current, topLayer.current, ...(opener.current ? [opener.current] : [])], region, showing() ? undefined : anchor.current)) revision.set(revision.get() + 1);
   };
@@ -356,14 +357,14 @@ export function LiquidPopover({ trigger, children, label, role = "dialog", open:
     </Layer>
     {/* Viewport overlays present directly: copying their large WebGL frame into
         a 2D canvas stalls WebKit. Embedded controls still share one GPU device. */}
-    {host && frame.width > 1 && (trigger || active) && createPortal(<LiquidGlassCanvas {...SURFACE_MATERIAL} shared={!!stage && !modal} sourceRef={source} sourceRevision={revision}
+    {host && frame.width > 1 && (trigger || active) && createPortal(<LiquidGlassCanvas shared={!!stage && !modal} sourceRef={source} sourceRevision={revision}
       contentRef={ink} contentRevision={inkRevision} contentOpacity={contentOpacity} contentRefraction={contentRefraction} contentBlur={contentBlur}
       width={frame.width} height={frame.height} pixelRatio={2} transparentOutside
       blobs={[
         ...(active ? [{ x: bodyX, y: bodyY, radius: model.radius, cornerRadius: model.radius, halfWidth: model.w, halfHeight: model.h, refractionRatio: [(frame.pw + 56) / frame.width, (frame.ph + 56) / frame.height] as const }] : []),
         { x: frame.tx / frame.width, y: frame.ty / frame.height, radius: frame.tr, cornerRadius: frame.tr, halfWidth: triggerW, halfHeight: triggerH, refractionRatio: [(frame.tw + 28) / frame.width, (frame.th + 28) / frame.height], ...contact },
       ]}
-      {...thicknessMaterial} tintColor={dark ? DARK_GLASS_TINT : undefined}
+      {...thicknessMaterial}
       mergeDistance={model.merge} edgeDepth={edgeDepth} blurStrength={backgroundBlur}
       style={{ display: "block", width: "100%", height: "100%" }} />, host)}
   </>;

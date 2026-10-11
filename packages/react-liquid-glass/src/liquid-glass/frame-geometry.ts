@@ -19,7 +19,7 @@ export function createFrameGeometry() {
   const sizes = new Float32Array(MAX_BLOBS * 2);
   const corners = new Float32Array(MAX_BLOBS);
   const velocities = new Float32Array(MAX_BLOBS * 2);
-  const contacts = new Float32Array(MAX_BLOBS * 3);
+  const contacts = new Float32Array(MAX_BLOBS * 4);
   const contactInverses = new Float32Array(MAX_BLOBS * 4);
   const contactOffsets = new Float32Array(MAX_BLOBS * 2);
   const domes = new Float32Array(MAX_BLOBS * 4);
@@ -58,11 +58,11 @@ export function createFrameGeometry() {
       velocities[i*2] = readMotion(b.velocityX ?? 0);
       velocities[i*2+1] = readMotion(b.velocityY ?? 0);
       if (![blobs[i*3], blobs[i*3+1], radius, sizes[i*2], sizes[i*2+1], corners[i], velocities[i*2], velocities[i*2+1]].every(Number.isFinite)) return null;
-      const cx = readMotion(b.contactX ?? 0), cy = readMotion(b.contactY ?? 0), strength = readMotion(b.contactStrength ?? 0);
+      const cx = readMotion(b.contactX ?? 0), cy = readMotion(b.contactY ?? 0), strength = readMotion(b.contactStrength ?? 0), spread = readMotion(b.contactSpread ?? 1);
       const ax = readMotion(b.anchorX ?? cx), ay = readMotion(b.anchorY ?? cy);
       const px = readMotion(b.pullX ?? 0), py = readMotion(b.pullY ?? 0);
-      if (![cx, cy, ax, ay, strength, px, py].every(Number.isFinite)) return null;
-      contacts.set([Math.max(-1, Math.min(1, cx)), Math.max(-1, Math.min(1, cy)), Math.max(0, Math.min(1, strength))], i * 3);
+      if (![cx, cy, ax, ay, strength, spread, px, py].every(Number.isFinite)) return null;
+      contacts.set([Math.max(-1, Math.min(1, cx)), Math.max(-1, Math.min(1, cy)), Math.max(0, Math.min(1, strength)), Math.max(0, Math.min(1, spread))], i * 4);
       const [m00, m10, m01, m11, tx, ty] = contactTransform(sizes[i*2] * 2, sizes[i*2+1] * 2, ax, ay, px, py);
       const determinant = m00 * m11 - m01 * m10;
       contactInverses.set([m11 / determinant, -m10 / determinant, -m01 / determinant, m00 / determinant], i * 4);

@@ -1,8 +1,8 @@
-import { useReducedMotion } from "motion/react";
 import { stepSpring, SIDE_BUTTON_SPRING, PLAY_BUTTON_SPRING, BAR_DRAG_SPRING, BUTTON_HOVER_SCALE } from "../apple-motion/index.js";
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
@@ -15,7 +15,13 @@ import { useGlassMaterial } from "../liquid-glass/provider.js";
 import { useRendererBackend } from "../liquid-glass/use-renderer-backend.js";
 import { createLiquidGlassRenderer, type LiquidGlassBlob } from "../liquid-glass/renderer.js";
 import { usePointerReleaseFallback } from "../apple-motion/react.js";
-import { useReducedMotionPreference } from "../liquid-glass/light.js";
+import { glassMaterial, perceiveGlass, useGlassAccessibility, useHostDark } from "../liquid-glass/material.js";
+import { liquidRgb } from "../liquid-glass/source.js";
+import { useReducedMotionPreference } from "../shared/reduced-motion.js";
+
+// Media controls are clear control glass, as Apple's are over video. The canvas spans the whole
+// player, so refraction is calibrated to it: 0.11 of the canvas, unmagnified, in a 9px band.
+const VIDEO_GLASS = { ...glassMaterial(0, { variant: "clear" }), refractionStrength: .11, magnification: 1, edgeDepth: 9 };
 
 function SourceVideoIcon({ source }: { source: string }) {
   return <span className="dg-video-player__source-icon" aria-hidden="true" dangerouslySetInnerHTML={{ __html: source }} />;
@@ -76,10 +82,12 @@ function seekRubberBand(distance: number, limit: number) {
 export function GlassVideo({ src, sources, poster, caption, autoPlay = false, loop = true, muted = true, pauseWhenHidden = true, labels }: GlassVideoProps) {
   const material = useGlassMaterial();
   const { requested, backend, fallback, onFallback } = useRendererBackend();
-  const reduce = useReducedMotion();
+  const reduce = useReducedMotionPreference();
   const reduceRef = useRef(reduce); reduceRef.current = reduce;
   const [loadError, setLoadError] = useState(false);
   const materialRef = useRef(material); materialRef.current = material;
+  const accessibility = useGlassAccessibility();
+  const accessibilityRef = useRef(accessibility); accessibilityRef.current = accessibility;
   const playerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -113,7 +121,6 @@ export function GlassVideo({ src, sources, poster, caption, autoPlay = false, lo
   // Reduced motion "stopped" autoplay's playback, and nothing resumes it afterwards,
   // neither a seek nor scrolling back into view. Playback the reader started with the
   // play control is "done": it stays theirs, and the play control always works.
-  const reducePreference = useReducedMotionPreference();
   const autoplay = useRef({ key: "", state: "pending" as "pending" | "waiting" | "playing" | "stopped" | "done" });
   const [controlsVisible, setControlsVisible] = useState(true);
   const text = { ...defaultLabels, ...labels };
@@ -122,7 +129,14 @@ export function GlassVideo({ src, sources, poster, caption, autoPlay = false, lo
   // Preferred encodings, then the fallback; a URL listed twice is tried once.
   const candidates = [...(sources ?? []), { src, type: undefined as string | undefined }].filter((candidate, index, all) => all.findIndex(other => other.src === candidate.src) === index);
   const sourceKey = candidates.map(candidate => candidate.src).join("|");
-  useEffect(() => { ensureDrawRef.current(); }, [material]);
+  useEffect(() => { ensureDrawRef.current(); }, [material, accessibility.reduceTransparency, accessibility.contrast]);
+  // A tint is a CSS color, resolved against the page so variables and color-mix() work.
+  const dark = useHostDark();
+  const tintRgb = useRef<readonly [number, number, number] | undefined>(undefined);
+  useLayoutEffect(() => {
+    tintRgb.current = material.tint && playerRef.current ? liquidRgb(playerRef.current, material.tint) : undefined;
+    ensureDrawRef.current();
+  }, [material.tint, dark]);
   // Localized value text follows label changes at once, even while paused or offscreen.
   useEffect(() => {
     const video = videoRef.current, bar = barRef.current;
@@ -232,12 +246,13 @@ export function GlassVideo({ src, sources, poster, caption, autoPlay = false, lo
         bar.style.transformOrigin = barStretch >= 0 ? "0 50%" : "100% 50%";
         bar.style.transform = `scaleX(${1 + Math.abs(barStretch) / layout.bar[2]})`;
       }
+      const { reduceTransparency, contrast } = accessibilityRef.current;
+      const look = materialRef.current;
       const rendered = renderer.draw({
+        ...perceiveGlass({ ...VIDEO_GLASS, ...look }, { variant: look.variant ?? "clear", clarity: reduceTransparency ? -1 : look.clarity, tint: look.tint ? tintRgb.current : undefined, contrast }),
+        // The player's own: its resolution, its fade, and buttons that never fuse.
         source: video, sourceRevision, width, height, blobs, pixelRatio: ratio,
-        opacity: strengthRef.current, edgeDepth: 9, tintStrength: .045,
-        shadowStrength: .11,
-        ...materialRef.current,
-        mergeDistance: 0,
+        opacity: strengthRef.current, mergeDistance: 0,
       });
       if (progressRef.current && Number.isFinite(video.duration) && video.duration > 0) {
         progressRef.current.style.width = `${(video.currentTime / video.duration) * 100}%`;
@@ -375,7 +390,7 @@ export function GlassVideo({ src, sources, poster, caption, autoPlay = false, lo
     autoplay.current.state = "playing";
     // A rejection here is a blocked or interrupted start; it stays autoplay's playback.
     void video.play().catch(() => undefined);
-  }, [autoPlay, reducePreference, sourceKey]);
+  }, [autoPlay, reduce, sourceKey]);
 
   const togglePlayback = useCallback(() => {
     const video = videoRef.current;

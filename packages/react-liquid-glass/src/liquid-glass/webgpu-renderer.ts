@@ -228,20 +228,21 @@ export async function createWebGPUGlassRenderer(canvas: HTMLCanvasElement, onFai
       params.set([p.width, p.height, width, height], 0);
       params.set([fw / frostWidth, fh / frostHeight, 0.5 / frostWidth, 0.5 / frostHeight], 4);
       params.set([number(p, "mergeDistance"), number(p, "refractionStrength"), number(p, "chromaAmount"), number(p, "specularStrength")], 8);
-      params.set([blur, number(p, "edgeDepth"), number(p, "domeDepth"), number(p, "brightness")], 12);
+      // Each body carries its own dome (below); frost.z is free.
+      params.set([blur, number(p, "edgeDepth"), 0, number(p, "brightness")], 12);
       params.set([number(p, "specularRotation"), number(p, "glowStrength"), number(p, "glowSpread"), number(p, "glowExponent")], 16);
       params.set([number(p, "edgeStrength"), number(p, "edgeWidth"), number(p, "edgeExponent"), number(p, "tintStrength")], 20);
       params.set([...(p.tintColor ?? defaults.tintColor), number(p, "magnification")], 24);
       params.set([number(p, "shadowStrength"), number(p, "shadowOffset"), number(p, "shadowBlur"), number(p, "opacity")], 28);
       params.set([p.content ? readMotion(p.contentOpacity ?? 0) : 0, readMotion(p.contentRefraction ?? 0), readMotion(p.contentBlur ?? 0), Number(p.contentSpace === "source")], 32);
-      params.set([prepared.count, Number(!!p.transparentOutside), Number(!!p.debug), Number(p.refractionModel === "bevel")], 36);
-      params.set([...(p.refractionRatio ?? defaults.refractionRatio), 0, 0], 40);
+      params.set([prepared.count, Number(!!p.transparentOutside), Number(!!p.debug), Number(p.refractionModel === "lens")], 36);
+      params.set([...(p.refractionRatio ?? defaults.refractionRatio), number(p, "lensMagnification"), 0], 40);
       const g = geometry;
       for (let i = 0; i < prepared.count; i++) {
         const o = MATERIAL_FLOATS + i * BLOB_FLOATS;
         params.set([g.blobs[i * 3], g.blobs[i * 3 + 1], g.blobs[i * 3 + 2], g.corners[i]], o);
         params.set([g.sizes[i * 2], g.sizes[i * 2 + 1], g.velocities[i * 2], g.velocities[i * 2 + 1]], o + 4);
-        params.set([g.contacts[i * 3], g.contacts[i * 3 + 1], g.contacts[i * 3 + 2], 0], o + 8);
+        params.set(g.contacts.subarray(i * 4, i * 4 + 4), o + 8);
         params.set(g.contactInverses.subarray(i * 4, i * 4 + 4), o + 12);
         params.set([g.contactOffsets[i * 2], g.contactOffsets[i * 2 + 1], 0, 0], o + 16);
         params.set(g.domes.subarray(i * 4, i * 4 + 4), o + 20);

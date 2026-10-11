@@ -7,7 +7,7 @@ import { springTo, popoverFrames } from 'rglass/apple-motion/react';
 import { motionValue } from 'motion';
 import { LiquidMenu, GlassSwitch, GlassSlider, GlassSegmented } from 'rglass/controls';
 import { createLiquidGlassRenderer, LIQUID_GLASS_MATERIAL } from 'rglass/liquid-glass/renderer';
-import { liquidSurfaceBlur, liquidThickness } from 'rglass/liquid-glass';
+import { glassMaterial, liquidSurfaceBlur, liquidThickness, perceiveGlass, LIFTED_GLASS, TINTED_GLASS } from 'rglass/liquid-glass';
 
 const near = (actual, expected, epsilon = 1e-9) => assert.ok(Math.abs(actual - expected) <= epsilon, `${actual} != ${expected}`);
 const configurations = [
@@ -114,11 +114,11 @@ test('neither core imports the other implementation, control views, or demo code
   }
 });
 
-test('popup frost stays clear on shallow controls and grows smoothly with the body', () => {
-  for (const [w, h] of [[40,40], [180,36], [600,40]]) near(liquidSurfaceBlur(w,h), .4);
+test('frost stays clear on shallow controls and grows smoothly with the body', () => {
+  for (const [w, h] of [[40,40], [180,36], [600,40]]) near(liquidSurfaceBlur(w,h), .2);
   assert.ok(liquidSurfaceBlur(180,150) > 3);
   near(liquidSurfaceBlur(320,480), 12);
-  let previous = .4;
+  let previous = .2;
   for (let size = 48; size <= 320; size++) {
     const blur = liquidSurfaceBlur(320, size);
     assert.ok(blur >= previous && blur <= 12 && blur - previous < .07);
@@ -134,9 +134,78 @@ test('glass thickens with its short side, from a 48px control to a 320px panel',
   for (let size = 48; size <= 320; size++) {
     const thickness = liquidThickness(size, 900);
     assert.ok(thickness >= previous && thickness - previous < .006);
-    near(liquidSurfaceBlur(size, 900), .4 + 11.6 * thickness);
+    near(liquidSurfaceBlur(size, 900), .2 + 11.8 * thickness);
+    near(glassMaterial(thickness).blurStrength, liquidSurfaceBlur(size, 900));
     previous = thickness;
   }
+});
+
+test('one glass material: a control at one end, a panel at the other, clear glass without frost or tint', () => {
+  const thin = glassMaterial(0), thick = glassMaterial(1), middle = glassMaterial(.5);
+  // A control's glass is the Button's; a panel's is the open Morph Menu's.
+  for (const [key, value] of Object.entries({ refractionStrength: .2, chromaAmount: .33, specularStrength: .9, domeDepth: 28, blurStrength: .2, glowStrength: .1, edgeStrength: .26, edgeWidth: 1.2, tintStrength: .02, magnification: 1, shadowStrength: .055, shadowOffset: 4, shadowBlur: 14 })) near(thin[key], value);
+  for (const [key, value] of Object.entries({ refractionStrength: .11, chromaAmount: .55, specularStrength: .72, domeDepth: 58, blurStrength: 12, glowStrength: .3, edgeStrength: .36, edgeWidth: 1.6, tintStrength: .035, magnification: 1.38, shadowStrength: .11, shadowOffset: 18, shadowBlur: 26 })) near(thick[key], value);
+  for (const key of Object.keys(thin)) if (typeof thin[key] === 'number') near(middle[key], (thin[key] + thick[key]) / 2);
+  assert.deepEqual(thin.tintColor, [1, 1, 1]);
+  // Dark hosts tint regular glass toward their surface and keep a firmer edge at a panel's thickness.
+  const dark = glassMaterial(1, { dark: true });
+  assert.deepEqual(dark.tintColor, [74 / 255, 74 / 255, 70 / 255]);
+  near(dark.edgeStrength, .42); near(dark.glowStrength, .38); near(dark.brightness, .035);
+  // Clear glass keeps media vivid and legible: no tint, at most a light frost and no extra
+  // magnification, at any size and on any host.
+  for (const thickness of [0, .5, 1]) for (const options of [{ variant: 'clear' }, { variant: 'clear', dark: true }]) {
+    const clear = glassMaterial(thickness, options);
+    near(clear.tintStrength, 0);
+    near(clear.magnification, 1);
+    assert.ok(clear.blurStrength <= .5);
+    assert.deepEqual(clear.tintColor, [1, 1, 1]);
+    near(clear.refractionStrength, glassMaterial(thickness).refractionStrength);
+  }
+  // A canvas drawn smaller keeps a control's lengths in CSS pixels.
+  near(glassMaterial(0, { scale: .5 }).shadowBlur, 28);
+  near(glassMaterial(1, { scale: .5 }).shadowBlur, 26);
+  // The lifted lens is the same glass, lifted: clear, without glow or tint, drawn with the lens model.
+  assert.equal(LIFTED_GLASS.refractionModel, 'lens');
+  for (const key of ['glowStrength', 'tintStrength', 'brightness']) near(LIFTED_GLASS[key], 0);
+});
+
+test('glass in Apple\'s terms: clarity runs from more tinted to more clear, clear drops frost and tint, contrast firms the edge', () => {
+  const look = (values, options) => perceiveGlass({ ...values }, options);
+  const card = glassMaterial(.6);
+  // The calibrated default leaves every value as it is.
+  assert.deepEqual(look(card, {}), card);
+  // More tinted: more frost, and a tint toward its most legible; more clear: less of both.
+  const tinted = look(card, { clarity: -1 }), clear = look(card, { clarity: 1 });
+  assert.ok(tinted.blurStrength > card.blurStrength * 2 && tinted.tintStrength > .3);
+  assert.ok(clear.blurStrength < card.blurStrength / 2 && clear.tintStrength === 0);
+  let previous = Infinity;
+  for (let clarity = -1; clarity <= 1.0001; clarity += .1) {
+    const { blurStrength } = look(card, { clarity });
+    assert.ok(blurStrength < previous, 'frost falls steadily as clarity rises');
+    previous = blurStrength;
+  }
+  // Clear glass keeps media vivid; an opaque resting thumb is not glass to clear or tint.
+  const media = look(card, { variant: 'clear' });
+  assert.ok(media.blurStrength <= .5 && media.tintStrength === 0 && media.magnification === 1);
+  const white = [1, 1, 1], ink = [0, 0, 0];
+  for (const options of [{ variant: 'clear' }, { clarity: 1 }, { clarity: -1 }, { tint: ink }]) {
+    const fill = look({ ...card, tintStrength: 1, tintColor: white }, options);
+    near(fill.tintStrength, 1); assert.deepEqual(fill.tintColor, white);
+  }
+  // Tinted glass keeps its color however clear the rest, and more tinted never thins a stronger tint.
+  for (const options of [{}, { clarity: 1 }, { clarity: -1 }, { variant: 'clear' }]) {
+    const marked = look(card, { ...options, tint: ink });
+    assert.deepEqual(marked.tintColor, ink); near(marked.tintStrength, TINTED_GLASS);
+  }
+  near(look({ ...card, tintStrength: .5 }, { clarity: -1 }).tintStrength, .5);
+  // More contrast is the most tinted glass with a firmer edge.
+  const firm = look(card, { contrast: true });
+  assert.ok(firm.edgeStrength > card.edgeStrength * 1.5);
+  near(firm.tintStrength, tinted.tintStrength); near(firm.blurStrength, tinted.blurStrength);
+  // The lifted lens keeps its own calibration under every look.
+  const lens = { ...LIFTED_GLASS, blurStrength: .7, magnification: 3 };
+  assert.deepEqual(look(lens, { variant: 'clear', clarity: -1, tint: ink, contrast: true }), lens);
+  assert.ok(TINTED_GLASS > .3 && TINTED_GLASS < .5, 'tinted glass shows its color and stays glass');
 });
 
 test('glass grips resist unbounded pulling, keep the opposite side pinned and return to identity', () => {

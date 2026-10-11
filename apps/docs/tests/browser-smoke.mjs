@@ -56,16 +56,16 @@ export async function checkInteractions() {
 export async function checkPlayground() {
   await go('/playground?component=button');
   await until(() => document.querySelector('.material-inspector'), 'Playground missing');
-  const range = document.querySelector('input[aria-label="Dispersion"]'); input(range, '1.1'); await paint();
-  assert(document.querySelector('.playground-code code')?.textContent.includes('1.1'), 'Material code did not update');
-  assert(JSON.parse(localStorage.getItem('glass-material')).chromaAmount === 1.1, 'Material did not persist');
+  const range = document.querySelector('input[aria-label="Clarity"]'); input(range, '-0.4'); await paint();
+  assert(document.querySelector('.playground-code code')?.textContent.includes('-0.4'), 'Material code did not update');
+  assert(JSON.parse(localStorage.getItem('glass-material')).clarity === -.4, 'Material did not persist');
   const fields = document.querySelectorAll('.material-field').length;
-  assert(fields === 11, 'Advanced controls mounted eagerly');
+  assert(fields === 1, 'Advanced controls mounted eagerly');
   assert(!document.querySelector('.material-advanced > .dg-surface, .material-advanced .dg-accordion'),'Advanced disclosure still has glass');
-  click('.material-advanced summary'); await paint(); assert(document.querySelectorAll('.material-field').length === 21, 'Advanced fields incomplete');
+  click('.material-advanced summary'); await until(() => document.querySelectorAll('.material-field').length === 22, 'Advanced fields incomplete');
   click('.material-advanced .debug-field input'); await paint(); assert(document.querySelector('.playground-code code')?.textContent.includes('"debug": true'), 'Optical field is not connected');
   click('button[aria-label="Reset material"]'); await paint(); assert(localStorage.getItem('glass-material') === '{}', 'Reset failed');
-  return { material: 'live, persisted, reset', parameters: 21, debug: true };
+  return { material: 'live, persisted, reset', look: 'clarity first', parameters: 22, debug: true };
 }
 
 export async function checkPlaygroundNavigation() {
@@ -82,7 +82,7 @@ export async function checkPlaygroundNavigation() {
     assert(new URLSearchParams(location.search).get('component')==='slider'&&document.querySelector('.component-preview--slider'),'Selection did not update the URL and preview');
     click('.share-material');await paint();
     assert(new URL(copied).searchParams.get('component')==='slider'&&document.querySelector('.share-material').textContent.includes('Link copied'),'Share used a stale component');
-    input(document.querySelector('input[aria-label="Dispersion"]'),'.51');await paint();
+    input(document.querySelector('input[aria-label="Clarity"]'),'.5');await paint();
     assert(document.querySelector('.share-material').textContent==='Share configuration','Changed material still claims to be copied');
     await go('/playground?component=unknown');
     assert(document.querySelector('.component-preview--tabs'),'Invalid component did not fall back to Tabs');
@@ -173,15 +173,17 @@ export async function checkGlobalMaterial() {
     await go('/playground?component=button&material={}');
     const targets=['.top-nav .dg-tabs__container canvas','.playground-toolbar canvas','.playground-inspector > .dg-surface__optics canvas','.component-preview .dg-button canvas'];
     await until(()=>targets.every(selector=>document.querySelector(selector)?.width>1),'Global material test surfaces missing');
+    const inspector=document.querySelector('.playground-inspector'),scroll=inspector.querySelector('.material-scroll > .dg-scroll-area__viewport');
+    // Renderer values sit under More parameters, the inspector's long content.
+    click('.material-advanced summary',inspector);await until(()=>inspector.querySelector('input[aria-label="Dispersion"]'),'More parameters did not open');
+    // Each glass's own default follows its size (one material, thin to thick).
+    await until(()=>targets.every(selector=>drawn.has(document.querySelector(selector))),'Global material test surfaces did not draw');
+    const defaults=new Map(targets.map(selector=>[selector,drawn.get(document.querySelector(selector))]));
     input(document.querySelector('input[aria-label="Dispersion"]'),'.77');await paint();
     await until(()=>targets.every(selector=>Math.abs(drawn.get(document.querySelector(selector))-.77)<1e-5),'Material did not reach header, toolbar, inspector and demo optics');
     const presets=document.querySelector('[role=tablist][aria-label="Material presets"]');
     assert(presets.querySelectorAll('[role=tab]').length===4,'Presets do not use standard Tabs');
     assert(!presets.querySelector('[aria-selected=true]')&&presets.querySelector('[tabindex="0"]'),'Custom material has a false preset or no keyboard entry');
-    const inspector=document.querySelector('.playground-inspector'),scroll=inspector.querySelector('.material-scroll > .dg-scroll-area__viewport');
-    // Short content should not create a scrollbar. Expand the real long content
-    // before checking internal scrolling, including on tall desktop viewports.
-    click('.material-advanced summary',inspector);await paint();
     const rect=inspector.getBoundingClientRect();
     assert(getComputedStyle(inspector).borderRadius==='32px'&&rect.bottom<=innerHeight,'Inspector exceeds the viewport or has wrong corners');
     assert(scroll.scrollHeight>scroll.clientHeight&&['auto','scroll'].includes(getComputedStyle(scroll).overflowY),'Inspector does not scroll internally');
@@ -194,15 +196,17 @@ export async function checkGlobalMaterial() {
     click('.catalog-material .dg-popover-anchor > button');
     const panel=document.querySelector('.catalog-material .dg-popover__panel');
     await until(()=>+panel.style.opacity===1,'Catalog inspector failed to open');
+    click('.material-advanced summary',panel);await until(()=>panel.querySelector('input[aria-label="Dispersion"]'),'Catalog More parameters did not open');
     assert(Number(panel.querySelector('input[aria-label="Dispersion"]').value)===.77,'Catalog lost the shared material');
     assert(getComputedStyle(panel).borderRadius==='32px'&&Math.abs(panel.offsetHeight-(innerHeight-96))<2,'Catalog inspector does not fit the viewport');
     click('[role=tab][data-value="prism"]',panel);await paint();
     assert(JSON.parse(localStorage.getItem('glass-material')).chromaAmount===1.2,'Preset did not update global material');
     document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
     await go('/playground?component=button');
+    click('.material-advanced summary');await until(()=>document.querySelector('input[aria-label="Dispersion"]'),'More parameters did not open');
     assert(Number(document.querySelector('input[aria-label="Dispersion"]').value)===1.2,'Playground lost the catalog preset');
     click('button[aria-label="Reset material"]');await paint();
-    await until(()=>targets.every(selector=>Math.abs(drawn.get(document.querySelector(selector))-.33)<1e-5),'Reset did not restore defaults across site optics');
+    await until(()=>targets.every(selector=>Math.abs(drawn.get(document.querySelector(selector))-defaults.get(selector))<1e-5),'Reset did not restore defaults across site optics');
     return {optics:['header','toolbar','inspector','demo'],sharedAcrossRoutes:true,presets:4,scroll:'internal',radius:32,reset:true};
   } finally {
     stop();probe.dispose();
@@ -385,8 +389,8 @@ export async function checkRefinements() {
   const panel = document.querySelector('.catalog-material');
   click('button[aria-label="Reset material"]', panel); await paint();
   assert(localStorage.getItem('glass-material') === '{}', 'Catalog reset did not restore per-control defaults');
-  input(panel.querySelector('input[aria-label="Tint"]'), '0.2'); await paint();
-  assert(JSON.parse(localStorage.getItem('glass-material')).tintStrength === .2, 'Catalog material not connected');
+  input(panel.querySelector('input[aria-label="Clarity"]'), '-0.5'); await paint();
+  assert(JSON.parse(localStorage.getItem('glass-material')).clarity === -.5, 'Catalog material not connected');
   assert(panel.querySelector('.dg-popover-anchor > button').textContent.includes('Custom'), 'Catalog custom state missing');
   click('button[aria-label="Reset material"]', panel); await paint();
   assert(panel.querySelector('.dg-popover-anchor > button').textContent.includes('Default'), 'Catalog default state missing');
@@ -472,13 +476,13 @@ export async function checkSiteControls() {
   await until(() => !document.querySelector('.playground-toolbar .dg-popover-layer:popover-open'), 'Playground select did not close');
   assert(document.activeElement === select, 'Playground select lost focus');
   const inspector = document.querySelector('.material-inspector');
-  assert(inspector.querySelectorAll('.dg-slider').length === 11, 'Parameter panel must use small glass sliders lazily');
+  assert(inspector.querySelectorAll('.dg-slider').length === 1, 'Parameter panel must lead with clarity and load the rest lazily');
   click('.material-advanced summary');
-  await until(() => inspector.querySelectorAll('.dg-slider').length === 21, 'Advanced glass sliders missing');
+  await until(() => inspector.querySelectorAll('.dg-slider').length === 22, 'Advanced glass sliders missing');
   const close = click('.material-advanced summary');
-  await until(() => inspector.querySelectorAll('.dg-slider').length === 11, 'Advanced sliders did not release resources');
+  await until(() => inspector.querySelectorAll('.dg-slider').length === 1, 'Advanced sliders did not release resources');
   assert(!close.parentElement.open, 'Advanced disclosure state incorrect');
-  return { search: 'removed', navigation: 'shared Tabs, native links, quiet focus', buttonGroup: 'one canvas, actions, disabled, horizontal/vertical/RTL focus', playground: 'liquid select, 21 glass sliders, lazy release' };
+  return { search: 'removed', navigation: 'shared Tabs, native links, quiet focus', buttonGroup: 'one canvas, actions, disabled, horizontal/vertical/RTL focus', playground: 'liquid select, clarity first, 22 glass sliders, lazy release' };
 }
 
 export async function checkPopupPolish() {
@@ -564,46 +568,56 @@ export async function checkSwitchThemes() {
 
 export async function checkContactFeedback() {
   await go('/components/button');
-  const button = document.querySelector('.component-preview .dg-button'), surface = button.querySelector('[data-dg-contact]');
-  // The app may be inside a clipped test iframe; offscreen optics correctly wait.
-  button.scrollIntoView({block:'center', inline:'nearest'}); await paint();
-  const canvas = surface.querySelector('canvas'), ink = surface.querySelector('.dg-surface__content');
-  const rect = surface.getBoundingClientRect(), sx = rect.left + rect.width * .84, sy = rect.top + rect.height / 2;
-  await until(() => canvas.width === (surface.offsetWidth + 80) * 2, 'Contact canvas has not rendered its first frame').catch(error => {
-    throw new Error(`${error.message}: ${canvas.width}/${surface.offsetWidth}, ${canvas.dataset.dgRenderer}, connected=${canvas.isConnected}`);
-  });
-  await paint();
-  const color = () => {
-    const data = readLiquidSource(canvas).getContext('2d').getImageData(Math.round((40 + rect.width * .84) * 2), Math.round((40 + rect.height / 2) * 2), 1, 1).data;
-    return (data[0] + data[1] + data[2]) / 3;
-  };
-  const before = color(), label = button.textContent;
-  const pointer = (target, type, x = sx, y = sy) => target.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 27, isPrimary: true, pointerType: 'mouse', button: 0, buttons: type === 'pointerup' ? 0 : 1, clientX: x, clientY: y }));
-  pointer(ink, 'pointerdown');
-  await until(() => color() > before + 8, 'The actual grip position did not illuminate');
-  await until(()=>new DOMMatrix(getComputedStyle(ink).transform).a>1.02,'Press still shrinks the button');
-  assert(new DOMMatrix(getComputedStyle(ink).transform).a<1.04,'Press expansion is excessive');
-  pointer(window, 'pointermove', sx + 90, sy - 30); await paint();
-  const pulled = new DOMMatrix(getComputedStyle(ink).transform);
-  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) assert(pulled.m41 > .1 && pulled.m41 < 3 && pulled.m42 < 0 && Math.abs(pulled.b) < .05, 'The material must follow a subtle resisted pull');
-  pointer(window, 'pointerup', sx + 90, sy - 30);
-  button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }));
-  assert(button.textContent === label, 'Dragging accidentally fired the action');
-  await until(() => { const m = new DOMMatrix(getComputedStyle(ink).transform); return Math.abs(m.a - 1) < .001 && Math.abs(m.m41) < .02 && Math.abs(m.m42) < .02; }, 'The contact did not spring back');
-  await until(() => Math.abs(color() - before) < 2, 'Contact light changed the resting material');
-  // The original grip fixes the material; the light must follow a different live pointer position.
-  const left = rect.left + rect.width * .2;
-  const pixelAt = x => { const p = readLiquidSource(canvas).getContext('2d').getImageData(Math.round((40 + x) * 2), Math.round((40 + rect.height / 2) * 2), 1, 1).data; return (p[0] + p[1] + p[2]) / 3; };
-  pointer(ink, 'pointerdown', left, sy); await new Promise(resolve => setTimeout(resolve, 160));
-  const litLeft = pixelAt(rect.width * .2);
-  pointer(window, 'pointermove', rect.left + rect.width * .8, sy); await paint();
-  assert(pixelAt(rect.width * .8) > pixelAt(rect.width * .2) + 8 && pixelAt(rect.width * .2) < litLeft - 5, 'The contact light stayed at the original grip');
-  pointer(window, 'pointerup');
-  pointer(ink, 'pointerdown'); pointer(window, 'lostpointercapture');
-  assert(!surface.hasAttribute('data-dg-contact-active'), 'Lost capture left the material pinned');
-  pointer(ink, 'pointerdown'); window.dispatchEvent(new Event('blur'));
-  assert(!surface.hasAttribute('data-dg-contact-active'), 'Window blur left the material pinned');
-  return { light: 'follows the pointer', pull: 'subtle, anchored, elastic', cancellation: 'capture loss and blur', rest: 'unchanged' };
+  // A press lights the glass from within; that light shows over dark glass, and over light glass
+  // only lifts it gently. Measure it in the dark theme and restore the reader's theme afterwards.
+  const themeToggle = document.querySelector('.header-tools .icon-button:not(.mobile-menu-button):not(.hdr-toggle)');
+  const wasDark = document.documentElement.dataset.theme === 'dark';
+  if (!wasDark) { themeToggle.click(); await until(() => document.documentElement.dataset.theme === 'dark', 'Dark theme did not apply'); }
+  try {
+    const button = document.querySelector('.component-preview .dg-button'), surface = button.querySelector('[data-dg-contact]');
+    // The app may be inside a clipped test iframe; offscreen optics correctly wait.
+    button.scrollIntoView({block:'center', inline:'nearest'}); await paint();
+    const canvas = surface.querySelector('canvas'), ink = surface.querySelector('.dg-surface__content');
+    const rect = surface.getBoundingClientRect(), sx = rect.left + rect.width * .84, sy = rect.top + rect.height / 2;
+    await until(() => canvas.width === (surface.offsetWidth + 80) * 2, 'Contact canvas has not rendered its first frame').catch(error => {
+      throw new Error(`${error.message}: ${canvas.width}/${surface.offsetWidth}, ${canvas.dataset.dgRenderer}, connected=${canvas.isConnected}`);
+    });
+    const pixelAt = x => { const p = readLiquidSource(canvas).getContext('2d').getImageData(Math.round((40 + x) * 2), Math.round((40 + rect.height / 2) * 2), 1, 1).data; return (p[0] + p[1] + p[2]) / 3; };
+    const color = () => pixelAt(rect.width * .84);
+    await until(() => color() < 100, 'The glass did not follow the dark theme');
+    await paint();
+    const before = color(), far = pixelAt(rect.width * .16), label = button.textContent;
+    const pointer = (target, type, x = sx, y = sy) => target.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 27, isPrimary: true, pointerType: 'mouse', button: 0, buttons: type === 'pointerup' ? 0 : 1, clientX: x, clientY: y }));
+    pointer(ink, 'pointerdown');
+    await until(() => color() > before + 8, 'The actual grip position did not illuminate');
+    // The glow spreads from the finger through the whole glass: a lit surface, not a spot.
+    await until(() => pixelAt(rect.width * .16) > far + 8, 'The press lit a spot instead of the glass');
+    assert(color() > pixelAt(rect.width * .16) + 4, 'The light no longer leans toward the finger');
+    await until(()=>new DOMMatrix(getComputedStyle(ink).transform).a>1.02,'Press still shrinks the button');
+    assert(new DOMMatrix(getComputedStyle(ink).transform).a<1.04,'Press expansion is excessive');
+    pointer(window, 'pointermove', sx + 90, sy - 30); await paint();
+    const pulled = new DOMMatrix(getComputedStyle(ink).transform);
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) assert(pulled.m41 > .1 && pulled.m41 < 3 && pulled.m42 < 0 && Math.abs(pulled.b) < .05, 'The material must follow a subtle resisted pull');
+    pointer(window, 'pointerup', sx + 90, sy - 30);
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }));
+    assert(button.textContent === label, 'Dragging accidentally fired the action');
+    await until(() => { const m = new DOMMatrix(getComputedStyle(ink).transform); return Math.abs(m.a - 1) < .001 && Math.abs(m.m41) < .02 && Math.abs(m.m42) < .02; }, 'The contact did not spring back');
+    await until(() => Math.abs(color() - before) < 2, 'Contact light changed the resting material');
+    // The original grip fixes the material; the light leans toward the live pointer instead.
+    const left = rect.left + rect.width * .2;
+    pointer(ink, 'pointerdown', left, sy); await new Promise(resolve => setTimeout(resolve, 160));
+    const litLeft = pixelAt(rect.width * .2);
+    pointer(window, 'pointermove', rect.left + rect.width * .8, sy); await paint();
+    assert(pixelAt(rect.width * .8) > pixelAt(rect.width * .2) + 8 && pixelAt(rect.width * .2) < litLeft - 5, 'The contact light stayed at the original grip');
+    pointer(window, 'pointerup');
+    pointer(ink, 'pointerdown'); pointer(window, 'lostpointercapture');
+    assert(!surface.hasAttribute('data-dg-contact-active'), 'Lost capture left the material pinned');
+    pointer(ink, 'pointerdown'); window.dispatchEvent(new Event('blur'));
+    assert(!surface.hasAttribute('data-dg-contact-active'), 'Window blur left the material pinned');
+    return { light: 'a lit surface that leans toward the pointer', pull: 'subtle, anchored, elastic', cancellation: 'capture loss and blur', rest: 'unchanged' };
+  } finally {
+    if (!wasDark && document.documentElement.dataset.theme === 'dark') themeToggle.click();
+  }
 }
 
 async function captureLiquidCanvas(canvas) {
@@ -673,8 +687,10 @@ export async function checkFieldAndGroupPolish() {
 
 export async function checkSelectOcclusion() {
   await go('/playground');
-  const inspector=document.querySelector('.playground-inspector'),inspectorBox=inspector.getBoundingClientRect(),opticsBox=inspector.querySelector('.dg-surface__optics').getBoundingClientRect();
-  assert(Math.abs(opticsBox.left-inspectorBox.left+40)<1 && Math.abs(opticsBox.top-inspectorBox.top+40)<1,'Mobile inspector glass escaped its containing block');
+  const inspector=document.querySelector('.playground-inspector'),inspectorBox=inspector.getBoundingClientRect(),optics=inspector.querySelector('.dg-surface__optics'),opticsBox=optics.getBoundingClientRect();
+  // The optics reach past the glass by its shadow's reach, at least 40px, from the inspector's own box.
+  const reach=-parseFloat(getComputedStyle(optics).top);
+  assert(reach>=40 && Math.abs(opticsBox.left-inspectorBox.left+reach)<1 && Math.abs(opticsBox.top-inspectorBox.top+reach)<1,'Mobile inspector glass escaped its containing block');
   const trigger=document.querySelector('.playground-controls [role="combobox"]') ?? document.querySelector('main [role="combobox"]');
   trigger.click();const layer=trigger.closest('.dg-popover-anchor').nextElementSibling;
   await until(()=>layer.matches(':popover-open'),'Component Select did not open');
@@ -913,8 +929,9 @@ export async function checkContactHDR() {
 
 export async function checkMaterialOptics() {
   const { createWebGL2GlassRenderer } = await import('../../../packages/react-liquid-glass/src/liquid-glass/webgl2-renderer.ts');
-  const { liquidSurfaceBlur } = await import('rglass/liquid-glass');
-  const { SURFACE_MATERIAL } = await import('../../../packages/react-liquid-glass/src/controls/GlassSurface.tsx');
+  const { glassMaterial, liquidSurfaceBlur } = await import('rglass/liquid-glass');
+  // A control's glass, the thin end of the one material.
+  const SURFACE_MATERIAL = glassMaterial(0);
   const source=document.createElement('canvas'), canvas=document.createElement('canvas'), mask=document.createElement('canvas');
   source.width=mask.width=320; source.height=mask.height=220;
   const ctx=source.getContext('2d'), capture=surface => { mask.width=surface.width; mask.height=surface.height; mask.getContext('2d').drawImage(surface,0,0); };
@@ -1073,7 +1090,7 @@ export async function checkHDRPreference() {
   const stop=subscribeLiquidFrames(canvas=>{
     const gl=canvas.getContext('webgl2');if(!gl)return;
     const program=gl.getParameter(gl.CURRENT_PROGRAM);
-    parameters.set(canvas, Object.fromEntries(['uSpecular','uChroma','uDomeDepth'].map(name=>[name,gl.getUniform(program,gl.getUniformLocation(program,name))])));
+    parameters.set(canvas, Object.fromEntries(['uSpecular','uChroma'].map(name=>[name,gl.getUniform(program,gl.getUniformLocation(program,name))])));
   });
   try {
     if(wasEnabled){button().click();await paint();}
@@ -1083,6 +1100,7 @@ export async function checkHDRPreference() {
     assert(!document.querySelector('.material-inspector input[aria-label=HDR]'),'Material panel still owns HDR');
     assert(button().getAttribute('aria-pressed')==='false','Old material link overrode global HDR');
     const field=name=>Number(document.querySelector(`input[aria-label="${name}"]`).value);
+    click('.material-advanced summary');await until(()=>document.querySelector('input[aria-label="Dispersion"]'),'More parameters did not open');
     assert(field('Dispersion')===.33&&field('Dome depth')===28&&field('Highlight')===.9,'Default sliders do not match their material');
     const stage=document.querySelector('.component-preview');
     await until(()=>stage.querySelector('canvas[data-dg-renderer]')?.width>1,'Button optics missing');
@@ -1102,7 +1120,7 @@ export async function checkHDRPreference() {
     button().click();await paint();
     await go('/showcase/orbit');await until(()=>parameters.has(document.querySelector('.orbit-board canvas[data-dg-renderer]')),'Orbit did not receive global material');
     const actual=parameters.get(document.querySelector('.orbit-board canvas[data-dg-renderer]'));
-    assert(Math.abs(actual.uSpecular-.48)<1e-5&&Math.abs(actual.uChroma-.33)<1e-5&&actual.uDomeDepth===28,'Global defaults did not reach the renderer');
+    assert(Math.abs(actual.uSpecular-.48)<1e-5&&Math.abs(actual.uChroma-.33)<1e-5,'Global defaults did not reach the renderer');
     return {toggle:'global, icon-only',defaults:actual,presets:'preserve HDR and custom highlight',persistence:true};
   } finally {
     stop();

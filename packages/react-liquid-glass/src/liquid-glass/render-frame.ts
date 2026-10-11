@@ -24,6 +24,11 @@ export interface LiquidGlassBlob {
   anchorX?: MotionInput;
   anchorY?: MotionInput;
   contactStrength?: MotionInput;
+  /**
+   * How far the press's glow has spread, from 0 (under the finger) to 1 (through the whole body
+   * and onto glass fused with it). Default 1.
+   */
+  contactSpread?: MotionInput;
   /** Resisted grip displacement in CSS pixels. */
   pullX?: MotionInput;
   pullY?: MotionInput;
@@ -41,7 +46,7 @@ export const LIQUID_GLASS_MATERIAL = Object.freeze({
   brightness: .015, specularRotation: 90, glowStrength: .30, glowSpread: .72,
   glowExponent: 1.4, edgeStrength: .36, edgeWidth: 1.6, edgeExponent: 1.2,
   tintColor: [1, 1, 1] as readonly [number, number, number], tintStrength: .055,
-  magnification: 1, shadowStrength: .11, shadowOffset: 18, shadowBlur: 26,
+  magnification: 1, lensMagnification: 1, shadowStrength: .11, shadowOffset: 18, shadowBlur: 26,
   opacity: 1, refractionRatio: [1, 1] as readonly [number, number],
 });
 
@@ -82,17 +87,22 @@ export interface LiquidGlassFrame {
   tintColor?: readonly [number, number, number];
   tintStrength?: MotionInput;
   magnification?: MotionInput;
+  /** How much the `lens` model magnifies what lies under its middle; 1 leaves it unscaled. */
+  lensMagnification?: MotionInput;
   shadowStrength?: MotionInput;
   shadowOffset?: MotionInput;
   shadowBlur?: MotionInput;
   opacity?: MotionInput;
   transparentOutside?: boolean;
   /**
-   * `dome` (default) is the calibrated spherical-cap lens. `bevel` models a flat
-   * slab with a rounded rim: Snell refraction at the rim, a clear top, and
-   * physical dispersion order. Rim width is twice `edgeDepth`.
+   * `dome` (default) is resting glass, a calibrated spherical cap. `lens` is the same glass
+   * lifted, as iOS 27's pressed tab: it magnifies its middle by `lensMagnification`, and its
+   * rim band (`edgeDepth` wide) pulls in what surrounds the glass by `refractionStrength`,
+   * bulging along the long sides and compressing toward the rim at the ends; along the long
+   * sides its outer slope mirrors what lies just inside it, red reaching furthest on one
+   * diagonal and blue on the other, so warm and cool crescents gather at opposite ends.
    */
-  refractionModel?: "dome" | "bevel";
+  refractionModel?: "dome" | "lens";
   /** Visualize this exact shader's live displacement and coverage, without CPU maps. */
   debug?: boolean;
   pixelRatio?: number;

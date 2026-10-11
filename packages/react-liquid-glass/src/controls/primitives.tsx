@@ -12,16 +12,21 @@ import {
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { Check, ChevronDown, Plus, X } from "./icons.js";
 import { LiquidPopover, useClosePopover } from "./LiquidPopover.js";
 import { usePointerReleaseFallback } from "../apple-motion/react.js";
 import { GlassSurface } from "./GlassSurface.js";
 import { ScrollArea } from "./ScrollArea.js";
+import { useReducedMotionPreference } from "../shared/reduced-motion.js";
+import { ACCORDION_SPRING, ALERT_SPRING } from "../apple-motion/presets.js";
+import type { GlassLook } from "../liquid-glass/material.js";
 
 export interface GlassButtonProps extends ComponentProps<"button"> {
   variant?: "default" | "solid" | "ghost";
   size?: "small" | "default" | "large";
+  /** How the button's glass reads: `{ tint }` marks a prominent action, as Apple's tinted glass does. */
+  glass?: GlassLook;
 }
 export function GlassButton({
   children,
@@ -36,6 +41,7 @@ export function GlassButton({
   onBlur,
   onKeyDown,
   onKeyUp,
+  glass,
   ...props
 }: GlassButtonProps) {
   const [pressed, setPressed] = useState(false);
@@ -83,7 +89,7 @@ export function GlassButton({
         onKeyUp?.(event);
       }}
     >
-      <GlassSurface pressed={pressed} radius={size === "small" ? 12 : 16}>
+      <GlassSurface pressed={pressed} radius={size === "small" ? 12 : 16} glass={glass}>
         {children}
       </GlassSurface>
     </button>
@@ -92,11 +98,12 @@ export function GlassButton({
 export function GlassCard({
   children,
   className = "",
+  glass,
   ...props
-}: HTMLAttributes<HTMLElement>) {
+}: HTMLAttributes<HTMLElement> & { glass?: GlassLook }) {
   return (
     <article {...props} className={`dg-card ${className}`}>
-      <GlassSurface radius={24}>{children}</GlassSurface>
+      <GlassSurface radius={24} glass={glass}>{children}</GlassSurface>
     </article>
   );
 }
@@ -419,9 +426,9 @@ export function GlassAlert({
   children?: ReactNode;
   role?: "status" | "alert";
 }) {
-  const reduce = useReducedMotion();
+  const reduce = useReducedMotionPreference();
   return (
-    <motion.div role={role} className="dg-alert" initial={reduce ? false : { opacity: 0, y: 10, scale: .97 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: "spring", stiffness: 360, damping: 30 }}>
+    <motion.div role={role} className="dg-alert" initial={reduce ? false : { opacity: 0, y: 10, scale: .97 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: "spring", ...ALERT_SPRING }}>
       <GlassSurface>
         <strong>{title}</strong>
         {children && <div>{children}</div>}
@@ -441,14 +448,14 @@ export function GlassAccordion({ items, multiple = false, lazy = false, headingL
   return <div className="dg-accordion">{items.map((item, i) => <AccordionItem key={i} {...item} lazy={lazy} headingLevel={headingLevel} open={expanded.includes(i)} toggle={() => setExpanded(current => current.includes(i) ? current.filter(value => value !== i) : multiple ? [...current, i] : [i])} />)}</div>;
 }
 function AccordionItem({ title, content, open, toggle, lazy, headingLevel }: { title: string; content: ReactNode; open: boolean; toggle: () => void; lazy: boolean; headingLevel: 2 | 3 | 4 | 5 | 6 }) {
-  const id = useId(), reduce = useReducedMotion();
+  const id = useId(), reduce = useReducedMotionPreference();
   const Heading = `h${headingLevel}` as const;
   const [retained, setRetained] = useState(open);
   useEffect(() => { if (lazy && open) setRetained(true); }, [lazy, open]);
   return <GlassSurface radius={18}>
     <Heading className="dg-accordion__heading"><button type="button" id={`${id}-trigger`} aria-expanded={open} aria-controls={id} onClick={toggle}>{title}<motion.span className="dg-accordion__mark" aria-hidden="true" animate={{ rotate: open ? 45 : 0 }} transition={{ duration: reduce ? 0 : .18 }}><Plus size={13} /></motion.span></button></Heading>
     {/* Fractional rows avoid auto-height measurement temporarily resizing and scrolling the page. */}
-    <motion.div id={id} role="region" aria-labelledby={`${id}-trigger`} inert={!open} aria-hidden={!open} initial={false} animate={{ gridTemplateRows: open ? "1fr" : "0fr", opacity: open ? 1 : 0 }} transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 320, damping: 32 }} style={{ display: "grid" }} onAnimationComplete={() => { if (lazy && !open) setRetained(false); }}>
+    <motion.div id={id} role="region" aria-labelledby={`${id}-trigger`} inert={!open} aria-hidden={!open} initial={false} animate={{ gridTemplateRows: open ? "1fr" : "0fr", opacity: open ? 1 : 0 }} transition={reduce ? { duration: 0 } : { type: "spring", ...ACCORDION_SPRING }} style={{ display: "grid" }} onAnimationComplete={() => { if (lazy && !open) setRetained(false); }}>
       <div style={{ overflow: "hidden" }}><div className="dg-accordion__body">{(!lazy || open || retained) && content}</div></div>
     </motion.div>
   </GlassSurface>;
@@ -468,7 +475,7 @@ export function GlassToast({
   duration?: number;
   closeLabel?: string;
 }) {
-  const reduce = useReducedMotion();
+  const reduce = useReducedMotionPreference();
   const close = useRef(onClose);
   close.current = onClose;
   // Hover or focus holds the message (WCAG 2.2.1); it resumes with the time left

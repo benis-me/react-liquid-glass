@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useId, useMemo, useRef, type ReactNode } from "react";
 import { motion, useMotionValue, useTransform } from "motion/react";
 import { LiquidGlassCanvas } from "../liquid-glass/LiquidGlassCanvas.js";
-import { liquidContentPose, liquidContentOptics, liquidSurfaceBlur, liquidThickness } from "../liquid-glass/geometry.js";
+import { liquidContentPose, liquidContentOptics } from "../liquid-glass/geometry.js";
+import { DARK_GLASS_TINT, THIN_GLASS, glassEdgeDepth, liquidSurfaceBlur, liquidThickness, useHostDark } from "../liquid-glass/material.js";
 import { paintLiquidMenuContent } from "../liquid-glass/menu-content.js";
 import { createLiquidBackdrop } from "../liquid-glass/backdrop.js";
 import { useMenuMotion, type MenuLayout } from "../apple-motion/use-menu-motion.js";
 import { TRIGGER_RADIUS } from "../apple-motion/menu.js";
 import { useMenuMaterial } from "./use-menu-material.js";
-import { DARK_GLASS_TINT, THIN_GLASS, glassEdgeDepth, useGlassThickness } from "./glass-thickness.js";
+import { useGlassThickness } from "./glass-thickness.js";
 import { useGlassContact } from "../apple-motion/use-glass-contact.js";
 import { ScrollArea } from "./ScrollArea.js";
 import { moveMenuFocus } from "./menu-keys.js";
-import { useGlassMaterialOverrides } from "../liquid-glass/provider.js";
+import { useGlassMaterial } from "../liquid-glass/provider.js";
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -49,7 +50,8 @@ function menuLayout(width: number, height: number): MenuLayout {
 }
 
 export interface LiquidMenuProps {
-  theme: "light" | "dark";
+  /** Default: the host page's theme. */
+  theme?: "light" | "dark";
   menuLabel: string;
   openLabel: string;
   trigger: ReactNode;
@@ -61,6 +63,8 @@ export interface LiquidMenuProps {
 
 export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, className, onOpenChange, size = "default" }: LiquidMenuProps) {
   const scale = size === "small" ? .65 : 1;
+  const hostDark = useHostDark();
+  const dark = theme === undefined ? hostDark : theme === "dark";
   const renderLayout = (width: number, height: number) => Object.fromEntries(
     Object.entries(menuLayout(width, height)).map(([key, value]) => [key, value * scale]),
   ) as unknown as MenuLayout;
@@ -72,8 +76,8 @@ export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, cla
   const contentActive = useMotionValue(0);
   const contentRevision = useMotionValue(0);
   const { depth, tintOpacity, zoom, closingBlur, transition } = useMenuMaterial();
-  // The menu follows the shared thickness rule, not the ordinary-glass defaults; explicit host values still apply.
-  const materialOverrides = useGlassMaterialOverrides();
+  // The menu's glass thickens with its live body; explicit host values still apply.
+  const materialOverrides = useGlassMaterial();
   const captureContent = useCallback(() => {
     const panel = panelRef.current;
     const canvas = contentSourceRef.current;
@@ -114,7 +118,7 @@ export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, cla
   const domContentOpacity = useTransform([reveal, contentActive], ([opacity, active]: number[]) => opacity * (1 - active));
   // The live body sets the glass thickness: the closed trigger is a compact control, the open menu thick glass.
   const thickness = useTransform([halfWidth, halfHeight], ([width, height]: number[]) => liquidThickness(width * 2, height * 2));
-  const { tintStrength: _thicknessTint, magnification: _thicknessZoom, ...material } = useGlassThickness(thickness, theme === "dark", materialOverrides, scale);
+  const { tintStrength: _thicknessTint, magnification: _thicknessZoom, ...material } = useGlassThickness(thickness, dark, materialOverrides, scale);
   // Frost matches popups of the same CSS size; the canvas draws in menu units.
   const materialBlur = useTransform([halfWidth, halfHeight], ([width, height]: number[]) => liquidSurfaceBlur(width * 2, height * 2) / scale);
   // The morph's own depth, tint and zoom ride on the thick end, so a closed trigger rests as thin glass.
@@ -159,6 +163,7 @@ export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, cla
         contactX: contact.contactX,
         contactY: contact.contactY,
         contactStrength: contact.contactStrength,
+        contactSpread: contact.contactSpread,
         refractionRatio: [triggerRatioX, triggerRatioY] as const,
       },
     ],
@@ -178,6 +183,7 @@ export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, cla
       contact.contactX,
       contact.contactY,
       contact.contactStrength,
+      contact.contactSpread,
       triggerRatioX,
       triggerRatioY,
     ],
@@ -191,7 +197,7 @@ export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, cla
 
   useEffect(() => {
     if (contentActive.get()) captureContent();
-  }, [captureContent, contentActive, children, stageSize, theme]);
+  }, [captureContent, contentActive, children, stageSize, dark]);
 
   useEffect(() => {
     const owner = stageRef.current;
@@ -200,7 +206,7 @@ export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, cla
       fusionSourceRef.current = canvas;
       fusionSourceRevision.set(fusionSourceRevision.get() + 1);
     }).dispose;
-  }, [stageSize.height, stageSize.width, theme]);
+  }, [stageSize.height, stageSize.width, dark]);
 
   // Opening moves focus into the menu, onto its checked item when there is one, as other popups do.
   useEffect(() => {
@@ -212,7 +218,7 @@ export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, cla
   const layout = renderLayout(stageSize.width, stageSize.height);
 
   return (
-    <div ref={stageRef} className={["dg-liquid-glass", size === "small" && "dg-liquid-glass--small", className].filter(Boolean).join(" ")} data-liquid-theme={theme}>
+    <div ref={stageRef} className={["dg-liquid-glass", size === "small" && "dg-liquid-glass--small", className].filter(Boolean).join(" ")} data-liquid-theme={dark ? "dark" : "light"}>
       <canvas ref={contentSourceRef} className="dg-liquid-menu__fusion-source" aria-hidden="true" />
       <div className="dg-liquid-menu__fusion-layer" aria-hidden="true">
         <LiquidGlassCanvas
@@ -228,13 +234,11 @@ export function LiquidMenu({ theme, menuLabel, openLabel, trigger, children, cla
           mergeDistance={rawMergeDistance}
           {...material}
           edgeDepth={materialDepth}
-          tintColor={theme === "dark" ? DARK_GLASS_TINT : [1, 1, 1]}
+          tintColor={dark ? DARK_GLASS_TINT : [1, 1, 1]}
           sourceRevision={fusionSourceRevision}
           pixelRatio={2 * scale}
           className="dg-liquid-menu__fusion-canvas"
-          inheritMaterial={false}
-          {...materialOverrides}
-          // The morph animates these; a provider constant must not freeze them.
+          // The morph animates these, its depth and its neck; a provider constant never freezes them.
           blurStrength={materialBlur}
           tintStrength={materialTintOpacity}
           magnification={materialZoom}

@@ -3,6 +3,15 @@ import type { Dispatch, SetStateAction } from "react";
 export type MaterialState = { material: GlassMaterial; setMaterial: Dispatch<SetStateAction<GlassMaterial>> };
 export const materialFields = [
   {
+    key: "clarity",
+    en: "Clarity",
+    zh: "通透度",
+    min: -1,
+    max: 1,
+    step: 0.05,
+    initial: 0,
+  },
+  {
     key: "refractionStrength",
     en: "Refraction",
     zh: "折射强度",
@@ -202,8 +211,8 @@ export function sanitizeMaterial(value: unknown): GlassMaterial {
   }
   if (typeof (value as Record<string, unknown>).debug === "boolean")
     result.debug = (value as { debug: boolean }).debug;
-  const { refractionModel, lightSource } = value as Record<string, unknown>;
-  if (refractionModel === "dome" || refractionModel === "bevel") result.refractionModel = refractionModel;
+  const { lightSource, variant } = value as Record<string, unknown>;
+  if (variant === "regular" || variant === "clear") result.variant = variant;
   if (lightSource === "fixed" || lightSource === "pointer" || lightSource === "device") result.lightSource = lightSource;
   // HDR is a site-wide display preference; old presets and links cannot override it.
   return result;

@@ -21,7 +21,6 @@
   --border-strong: rgb(20 20 20 / .14);
   --primary: #262626;
   --primary-soft: #e6e6e4;
-  --action-glass-tint: #fff;
   --page-stripe: rgba(24,24,24,.032);
   --scrollbar: #1818183d;
 
@@ -89,7 +88,6 @@
   --border-strong: rgb(255 255 255 / .15);
   --primary: #dededb;
   --primary-soft: #30302e;
-  --action-glass-tint: #4a4a46;
   --page-stripe: rgba(255,255,255,.022);
   --scrollbar: #ffffff38;
   /* In the dark the edge comes from light: an inset hairline, then depth below. */

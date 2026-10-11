@@ -1,5 +1,6 @@
 import type { GlassRendererBackend } from "./renderer.js";
 import type { LiquidLightSource } from "./light.js";
+import type { GlassLook } from "./material.js";
 import { createContext, useContext, useMemo, useSyncExternalStore, type ReactNode } from "react";
 import { isMotionValue } from "../shared/values.js";
 
@@ -16,6 +17,7 @@ export type GlassMaterial = Partial<
     | "edgeStrength"
     | "tintStrength"
     | "magnification"
+    | "lensMagnification"
     | "brightness"
     | "glowSpread"
     | "glowExponent"
@@ -28,8 +30,8 @@ export type GlassMaterial = Partial<
     | "mergeDistance",
     number
   >
-> & {
-  debug?: boolean; hdr?: boolean; refractionModel?: "dome" | "bevel"; lightSource?: LiquidLightSource;
+> & GlassLook & {
+  debug?: boolean; hdr?: boolean; lightSource?: LiquidLightSource;
   /** Publish `data-dg-tone="light" | "dark"` on surfaces from their backdrop luminance. Off by default. */
   tone?: boolean;
 };
@@ -39,12 +41,6 @@ export const PRISM_MATERIAL = {
   blurStrength: .2, chromaAmount: 1.2, refractionStrength: .2,
   specularStrength: .9, tintStrength: .02,
 } as const satisfies GlassMaterial;
-
-/**
- * Shared defaults for ordinary glass. Calibrated lenses (Switch/Slider thumbs,
- * Tabs, Spotlight, the Morph Menu) keep their own dispersion and dome depth.
- */
-export const DEFAULT_MATERIAL = { chromaAmount: .33, domeDepth: 28 } as const satisfies GlassMaterial;
 
 /** SDR base highlight while the HDR presenter lifts reflections above SDR white. */
 export const HDR_SPECULAR_STRENGTH = .48;
@@ -99,11 +95,10 @@ export function useDisplayHDR() {
 }
 
 /**
- * Explicit provider overrides, plus the HDR highlight default when HDR is enabled
- * and the display supports it. Calibrated components apply these above their own
- * values; they intentionally omit the shared ordinary-glass defaults.
+ * The provider's material, plus the HDR highlight default when HDR is enabled and the display
+ * supports it. Glass applies these above its own values (see resolveGlassMaterial).
  */
-export function useGlassMaterialOverrides(hdr?: boolean): GlassMaterial {
+export function useGlassMaterial(hdr?: boolean): GlassMaterial {
   const material = useContext(MaterialContext);
   const displayHDR = useDisplayHDR();
   // An instance `hdr` flag wins over the provider's, including for the HDR highlight default.
@@ -115,17 +110,13 @@ export function useGlassMaterialOverrides(hdr?: boolean): GlassMaterial {
 }
 
 /**
- * Ordinary glass resolves as shared defaults < instance values < explicit and HDR overrides.
- * An instance MotionValue keeps animating; a provider constant never freezes it.
+ * One precedence rule for every glass: its own values, then the provider's material above them.
+ * A provider constant replaces a value the glass sets as a constant, never one it animates (a
+ * MotionValue), so lifting lenses, morphs and fusion necks keep moving under any material.
+ * Glass fills what neither sets from its size (see glassMaterial).
  */
 export function resolveGlassMaterial<T extends object>(instance: T, overrides: GlassMaterial): T {
-  const merged: Record<string, unknown> = { ...DEFAULT_MATERIAL, ...instance };
-  for (const [key, value] of Object.entries(overrides)) if (!isMotionValue(merged[key])) merged[key] = value;
+  const merged = { ...instance } as Record<string, unknown>;
+  for (const [key, value] of Object.entries(overrides)) if (value !== undefined && !isMotionValue(merged[key])) merged[key] = value;
   return merged as T;
-}
-
-/** Ordinary glass: shared defaults beneath the explicit overrides above. */
-export function useGlassMaterial(): GlassMaterial {
-  const overrides = useGlassMaterialOverrides();
-  return useMemo(() => ({ ...DEFAULT_MATERIAL, ...overrides }), [overrides]);
 }

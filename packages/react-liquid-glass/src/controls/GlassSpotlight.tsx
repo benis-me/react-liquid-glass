@@ -1,7 +1,7 @@
-import { useReducedMotion } from "motion/react";
-import { tween } from "../apple-motion/index.js";
+import { useMotionValue, type MotionValue } from "motion/react";
 import { stepSpring } from "../apple-motion/spring.js";
-import { SPOTLIGHT_DRIFT_SPEED, SPOTLIGHT_FOLLOW_SPRING, SPOTLIGHT_IDLE_MS } from "../apple-motion/presets.js";
+import { springTo } from "../apple-motion/react.js";
+import { SPOTLIGHT_DRIFT_SPEED, SPOTLIGHT_FOLLOW_SPRING, SPOTLIGHT_IDLE_MS, SPOTLIGHT_RESIZE_SPRING } from "../apple-motion/presets.js";
 import {
   useCallback,
   useEffect,
@@ -11,7 +11,8 @@ import {
 } from "react";
 import { motionValue } from "../shared/values.js";
 import type { LiquidLens } from "../liquid-glass/lens.js";
-import { LiquidGlass } from "../liquid-glass/LiquidGlass.js";
+import { LiquidGlass, type LiquidGlassProps } from "../liquid-glass/LiquidGlass.js";
+import { useReducedMotionPreference } from "../shared/reduced-motion.js";
 
 export interface GlassSpotlightProps {
   variant?: "primary" | "secondary";
@@ -20,7 +21,10 @@ export interface GlassSpotlightProps {
   /** Responsive candidates for the background image, as for `<img srcset>`. */
   backgroundSrcSet?: string;
   backgroundSizes?: string;
+  /** The lens's resting half-extents and corner radius in CSS pixels. Default 80. */
   lens?: LiquidLens;
+  /** The lens's own material values; the provider's and the glass's thickness fill the rest. */
+  material?: LiquidGlassProps["material"];
 }
 
 const clamp = (value: number, low: number, high: number) => Math.max(low, Math.min(high, value));
@@ -43,14 +47,14 @@ export function GlassSpotlight({
   backgroundSrcSet,
   backgroundSizes,
   lens: lensOverrides,
+  material,
 }: GlassSpotlightProps) {
   // A missing or blocked image falls back to the plain frame instead of a broken image.
   const [imageFailed, setImageFailed] = useState(false);
   useEffect(() => setImageFailed(false), [backgroundImage, backgroundSrcSet]);
   const scale = useMobileScale();
-  const reduce = useReducedMotion();
-  // Only calibrated values are passed on; LiquidGlass fills the shared defaults.
-  const sourceLens = { lensW: 80, lensH: 80, borderRadius: 80, tint: 0, ...lensOverrides };
+  const reduce = useReducedMotionPreference();
+  const sourceLens = { lensW: 80, lensH: 80, borderRadius: 80, ...lensOverrides };
   const targetW = sourceLens.lensW * scale;
   const targetH = sourceLens.lensH * scale;
   const targetRadius = sourceLens.borderRadius * scale;
@@ -62,32 +66,32 @@ export function GlassSpotlight({
   const velocity = useRef({ x: 0, y: 0 });
   const heading = useRef(Math.PI / 4);
   const lastActivity = useRef(0);
-  const lensW = useRef(motionValue(targetW)).current;
-  const lensH = useRef(motionValue(targetH)).current;
-  const radius = useRef(motionValue(targetRadius)).current;
+  const lensW = useMotionValue(targetW);
+  const lensH = useMotionValue(targetH);
+  const radius = useMotionValue(targetRadius);
   const rootRef = useRef<HTMLDivElement>(null);
   const hovering = useRef(false);
   const hoverTarget = useRef({ x: 0.5, y: 0.5 });
   const restoreTimer = useRef<number | null>(null);
-  const animationStops = useRef<Array<() => void>>([]);
+  const animationStops = useRef<Array<{ stop: () => void }>>([]);
   const visible = useRef(true);
   const driftFrame = useRef(0);
   const wakeDrift = useRef<() => void>(() => undefined);
   const viewport = useRef({ width: 0, height: 0 });
 
-  const stopTweens = () => {
-    animationStops.current.forEach((stop) => stop());
+  // The lens grows under the pointer and shrinks back on one spring, settling without overshoot.
+  const resize = (width: number, height: number, corner: number) => {
+    animationStops.current.forEach((run) => run.stop());
     animationStops.current = [];
+    const targets: Array<[MotionValue<number>, number]> = [[lensW, width], [lensH, height], [radius, corner]];
+    for (const [value, target] of targets) {
+      if (reduce) value.jump(target); else animationStops.current.push(springTo(value, target, SPOTLIGHT_RESIZE_SPRING));
+    }
   };
 
   useEffect(() => {
     if (hovering.current) return;
-    stopTweens();
-    animationStops.current.push(
-      tween(lensW, targetW, reduce ? 0 : 300),
-      tween(lensH, targetH, reduce ? 0 : 300),
-      tween(radius, targetRadius, reduce ? 0 : 300),
-    );
+    resize(targetW, targetH, targetRadius);
   }, [targetW, targetH, targetRadius, lensW, lensH, radius, reduce]);
 
   useEffect(() => {
@@ -196,7 +200,7 @@ export function GlassSpotlight({
   }, [interactive, reduce, x, y, lensW, lensH, velocityX, velocityY]);
 
   useEffect(() => () => {
-    stopTweens();
+    animationStops.current.forEach((run) => run.stop());
     if (restoreTimer.current !== null) clearTimeout(restoreTimer.current);
   }, []);
 
@@ -214,13 +218,6 @@ export function GlassSpotlight({
     else wakeDrift.current();
   }, [interactive, reduce, x, y, lensW, lensH]);
 
-  const lens: LiquidLens = {
-    ...sourceLens,
-    lensW: targetW,
-    lensH: targetH,
-    borderRadius: targetRadius,
-    ...(sourceLens.domeDepth === undefined ? {} : { domeDepth: (sourceLens.domeDepth / Math.max(1, sourceLens.lensW)) * Math.min(targetW, targetH) }),
-  };
 
   return (
     <div
@@ -231,12 +228,7 @@ export function GlassSpotlight({
         if (restoreTimer.current !== null) clearTimeout(restoreTimer.current);
         hovering.current = true;
         hoverTarget.current = { x: x.get(), y: y.get() };
-        stopTweens();
-        animationStops.current.push(
-          tween(radius, 103 * scale, reduce ? 0 : 300),
-          tween(lensW, 95 * scale, reduce ? 0 : 300),
-          tween(lensH, 95 * scale, reduce ? 0 : 300),
-        );
+        resize(95 * scale, 95 * scale, 103 * scale);
       } : undefined}
       onPointerMove={interactive ? move : undefined}
       onPointerLeave={interactive ? () => {
@@ -244,17 +236,14 @@ export function GlassSpotlight({
         restoreTimer.current = window.setTimeout(() => {
           hovering.current = false;
           wakeDrift.current();
-          stopTweens();
-          animationStops.current.push(
-            tween(radius, targetRadius, reduce ? 0 : 300),
-            tween(lensW, targetW, reduce ? 0 : 300),
-            tween(lensH, targetH, reduce ? 0 : 300),
-          );
+          resize(targetW, targetH, targetRadius);
         }, 400);
       } : undefined}
     >
+      {/* A magnifier over a photograph: clear glass, which keeps the photograph vivid. */}
       <LiquidGlass
-        lens={lens}
+        variant="clear"
+        material={material}
         lensW={lensW}
         lensH={lensH}
         borderRadius={radius}

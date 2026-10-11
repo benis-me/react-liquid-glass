@@ -50,8 +50,8 @@ function Specimen({ id, locale, theme, pulse, compact, variant = id }: PageProps
 }
 
 const demoFields = [
+  { key: "clarity", en: "Clarity", zh: "通透度", min: -1, max: 1, step: .05, initial: 0 },
   { key: "refractionStrength", en: "Refraction", zh: "折射", min: 0, max: .4, step: .01, initial: .2 },
-  { key: "blurStrength", en: "Frost", zh: "磨砂", min: 0, max: 8, step: .1, initial: .2 },
   { key: "chromaAmount", en: "Dispersion", zh: "色散", min: 0, max: 1.5, step: .01, initial: .33 },
 ] as const;
 type DemoKey = (typeof demoFields)[number]["key"];
@@ -118,7 +118,8 @@ export function Home({ locale, theme }: PageProps) {
           backgroundImage={PHOTO}
           backgroundSrcSet={PHOTO_SRCSET}
           backgroundSizes={PHOTO_SIZES}
-          lens={{ lensW: 118, lensH: 118, borderRadius: 118, chromaAmount: 0.24 }}
+          lens={{ lensW: 118, lensH: 118, borderRadius: 118 }}
+          material={{ chromaAmount: 0.24 }}
         />
       </div>
 

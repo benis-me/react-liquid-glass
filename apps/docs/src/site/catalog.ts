@@ -11,6 +11,7 @@ export const catalog = [
     props: [
       ["variant", '"default" | "solid" | "ghost"', '"default"'],
       ["size", '"small" | "default" | "large"', '"default"'],
+      ["glass", '{ variant?, clarity?, tint? } (GlassLook)', "the material's look"],
       ["disabled", "boolean", "false"],
       ["onClick", "MouseEventHandler", "—"],
     ],
@@ -212,6 +213,7 @@ export const catalog = [
     api: "GlassCard",
     props: [
       ["children", "ReactNode", "required"],
+      ["glass", '{ variant?, clarity?, tint? } (GlassLook)', "the material's look"],
       ["className / style", "native HTML props", "—"],
     ],
     code: "<GlassCard><h3>A small workspace</h3><p>Everything in its place.</p></GlassCard>",
@@ -431,7 +433,8 @@ export const catalog = [
       ["backgroundImage", "string (same origin or CORS)", "plain frame"],
       ["backgroundSrcSet / backgroundSizes", "string", "—"],
       ["interactive", "boolean", "true"],
-      ["lens", "LiquidLens", "calibrated preset"],
+      ["lens", "{ lensW?, lensH?, borderRadius? } (CSS px)", "80 · 80 · 80"],
+      ["material", "Partial<LiquidGlassFrame>", "clear glass of the lens's size"],
       ["variant", '"primary" | "secondary"', '"primary"'],
     ],
     code: '<GlassSpotlight backgroundImage="/architecture.jpg" lens={{ lensW: 140, lensH: 140, borderRadius: 140 }} />',
