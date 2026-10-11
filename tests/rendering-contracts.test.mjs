@@ -732,7 +732,11 @@ test("segmented click expands, travels as glass, then collapses", () => {
   assert.match(componentSource, /choose\(nearest\.value\);\s*travelSettled\.current = updateGeometry\(nearest\.value, hasLinks && !selected\);/);
   // Released, the tab under the finger is chosen, not the one under a lens still catching up with
   // it, and the lens travels there from where it is with its own measured velocity.
-  assert.match(componentSource, /if \(dragMoved\.current\) \{\s*(?:\/\/[^\n]*\n\s*)*const nearest = nearestSegment\(event\.clientX - dragOffsetX\.current\);\s*if \(nearest\) choose\(nearest\.value\);\s*releaseVelocity\.current = lensVelocity\.current\.velocity\(\);\s*\}/);
+  assert.match(componentSource, /if \(dragMoved\.current\) \{\s*(?:\/\/[^\n]*\n\s*)*const nearest = nearestSegment\(event\.clientX - dragOffsetX\.current\);\s*if \(nearest\) choose\(nearest\.value\);\s*\}/);
+  // Every way a drag ends (release, cancel, lost capture, the window fallback) settles through
+  // releaseInteraction, which hands the lens its tracked velocity.
+  assert.match(componentSource, /const releaseInteraction = \(settle = true\) => \{\s*(?:\/\/[^\n]*\n\s*)*if \(settle\) releaseVelocity\.current = lensVelocity\.current\.velocity\(\);/);
+  assert.equal((componentSource.match(/releaseVelocity\.current = lensVelocity/g) ?? []).length, 1);
   assert.match(componentSource, /lensVelocity\.current\.push\(lensCenter - shift\);/);
   assert.match(componentSource, /releaseInteraction\(dragMoved\.current\)/);
   assert.match(componentSource, /const releaseInteraction = \(settle = true\)/);
@@ -1090,7 +1094,7 @@ test("control optics retain size-independent pixel gain and the approved menu ma
   assert.match(componentSource, /THUMB_FILL_SPRING = \{ mass: 1, stiffness: 1600, damping: 80 \}/);
   assert.match(componentSource, /to\(tintOpacity, 1, fill\);\s*to\(tintBlur, restTintBlur, fill\);/);
   assert.match(componentSource, /stillStop\.current = springTo\(still, 0, SEGMENTED_PRESS_SPRING\);\s*setDragging\(true\);/);
-  assert.match(componentSource, /const releaseInteraction = \(settle = true\) => \{\s*setDragging\(false\);/);
+  assert.match(componentSource, /const releaseInteraction = \(settle = true\) => \{\s*(?:\/\/[^\n]*\n\s*)*if \(settle\) releaseVelocity\.current = lensVelocity\.current\.velocity\(\);\s*setDragging\(false\);/);
   assert.match(componentSource, /data-dragging=\{dragging \? "" : undefined\}/);
   assert.doesNotMatch(componentSource, /dg-tabs__group--quiet/);
   const controlsCss = readFileSync(new URL("../packages/react-liquid-glass/src/controls.css", import.meta.url), "utf8");
@@ -1125,7 +1129,7 @@ test("a pressed tab bar grows about its centre and its glass stays registered", 
   assert.match(segmented, /const PRESS_SCALE = 1\.035;\s*const PRESS_OUTSET = 7;/);
   assert.match(segmented, /springTo\(barScale, pressed && width \? 1 \+ Math\.min\(PRESS_SCALE - 1, PRESS_OUTSET \* 2 \/ width\) : 1, SEGMENTED_PRESS_SPRING\)/);
   assert.match(segmented, /interactionStop\.current = springTo\(interaction, 1, LIFT_SPRING\);\s*pressBar\(true\);/);
-  assert.match(segmented, /const releaseInteraction = \(settle = true\) => \{\s*setDragging\(false\);\s*pressBar\(false\);/);
+  assert.match(segmented, /const releaseInteraction = \(settle = true\) => \{\s*(?:\/\/[^\n]*\n\s*)*if \(settle\) releaseVelocity\.current = lensVelocity\.current\.velocity\(\);\s*setDragging\(false\);\s*pressBar\(false\);/);
   assert.match(segmented, /<motion\.div ref=\{rootRef\} style=\{\{ scale: barScale, x: barShift \}\}/);
   // The lens is laid out in the bar's own pixels: fractions of its padded frame on screen, and
   // sizes divided by the bar's current scale.

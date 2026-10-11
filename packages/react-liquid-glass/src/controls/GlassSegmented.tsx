@@ -401,6 +401,9 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
     });
   };
   const releaseInteraction = (settle = true) => {
+    // Whatever ends a drag (a release, a cancel, lost capture, a blurred window), the lens travels
+    // on with the velocity it measured over its last moves, never a burst between two events.
+    if (settle) releaseVelocity.current = lensVelocity.current.velocity();
     setDragging(false);
     pressBar(false);
     const token = ++transitionToken.current;
@@ -558,7 +561,6 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
             // it, and the lens travels there from where it is, with the velocity it had.
             const nearest = nearestSegment(event.clientX - dragOffsetX.current);
             if (nearest) choose(nearest.value);
-            releaseVelocity.current = lensVelocity.current.velocity();
           }
           const destination = hasLinks ? segments.find(item => item.value === selectedRef.current)?.href : undefined;
           finishDrag(event.pointerId, event.currentTarget);
