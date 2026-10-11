@@ -11,6 +11,8 @@ type ActualBackend = Exclude<GlassRendererBackend, "auto">;
 type WebGLRenderer = ReturnType<typeof createWebGL2GlassRenderer>;
 type WebGPURenderer = Awaited<ReturnType<typeof createWebGPUGlassRenderer>>;
 type Highlight = Awaited<ReturnType<typeof createHighlightHDR>>;
+/** `GPUCanvasContext` where the consumer's DOM lib or `@webgpu/types` declares it. TypeScript 5's DOM lib does not, so there only its canvas is typed. */
+type WebGPUCanvasContext = typeof globalThis extends { GPUCanvasContext: { prototype: infer Context } } ? Context : { readonly canvas: HTMLCanvasElement | OffscreenCanvas };
 export interface LiquidRendererOptions {
   backend?: GlassRendererBackend;
   /** WebGL2 fallback only: many small surfaces share a device and copy their output. */
@@ -26,7 +28,7 @@ export interface LiquidGlassRenderer {
   readonly backend: ActualBackend | "pending" | "unavailable";
   readonly ready: Promise<ActualBackend | null>;
   readonly error: Error | undefined;
-  readonly context: WebGL2RenderingContext | GPUCanvasContext | null;
+  readonly context: WebGL2RenderingContext | WebGPUCanvasContext | null;
   readonly stats: LiquidRendererStats;
   /** Queues the latest frame while the backend initializes; false means it is not presented yet. */
   draw(frame: LiquidGlassFrame): boolean;

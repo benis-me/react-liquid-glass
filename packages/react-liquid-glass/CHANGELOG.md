@@ -2,6 +2,12 @@
 
 Notable changes to `rglass`. Versions follow semantic versioning; before 1.0, a minor version may include breaking changes.
 
+## Unreleased
+
+### Fixed
+
+- Published declarations type-check on TypeScript 5 with `skipLibCheck: false`. `LiquidGlassRenderer`'s `context` named `GPUCanvasContext`, which TypeScript 5's DOM lib lacks, so the check failed, and with `skipLibCheck` the property degraded to `any`. It is still `GPUCanvasContext` wherever the consumer's DOM lib or `@webgpu/types` declares it; otherwise only the WebGPU context's `canvas` is typed.
+
 ## 0.3.0 — 2026-10-11
 
 ### Changed
