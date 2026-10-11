@@ -24,6 +24,11 @@ export interface LiquidGlassBlob {
   anchorX?: MotionInput;
   anchorY?: MotionInput;
   contactStrength?: MotionInput;
+  /**
+   * How far the press's glow has spread, from 0 (under the finger) to 1 (through the whole body
+   * and onto glass fused with it). Default 1.
+   */
+  contactSpread?: MotionInput;
   /** Resisted grip displacement in CSS pixels. */
   pullX?: MotionInput;
   pullY?: MotionInput;

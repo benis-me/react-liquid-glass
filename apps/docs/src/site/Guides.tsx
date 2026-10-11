@@ -69,7 +69,7 @@ const guides: Guide[] = [
       {
         en: "HDR",
         zh: "HDR",
-        body: [["On a display that matches (dynamic-range: high), the fine reflection and touch light rise above SDR white under one soft cap: a full press peaks near 1.5× SDR white and the static rim near 1.2×, and overlapping light never stacks into glare. The SDR base highlight settles at 0.48 there; SDR displays keep each component's own highlight. Set hdr: false in material, or hdr={false} on a component, to stay in SDR.", "在匹配 (dynamic-range: high) 的显示器上，细反光与触控光会超过 SDR 白，但共用一条柔和上限：完整按压的峰值约为 SDR 白的 1.5 倍，静态边缘约 1.2 倍，叠加的光也不会堆成眩光。此时 SDR 基础高光为 0.48；SDR 显示器保留每个组件自身的高光。在材质中设置 hdr: false，或在组件上传入 hdr={false}，即可保持 SDR。"]],
+        body: [["On a display that matches (dynamic-range: high), the fine reflection and touch light rise above SDR white under one soft cap: a press lights the whole glass near 1.2× SDR white, up to about 1.3× toward the finger, the static rim reaches about 1.2×, and overlapping light never stacks into glare. The SDR base highlight settles at 0.48 there; SDR displays keep each component's own highlight. Set hdr: false in material, or hdr={false} on a component, to stay in SDR.", "在匹配 (dynamic-range: high) 的显示器上，细反光与触控光会超过 SDR 白，但共用一条柔和上限：按压会让整块玻璃亮到约 SDR 白的 1.2 倍，靠近手指处约 1.3 倍，静态边缘约 1.2 倍，叠加的光也不会堆成眩光。此时 SDR 基础高光为 0.48；SDR 显示器保留每个组件自身的高光。在材质中设置 hdr: false，或在组件上传入 hdr={false}，即可保持 SDR。"]],
         code: 'import { useDisplayHDR } from "rglass/liquid-glass";\n\nconst hdr = useDisplayHDR(); // true on HDR displays\n<LiquidGlassProvider material={{ hdr: false }}>…</LiquidGlassProvider>;',
       },
       {

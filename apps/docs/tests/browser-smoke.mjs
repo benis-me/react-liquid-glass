@@ -564,46 +564,56 @@ export async function checkSwitchThemes() {
 
 export async function checkContactFeedback() {
   await go('/components/button');
-  const button = document.querySelector('.component-preview .dg-button'), surface = button.querySelector('[data-dg-contact]');
-  // The app may be inside a clipped test iframe; offscreen optics correctly wait.
-  button.scrollIntoView({block:'center', inline:'nearest'}); await paint();
-  const canvas = surface.querySelector('canvas'), ink = surface.querySelector('.dg-surface__content');
-  const rect = surface.getBoundingClientRect(), sx = rect.left + rect.width * .84, sy = rect.top + rect.height / 2;
-  await until(() => canvas.width === (surface.offsetWidth + 80) * 2, 'Contact canvas has not rendered its first frame').catch(error => {
-    throw new Error(`${error.message}: ${canvas.width}/${surface.offsetWidth}, ${canvas.dataset.dgRenderer}, connected=${canvas.isConnected}`);
-  });
-  await paint();
-  const color = () => {
-    const data = readLiquidSource(canvas).getContext('2d').getImageData(Math.round((40 + rect.width * .84) * 2), Math.round((40 + rect.height / 2) * 2), 1, 1).data;
-    return (data[0] + data[1] + data[2]) / 3;
-  };
-  const before = color(), label = button.textContent;
-  const pointer = (target, type, x = sx, y = sy) => target.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 27, isPrimary: true, pointerType: 'mouse', button: 0, buttons: type === 'pointerup' ? 0 : 1, clientX: x, clientY: y }));
-  pointer(ink, 'pointerdown');
-  await until(() => color() > before + 8, 'The actual grip position did not illuminate');
-  await until(()=>new DOMMatrix(getComputedStyle(ink).transform).a>1.02,'Press still shrinks the button');
-  assert(new DOMMatrix(getComputedStyle(ink).transform).a<1.04,'Press expansion is excessive');
-  pointer(window, 'pointermove', sx + 90, sy - 30); await paint();
-  const pulled = new DOMMatrix(getComputedStyle(ink).transform);
-  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) assert(pulled.m41 > .1 && pulled.m41 < 3 && pulled.m42 < 0 && Math.abs(pulled.b) < .05, 'The material must follow a subtle resisted pull');
-  pointer(window, 'pointerup', sx + 90, sy - 30);
-  button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }));
-  assert(button.textContent === label, 'Dragging accidentally fired the action');
-  await until(() => { const m = new DOMMatrix(getComputedStyle(ink).transform); return Math.abs(m.a - 1) < .001 && Math.abs(m.m41) < .02 && Math.abs(m.m42) < .02; }, 'The contact did not spring back');
-  await until(() => Math.abs(color() - before) < 2, 'Contact light changed the resting material');
-  // The original grip fixes the material; the light must follow a different live pointer position.
-  const left = rect.left + rect.width * .2;
-  const pixelAt = x => { const p = readLiquidSource(canvas).getContext('2d').getImageData(Math.round((40 + x) * 2), Math.round((40 + rect.height / 2) * 2), 1, 1).data; return (p[0] + p[1] + p[2]) / 3; };
-  pointer(ink, 'pointerdown', left, sy); await new Promise(resolve => setTimeout(resolve, 160));
-  const litLeft = pixelAt(rect.width * .2);
-  pointer(window, 'pointermove', rect.left + rect.width * .8, sy); await paint();
-  assert(pixelAt(rect.width * .8) > pixelAt(rect.width * .2) + 8 && pixelAt(rect.width * .2) < litLeft - 5, 'The contact light stayed at the original grip');
-  pointer(window, 'pointerup');
-  pointer(ink, 'pointerdown'); pointer(window, 'lostpointercapture');
-  assert(!surface.hasAttribute('data-dg-contact-active'), 'Lost capture left the material pinned');
-  pointer(ink, 'pointerdown'); window.dispatchEvent(new Event('blur'));
-  assert(!surface.hasAttribute('data-dg-contact-active'), 'Window blur left the material pinned');
-  return { light: 'follows the pointer', pull: 'subtle, anchored, elastic', cancellation: 'capture loss and blur', rest: 'unchanged' };
+  // A press lights the glass from within; that light shows over dark glass, and over light glass
+  // only lifts it gently. Measure it in the dark theme and restore the reader's theme afterwards.
+  const themeToggle = document.querySelector('.header-tools .icon-button:not(.mobile-menu-button):not(.hdr-toggle)');
+  const wasDark = document.documentElement.dataset.theme === 'dark';
+  if (!wasDark) { themeToggle.click(); await until(() => document.documentElement.dataset.theme === 'dark', 'Dark theme did not apply'); }
+  try {
+    const button = document.querySelector('.component-preview .dg-button'), surface = button.querySelector('[data-dg-contact]');
+    // The app may be inside a clipped test iframe; offscreen optics correctly wait.
+    button.scrollIntoView({block:'center', inline:'nearest'}); await paint();
+    const canvas = surface.querySelector('canvas'), ink = surface.querySelector('.dg-surface__content');
+    const rect = surface.getBoundingClientRect(), sx = rect.left + rect.width * .84, sy = rect.top + rect.height / 2;
+    await until(() => canvas.width === (surface.offsetWidth + 80) * 2, 'Contact canvas has not rendered its first frame').catch(error => {
+      throw new Error(`${error.message}: ${canvas.width}/${surface.offsetWidth}, ${canvas.dataset.dgRenderer}, connected=${canvas.isConnected}`);
+    });
+    const pixelAt = x => { const p = readLiquidSource(canvas).getContext('2d').getImageData(Math.round((40 + x) * 2), Math.round((40 + rect.height / 2) * 2), 1, 1).data; return (p[0] + p[1] + p[2]) / 3; };
+    const color = () => pixelAt(rect.width * .84);
+    await until(() => color() < 100, 'The glass did not follow the dark theme');
+    await paint();
+    const before = color(), far = pixelAt(rect.width * .16), label = button.textContent;
+    const pointer = (target, type, x = sx, y = sy) => target.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 27, isPrimary: true, pointerType: 'mouse', button: 0, buttons: type === 'pointerup' ? 0 : 1, clientX: x, clientY: y }));
+    pointer(ink, 'pointerdown');
+    await until(() => color() > before + 8, 'The actual grip position did not illuminate');
+    // The glow spreads from the finger through the whole glass: a lit surface, not a spot.
+    await until(() => pixelAt(rect.width * .16) > far + 8, 'The press lit a spot instead of the glass');
+    assert(color() > pixelAt(rect.width * .16) + 4, 'The light no longer leans toward the finger');
+    await until(()=>new DOMMatrix(getComputedStyle(ink).transform).a>1.02,'Press still shrinks the button');
+    assert(new DOMMatrix(getComputedStyle(ink).transform).a<1.04,'Press expansion is excessive');
+    pointer(window, 'pointermove', sx + 90, sy - 30); await paint();
+    const pulled = new DOMMatrix(getComputedStyle(ink).transform);
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) assert(pulled.m41 > .1 && pulled.m41 < 3 && pulled.m42 < 0 && Math.abs(pulled.b) < .05, 'The material must follow a subtle resisted pull');
+    pointer(window, 'pointerup', sx + 90, sy - 30);
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }));
+    assert(button.textContent === label, 'Dragging accidentally fired the action');
+    await until(() => { const m = new DOMMatrix(getComputedStyle(ink).transform); return Math.abs(m.a - 1) < .001 && Math.abs(m.m41) < .02 && Math.abs(m.m42) < .02; }, 'The contact did not spring back');
+    await until(() => Math.abs(color() - before) < 2, 'Contact light changed the resting material');
+    // The original grip fixes the material; the light leans toward the live pointer instead.
+    const left = rect.left + rect.width * .2;
+    pointer(ink, 'pointerdown', left, sy); await new Promise(resolve => setTimeout(resolve, 160));
+    const litLeft = pixelAt(rect.width * .2);
+    pointer(window, 'pointermove', rect.left + rect.width * .8, sy); await paint();
+    assert(pixelAt(rect.width * .8) > pixelAt(rect.width * .2) + 8 && pixelAt(rect.width * .2) < litLeft - 5, 'The contact light stayed at the original grip');
+    pointer(window, 'pointerup');
+    pointer(ink, 'pointerdown'); pointer(window, 'lostpointercapture');
+    assert(!surface.hasAttribute('data-dg-contact-active'), 'Lost capture left the material pinned');
+    pointer(ink, 'pointerdown'); window.dispatchEvent(new Event('blur'));
+    assert(!surface.hasAttribute('data-dg-contact-active'), 'Window blur left the material pinned');
+    return { light: 'a lit surface that leans toward the pointer', pull: 'subtle, anchored, elastic', cancellation: 'capture loss and blur', rest: 'unchanged' };
+  } finally {
+    if (!wasDark && document.documentElement.dataset.theme === 'dark') themeToggle.click();
+  }
 }
 
 async function captureLiquidCanvas(canvas) {

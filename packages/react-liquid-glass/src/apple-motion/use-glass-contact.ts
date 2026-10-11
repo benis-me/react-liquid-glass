@@ -2,6 +2,7 @@ import { useEffect, useRef, type RefObject } from "react";
 import { animate, useMotionValue, useReducedMotion } from "motion/react";
 import { springTo } from "./react.js";
 import { contactPull } from "./contact.js";
+import { PRESS_GLOW_SPRING } from "./presets.js";
 import { usePointerReleaseFallback } from "./use-pointer-release-fallback.js";
 
 const RETURN = { stiffness: 420, damping: 24, mass: 1 };
@@ -9,7 +10,7 @@ const PRESS = { stiffness: 700, damping: 42, mass: 1 };
 
 /** Adds material feedback without replacing a control's native pointer/keyboard action. */
 export function useGlassContact(root: RefObject<HTMLElement | null>, { deform = true, enabled = true }: { deform?: boolean; enabled?: boolean } = {}) {
-  const contactX = useMotionValue(0), contactY = useMotionValue(0), contactStrength = useMotionValue(0);
+  const contactX = useMotionValue(0), contactY = useMotionValue(0), contactStrength = useMotionValue(0), contactSpread = useMotionValue(1);
   const anchorX = useMotionValue(0), anchorY = useMotionValue(0);
   const pullX = useMotionValue(0), pullY = useMotionValue(0);
   const reduce = useReducedMotion();
@@ -45,6 +46,9 @@ export function useGlassContact(root: RefObject<HTMLElement | null>, { deform = 
       if (Math.hypot(pullX.get(), pullY.get()) > .1) runs.current.push(springTo(anchorX, x, PRESS), springTo(anchorY, y, PRESS));
       else { anchorX.jump(x); anchorY.jump(y); }
       contactX.jump(x); contactY.jump(y);
+      // The glass lights from within: the glow starts under the finger and spreads through it.
+      if (reduce) contactSpread.jump(1);
+      else { contactSpread.jump(0); runs.current.push(springTo(contactSpread, 1, PRESS_GLOW_SPRING, 0)); }
       runs.current.push(animate(contactStrength, 1, { duration: .12, ease: "easeOut" }));
       const elastic = deform && !target.closest('input, textarea, select, [contenteditable="true"], pre, code');
       active.current = { id: event.pointerId, x: event.clientX, y: event.clientY, px: pullX.get(), py: pullY.get(), width: rect.width, height: rect.height, elastic, moved: false };
@@ -86,6 +90,6 @@ export function useGlassContact(root: RefObject<HTMLElement | null>, { deform = 
       element.removeAttribute("data-dg-contact"); element.removeAttribute("data-dg-contact-active");
       element.removeEventListener("pointerdown", down); action.removeEventListener("click", click as EventListener, true); action.removeEventListener("dragstart", drag as EventListener);
     };
-  }, [root, enabled, deform, reduce, arm, disarm, contactX, contactY, anchorX, anchorY, contactStrength, pullX, pullY]);
-  return { contactX, contactY, anchorX, anchorY, contactStrength, pullX, pullY };
+  }, [root, enabled, deform, reduce, arm, disarm, contactX, contactY, anchorX, anchorY, contactStrength, contactSpread, pullX, pullY]);
+  return { contactX, contactY, anchorX, anchorY, contactStrength, contactSpread, pullX, pullY };
 }

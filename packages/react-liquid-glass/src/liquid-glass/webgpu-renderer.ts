@@ -242,7 +242,7 @@ export async function createWebGPUGlassRenderer(canvas: HTMLCanvasElement, onFai
         const o = MATERIAL_FLOATS + i * BLOB_FLOATS;
         params.set([g.blobs[i * 3], g.blobs[i * 3 + 1], g.blobs[i * 3 + 2], g.corners[i]], o);
         params.set([g.sizes[i * 2], g.sizes[i * 2 + 1], g.velocities[i * 2], g.velocities[i * 2 + 1]], o + 4);
-        params.set([g.contacts[i * 3], g.contacts[i * 3 + 1], g.contacts[i * 3 + 2], 0], o + 8);
+        params.set(g.contacts.subarray(i * 4, i * 4 + 4), o + 8);
         params.set(g.contactInverses.subarray(i * 4, i * 4 + 4), o + 12);
         params.set([g.contactOffsets[i * 2], g.contactOffsets[i * 2 + 1], 0, 0], o + 16);
         params.set(g.domes.subarray(i * 4, i * 4 + 4), o + 20);

@@ -49,7 +49,7 @@ export interface LiquidGlassProps {
   material?: Partial<LiquidGlassFrame> & { hdr?: boolean; tone?: boolean };
   /** `regular` (default) is frosted UI glass; `clear` keeps media beneath it vivid. */
   variant?: GlassVariant;
-  contact?: Pick<LiquidGlassBlob, "contactX" | "contactY" | "anchorX" | "anchorY" | "contactStrength" | "pullX" | "pullY">;
+  contact?: Pick<LiquidGlassBlob, "contactX" | "contactY" | "anchorX" | "anchorY" | "contactStrength" | "contactSpread" | "pullX" | "pullY">;
   /** Lens velocity in CSS pixels per second; drives volume-preserving squash and stretch. */
   velocity?: { x: MotionInput; y: MotionInput };
   className?: string; style?: CSSProperties;

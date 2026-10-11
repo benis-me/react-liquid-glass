@@ -219,11 +219,12 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
     let lensLocal = local * max(1.0 - fill / max(length(local), 0.001), 0.0);
     let extent = max(b.sizeVelocity.xy, vec2f(1.0));
     if (b.contact.z > 0.001) {
+      // A press lights the glass from within, as iOS 27's does: the glow starts under the finger
+      // and spreads through the whole body as the press holds (contact.w), on into glass fused
+      // with it, brightest toward the finger. A lit surface, never a spot: it scales with the body.
       let finger = point - b.shape.xy - b.contact.xy * extent;
-      let radius = clamp(min(extent.x, extent.y) * 1.35, 16.0, 66.0);
-      let spread = exp(-dot(finger, finger) / (radius * radius));
-      let crest = exp(-dot(finger, finger) / (radius * radius * 0.09));
-      contactLight += b.contact.z * weight * (spread * (0.16 + 0.5 * falloff) + crest * 0.26);
+      let reach = mix(vec2f(min(extent.x, extent.y)), extent * 1.8, b.contact.w);
+      contactLight = max(contactLight, b.contact.z * exp(-dot(finger / reach, finger / reach)) * (0.28 + 0.18 * falloff));
     }
     let normalizedLocal = clamp(lensLocal / extent, vec2f(-1.0), vec2f(1.0));
     // The spherical cap's slope, normalized so its mean displacement matches a linear ramp's.
@@ -242,7 +243,6 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
   }
   glassGradient /= max(materialWeight, 0.001);
   materialUv /= max(materialWeight, 0.001);
-  contactLight /= max(materialWeight, 0.001);
   var displacement = glassGradient * (p.refraction.y * 0.5 * falloff);
   let lens = p.flags.w > 0.5;
   var lensZoom = vec2f(0.0);
@@ -370,7 +370,9 @@ fn shade(uv: vec2f, position: vec2f, emissionOnly: bool) -> vec4f {
   let brightnessTarget = select(vec3f(0.0), vec3f(1.0), p.frost.w >= 0.0);
   refracted = mix(refracted, brightnessTarget, brightnessAmount);
   refracted = mix(refracted, p.tint.xyz, clamp(p.edge.w, 0.0, 1.0));
-  refracted += vec3f(contactLight * 0.72) * (1.0 - clamp(p.edge.w, 0.0, 1.0));
+  // The press's light shows fully over dark content and lifts light content gently: added at full
+  // strength there, a lit surface would wash out to flat white.
+  refracted += vec3f(contactLight * mix(0.72, 0.14, smoothstep(0.4, 0.9, luminance))) * (1.0 - clamp(p.edge.w, 0.0, 1.0));
   refracted = refracted * (1.0 - ink.a) + ink.rgb;
   let alpha = coverage + outsideShadow * (1.0 - coverage);
   if (transparent) { return vec4f(refracted * coverage / max(alpha, 0.0001), alpha * p.shadow.w); }

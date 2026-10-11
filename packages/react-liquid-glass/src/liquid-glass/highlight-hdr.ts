@@ -13,8 +13,8 @@ async function resources() {
       return vec4f(x * 2. - 1., y * 2. - 1., 0., 1.);
     }
     @fragment fn fragment(@builtin(position) point: vec4f) -> @location(0) vec4f {
-      // WebGL emits contact in red and the fine edge reflection in green. One soft cap keeps
-      // a press near 1.5x SDR white; keep in step with hdrLight in glass.wgsl.
+      // WebGL emits contact in red and the fine edge reflection in green. One soft cap keeps a
+      // press's lit surface near 1.2-1.3x SDR white; keep in step with hdrLight in glass.wgsl.
       let light = textureLoad(mask, vec2i(point.xy), 0).rg;
       let lift = .85 * tanh((light.r * .7 + light.g * .85) / .85);
       return vec4f(vec3f(lift), light.r * .1 + light.g * .03);

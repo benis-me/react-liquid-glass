@@ -32,7 +32,7 @@ uniform vec3 uBlobs[8];
 uniform vec2 uHalfSize[8];
 uniform float uCornerRadius[8];
 uniform vec2 uVelocity[8];
-uniform vec3 uContact[8];
+uniform vec4 uContact[8];
 uniform vec4 uContactInverse[8];
 uniform vec2 uContactOffset[8];
 uniform bool uEmissionOnly;
@@ -299,11 +299,12 @@ void main() {
     vec2 lensLocal = local * max(1. - fill / max(length(local), .001), 0.);
     vec2 extent = max(uHalfSize[index], vec2(1.));
     if (uContact[index].z > .001) {
+      // A press lights the glass from within, as iOS 27's does: the glow starts under the finger
+      // and spreads through the whole body as the press holds (contact.w), on into glass fused
+      // with it, brightest toward the finger. A lit surface, never a spot: it scales with the body.
       vec2 finger = point - uBlobs[index].xy - uContact[index].xy * extent;
-      float radius = clamp(min(extent.x, extent.y) * 1.35, 16., 66.);
-      float spread = exp(-dot(finger, finger) / (radius * radius));
-      float crest = exp(-dot(finger, finger) / (radius * radius * .09));
-      contactLight += uContact[index].z * weight * (spread * (.16 + .5 * falloff) + crest * .26);
+      vec2 reach = mix(vec2(min(extent.x, extent.y)), extent * 1.8, uContact[index].w);
+      contactLight = max(contactLight, uContact[index].z * exp(-dot(finger / reach, finger / reach)) * (.28 + .18 * falloff));
     }
     vec2 normalizedLocal = clamp(lensLocal / extent, vec2(-1.), vec2(1.));
     // The spherical cap's slope, normalized so its mean displacement matches a linear ramp's.
@@ -323,7 +324,6 @@ void main() {
   }
   glassGradient /= max(materialWeight, .001);
   materialUv /= max(materialWeight, .001);
-  contactLight /= max(materialWeight, .001);
   // Core Glass uses objectBoundingBox primitive units: channel delta is half the scale.
   vec2 displacement = glassGradient * (uRefraction * .5 * falloff);
   vec2 lensZoom = vec2(0.);
@@ -465,7 +465,9 @@ void main() {
   vec3 brightnessTarget = uBrightness >= 0. ? vec3(1.) : vec3(0.);
   refracted = mix(refracted, brightnessTarget, brightnessAmount);
   refracted = mix(refracted, uTintColor, clamp(uTint, 0., 1.));
-  refracted += vec3(contactLight * .72) * (1. - clamp(uTint, 0., 1.));
+  // The press's light shows fully over dark content and lifts light content gently: added at full
+  // strength there, a lit surface would wash out to flat white.
+  refracted += vec3(contactLight * mix(.72, .14, smoothstep(.4, .9, luminance))) * (1. - clamp(uTint, 0., 1.));
   // Premultiplied ink avoids dark fringes as transparent glyph edges are blurred.
   refracted = refracted * (1. - ink.a) + ink.rgb;
   float alpha = coverage + outsideShadow * (1. - coverage);
@@ -823,7 +825,7 @@ export function createWebGL2GlassRenderer(
     gl.uniform2fv(u["uHalfSize[0]"], sizes);
     gl.uniform1fv(u["uCornerRadius[0]"], corners);
     gl.uniform2fv(u["uVelocity[0]"], velocities);
-    gl.uniform3fv(u["uContact[0]"], contacts);
+    gl.uniform4fv(u["uContact[0]"], contacts);
     gl.uniform4fv(u["uContactInverse[0]"], contactInverses);
     gl.uniform2fv(u["uContactOffset[0]"], contactOffsets);
     gl.uniform4fv(u["uDome[0]"], domes);

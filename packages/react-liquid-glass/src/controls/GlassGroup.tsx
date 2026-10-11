@@ -1,6 +1,9 @@
 import { useLayoutEffect, useMemo, useRef, useState, type HTMLAttributes } from "react";
-import { cancelFrame, frame } from "motion";
+import { animate, cancelFrame, frame, motionValue as liveValue, type MotionValue } from "motion";
 import { motionValue } from "../shared/values.js";
+import { springTo, type SpringRun } from "../apple-motion/react.js";
+import { PRESS_GLOW_SPRING, SURFACE_PRESS_SPRING } from "../apple-motion/presets.js";
+import { useReducedMotionPreference } from "../liquid-glass/light.js";
 import { LiquidGlassCanvas } from "../liquid-glass/LiquidGlassCanvas.js";
 import { createLiquidBackdrop } from "../liquid-glass/backdrop.js";
 import { useGlassTone } from "../liquid-glass/provider.js";
@@ -24,7 +27,11 @@ type Shape = ReturnType<typeof createShape>;
 const createShape = () => ({
   x: motionValue(.5), y: motionValue(.5), halfWidth: motionValue(0), halfHeight: motionValue(0),
   radius: motionValue(0), cornerRadius: motionValue(0), refractionRatio: [1, 1] as [number, number],
+  // A press lights the shape where it is touched; the glow spreads through it and onto fused neighbours.
+  contactX: motionValue(0), contactY: motionValue(0), contactStrength: liveValue(0), contactSpread: liveValue(1),
 });
+const unit = (value: number) => Math.max(-1, Math.min(1, value));
+const PRESSED_SCALE = 1.025;
 const cornerOf = (element: Element) => {
   for (const node of [element, element.querySelector(".dg-surface")]) {
     const radius = node ? parseFloat(getComputedStyle(node).borderTopLeftRadius) : 0;
@@ -49,11 +56,27 @@ export function GlassGroup({ spacing = 20, children, className = "", ...props }:
   // The fused glass is as thick as its smallest member, so a toolbar's buttons stay control glass.
   const [smallest, setSmallest] = useState({ width: 42, height: 42 });
   const publishTone = useLiquidToneTracker(root, useGlassTone());
+  const reduce = useReducedMotionPreference();
+  const reduceRef = useRef(reduce); reduceRef.current = reduce;
 
   useLayoutEffect(() => {
     const element = root.current, list = items.current;
     if (!element || !list) return;
     let following = false, quiet = 0, signature = "";
+    // Each visible child owns one shape; a press grows the child, and with it its shape, as a Button grows.
+    const owners = new Map<Element, Shape>();
+    const scales = new Map<HTMLElement, { scale: MotionValue<number>; run?: SpringRun }>();
+    const press = (child: HTMLElement) => {
+      let state = scales.get(child);
+      if (!state) {
+        const scale = liveValue(1);
+        scale.on("change", value => { child.style.scale = Math.abs(value - 1) < 1e-4 ? "" : String(value); });
+        state = { scale }; scales.set(child, state);
+      }
+      const target = child.hasAttribute("data-pressed") ? PRESSED_SCALE : 1;
+      state.run?.stop();
+      if (reduceRef.current) state.scale.jump(target); else state.run = springTo(state.scale, target, SURFACE_PRESS_SPRING);
+    };
     /** Measures every shape and returns a geometry signature for rest detection. */
     const measure = () => {
       const box = element.getBoundingClientRect();
@@ -63,8 +86,10 @@ export function GlassGroup({ spacing = 20, children, className = "", ...props }:
       const children = [...list.children].filter(child => child.getClientRects().length).slice(0, MAX_BLOBS);
       while (shapes.current.length < children.length) shapes.current.push(createShape());
       let smallest = { width: Infinity, height: Infinity };
+      owners.clear();
       children.forEach((child, index) => {
         const rect = child.getBoundingClientRect(), shape = shapes.current[index];
+        owners.set(child, shape);
         geometry += `|${(rect.left - box.left).toFixed(2)},${(rect.top - box.top).toFixed(2)},${rect.width.toFixed(2)},${rect.height.toFixed(2)}`;
         const half = [rect.width / 2, rect.height / 2], corner = Math.min(cornerOf(child), half[0], half[1]);
         shape.x.set((rect.left - box.left + PAD + half[0]) / (width + PAD * 2));
@@ -111,9 +136,12 @@ export function GlassGroup({ spacing = 20, children, className = "", ...props }:
     signature = measure();
     const resize = new ResizeObserver(() => wake());
     // Class and style changes on the group or a shape can move shapes instantly
-    // (for example without transitions under reduced motion).
-    const attributes = new MutationObserver(() => wake());
-    const filter = { attributes: true, attributeFilter: ["class", "style", "hidden"] };
+    // (for example without transitions under reduced motion). A pressed child grows.
+    const attributes = new MutationObserver(records => {
+      for (const record of records) if (record.attributeName === "data-pressed" && record.target.parentElement === list) press(record.target as HTMLElement);
+      wake();
+    });
+    const filter = { attributes: true, attributeFilter: ["class", "style", "hidden", "data-pressed"] };
     const watch = () => { for (const child of list.children) { resize.observe(child); attributes.observe(child, filter); } };
     resize.observe(element); resize.observe(list);
     attributes.observe(element, filter); attributes.observe(list, filter);
@@ -122,10 +150,47 @@ export function GlassGroup({ spacing = 20, children, className = "", ...props }:
     watch();
     const events = ["transitionrun", "transitionstart", "transitionend", "transitioncancel", "animationstart", "animationiteration", "animationend", "animationcancel"] as const;
     for (const type of events) list.addEventListener(type, wake);
+    // The touched shape lights where it is pressed, following the pointer, and fades on release.
+    let grip: { id: number; shape: Shape; x: number; y: number; clientX: number; clientY: number; width: number; height: number } | null = null;
+    let light: Array<{ stop: () => void }> = [];
+    const move = (event: PointerEvent) => {
+      if (!grip || event.pointerId !== grip.id) return;
+      grip.shape.contactX.set(unit(grip.x + (event.clientX - grip.clientX) / grip.width * 2));
+      grip.shape.contactY.set(unit(grip.y + (event.clientY - grip.clientY) / grip.height * 2));
+    };
+    const release = (event?: Event) => {
+      if (!grip || (event instanceof PointerEvent && event.pointerId !== grip.id)) return;
+      const { shape } = grip;
+      grip = null;
+      window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", release);
+      window.removeEventListener("pointercancel", release); window.removeEventListener("blur", release);
+      light.forEach(run => run.stop());
+      light = [animate(shape.contactStrength, 0, { duration: reduceRef.current ? .1 : .22, ease: "easeOut" })];
+    };
+    const down = (event: PointerEvent) => {
+      if (grip || event.button !== 0 || !event.isPrimary) return;
+      const target = event.target as Element;
+      const child = [...list.children].find(node => node.contains(target)), shape = child && owners.get(child);
+      if (!child || !shape || target.closest(':disabled, [aria-disabled="true"], [inert]')) return;
+      const rect = child.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const x = unit((event.clientX - rect.left) / rect.width * 2 - 1), y = unit((event.clientY - rect.top) / rect.height * 2 - 1);
+      shape.contactX.set(x); shape.contactY.set(y);
+      light.forEach(run => run.stop());
+      light = [animate(shape.contactStrength, 1, { duration: .12, ease: "easeOut" })];
+      if (reduceRef.current) shape.contactSpread.jump(1);
+      else { shape.contactSpread.jump(0); light.push(springTo(shape.contactSpread, 1, PRESS_GLOW_SPRING, 0)); }
+      grip = { id: event.pointerId, shape, x, y, clientX: event.clientX, clientY: event.clientY, width: rect.width, height: rect.height };
+      window.addEventListener("pointermove", move); window.addEventListener("pointerup", release);
+      window.addEventListener("pointercancel", release); window.addEventListener("blur", release);
+    };
+    list.addEventListener("pointerdown", down);
     return () => {
       cancelFrame(follow);
       backdrop.dispose(); resize.disconnect(); attributes.disconnect(); children.disconnect();
       for (const type of events) list.removeEventListener(type, wake);
+      release(); list.removeEventListener("pointerdown", down);
+      for (const [child, state] of scales) { state.run?.stop(); child.style.scale = ""; }
     };
   }, [revision, publishTone]);
 

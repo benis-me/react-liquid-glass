@@ -21,6 +21,7 @@ import {
   LIQUID_GLASS_MATERIAL,
 } from "../packages/react-liquid-glass/dist/index.js";
 import { glassMaterial } from "../packages/react-liquid-glass/dist/liquid-glass.js";
+import { PRESS_GLOW_SPRING } from "../packages/react-liquid-glass/dist/apple-motion.js";
 
 const appSource = readFileSync(new URL("../apps/docs/src/App.tsx", import.meta.url), "utf8");
 const mainSource = readFileSync(new URL("../apps/docs/src/main.tsx", import.meta.url), "utf8");
@@ -1203,6 +1204,37 @@ test("Slider's refracted fill retains a moving round cap at every progress", () 
   }
 });
 
+
+test("a press lights the glass as a surface that spreads from the finger, identically on both backends", () => {
+  const wgsl = readFileSync(new URL("../packages/react-liquid-glass/src/liquid-glass/shaders/glass.wgsl", import.meta.url), "utf8");
+  const gpu = readFileSync(new URL("../packages/react-liquid-glass/src/liquid-glass/webgpu-renderer.ts", import.meta.url), "utf8");
+  const contact = readFileSync(new URL("../packages/react-liquid-glass/src/apple-motion/use-glass-contact.ts", import.meta.url), "utf8");
+  const group = readFileSync(new URL("../packages/react-liquid-glass/src/controls/GlassGroup.tsx", import.meta.url), "utf8");
+  // A glow as wide as the body's short side under the finger, spreading to 1.8 half-extents: no
+  // fixed-radius crest, no 66px cap, and on into fused or nearby glass (the strongest press wins).
+  assert.match(wgsl, /let reach = mix\(vec2f\(min\(extent\.x, extent\.y\)\), extent \* 1\.8, b\.contact\.w\);/);
+  assert.match(wgsl, /contactLight = max\(contactLight, b\.contact\.z \* exp\(-dot\(finger \/ reach, finger \/ reach\)\) \* \(0\.28 \+ 0\.18 \* falloff\)\);/);
+  assert.match(liquidCanvasSource, /vec2 reach = mix\(vec2\(min\(extent\.x, extent\.y\)\), extent \* 1\.8, uContact\[index\]\.w\);/);
+  assert.match(liquidCanvasSource, /contactLight = max\(contactLight, uContact\[index\]\.z \* exp\(-dot\(finger \/ reach, finger \/ reach\)\) \* \(\.28 \+ \.18 \* falloff\)\);/);
+  assert.doesNotMatch(wgsl + liquidCanvasSource, /crest \* 0?\.26|, 66\.|contactLight \/= /);
+  // Over light content the light lifts gently instead of washing the glass out to white.
+  assert.match(wgsl, /refracted \+= vec3f\(contactLight \* mix\(0\.72, 0\.14, smoothstep\(0\.4, 0\.9, luminance\)\)\)/);
+  assert.match(liquidCanvasSource, /refracted \+= vec3\(contactLight \* mix\(\.72, \.14, smoothstep\(\.4, \.9, luminance\)\)\)/);
+  // The spread rides in each body's fourth contact channel.
+  assert.match(liquidCanvasSource, /uniform vec4 uContact\[8\];/);
+  assert.match(liquidCanvasSource, /gl\.uniform4fv\(u\["uContact\[0\]"\], contacts\)/);
+  assert.match(liquidCanvasSource, /spread = readMotion\(b\.contactSpread \?\? 1\)/);
+  assert.match(gpu, /params\.set\(g\.contacts\.subarray\(i \* 4, i \* 4 \+ 4\), o \+ 8\);/);
+  // It spreads on one critically damped spring, about 0.3s, from under the finger.
+  assert.match(contact, /contactSpread\.jump\(0\); runs\.current\.push\(springTo\(contactSpread, 1, PRESS_GLOW_SPRING, 0\)\);/);
+  const { stiffness, damping, mass } = PRESS_GLOW_SPRING;
+  assert.ok(Math.abs(damping / (2 * Math.sqrt(stiffness * mass)) - 1) < .01, "the glow spreads without overshoot");
+  // Glass Group shapes press like a Button and light up, so the glow reaches their neighbours.
+  assert.match(group, /const PRESSED_SCALE = 1\.025;/);
+  assert.match(group, /state\.run = springTo\(state\.scale, target, SURFACE_PRESS_SPRING\)/);
+  assert.match(group, /shape\.contactSpread\.jump\(0\); light\.push\(springTo\(shape\.contactSpread, 1, PRESS_GLOW_SPRING, 0\)\);/);
+  assert.doesNotMatch(libraryStylesSource, /\.dg-glass-group__items > \.dg-button\[data-pressed\]/);
+});
 
 test("HDR light is soft-capped and identical on both backends", () => {
   const wgsl = readFileSync(new URL("../packages/react-liquid-glass/src/liquid-glass/shaders/glass.wgsl", import.meta.url), "utf8");

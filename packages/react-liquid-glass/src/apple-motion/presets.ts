@@ -54,6 +54,8 @@ export const BUTTON_HOVER_SCALE = 1.045;
 
 
 export const SURFACE_PRESS_SPRING = { mass: 1, stiffness: 420, damping: 28 };
+/** A press's glow spreads from under the finger through the whole glass, critically damped, in about 0.3s. */
+export const PRESS_GLOW_SPRING = { mass: 1, stiffness: 170, damping: 26 };
 
 /** The Spotlight lens follows the pointer as a lightly damped mass, not an exponential filter. */
 export const SPOTLIGHT_FOLLOW_SPRING = { mass: 1, stiffness: 200, damping: 24 };
