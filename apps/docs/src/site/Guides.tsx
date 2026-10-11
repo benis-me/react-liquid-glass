@@ -44,10 +44,19 @@ const guides: Guide[] = [
     summary: ["One provider tunes every glass surface beneath it, without erasing each component's calibration.", "一个 Provider 调整其下所有玻璃，同时保留每个组件自身的校准。"],
     sections: [
       {
+        en: "Glass in Apple's terms",
+        zh: "用 Apple 的方式描述玻璃",
+        body: [
+          ["Describe glass as Apple does and let everything else follow from its size. variant is regular, frosted UI glass that adapts to the page, or clear, for media: no frost or tint and lensing kept to a narrow rim, so what lies beneath stays vivid. clarity runs from −1, more tinted, with more frost and a denser tint that stays legible over anything, through 0, the calibrated default, to 1, more clear, as Apple's Liquid Glass setting moves between Tinted and Clear. tint takes a CSS color for glass that marks a prominent action; tinted glass keeps its color however clear the rest is.", "像 Apple 一样描述玻璃，其余一切由玻璃的尺寸决定。variant 为 regular（常规：带磨砂、随页面主题变化的界面玻璃）或 clear（清透：用于媒体之上，没有磨砂与着色，透镜折射只留在窄窄的边缘，下方内容保持鲜明）。clarity 从 −1（更浓郁：磨砂更重、着色更浓，在任何背景上都清晰可读）经过 0（校准后的默认值）到 1（更清透），就像 Apple 的液态玻璃设置在 Tinted（着色）与 Clear（清透）之间切换。tint 接受一个 CSS 颜色，用于标记主要操作的玻璃；无论其余部分多清透，着色玻璃都保留它的颜色。"],
+          ["Every component starts from the glass its role calls for: Buttons and Tabs are thin control glass, Cards and popups thicken with their size, the open Morph Menu is a thick panel, and Spotlight and Video are clear glass over media. A pressed tab's or held thumb's lifted lens keeps its own calibration under every look. The renderer's own values, such as refractionStrength or blurStrength, remain for fine control; the look applies on top of them.", "每个组件都从符合其角色的玻璃出发：Button 与 Tabs 是薄的控件玻璃，Card 与弹层随尺寸变厚，展开的 Morph Menu 是厚面板，Spotlight 与 Video 是覆盖在媒体之上的清透玻璃。按下的标签与按住的滑块抬升出的透镜在任何外观下都保留自身的校准。渲染器自身的参数（例如 refractionStrength、blurStrength）仍可用于精细调整，外观设置叠加在它们之上。"],
+        ],
+        code: 'import { LiquidGlassProvider } from "rglass/liquid-glass";\nimport { GlassButton } from "rglass/controls";\n\n<LiquidGlassProvider material={{ clarity: -0.4 }}>\n  <GlassButton glass={{ tint: "var(--accent)" }}>Continue</GlassButton>\n</LiquidGlassProvider>;',
+      },
+      {
         en: "One provider",
         zh: "统一的 Provider",
-        body: [["LiquidGlassProvider applies optical material to every component below it. An empty material keeps every component's calibrated defaults; nested providers inherit their parent's values.", "LiquidGlassProvider 将光学材质应用到其下的所有组件。空材质保留每个组件的校准默认值；嵌套的 Provider 会继承父级的设置。"]],
-        code: 'import { LiquidGlassProvider } from "rglass/liquid-glass";\n\n<LiquidGlassProvider material={{ blurStrength: 2.8, chromaAmount: 0.2 }}>\n  <App />\n</LiquidGlassProvider>;',
+        body: [["LiquidGlassProvider applies a look and optical material to every component below it. An empty material keeps every component's calibrated defaults; nested providers inherit their parent's values.", "LiquidGlassProvider 将外观与光学材质应用到其下的所有组件。空材质保留每个组件的校准默认值；嵌套的 Provider 会继承父级的设置。"]],
+        code: 'import { LiquidGlassProvider } from "rglass/liquid-glass";\n\n<LiquidGlassProvider material={{ clarity: 0.3, chromaAmount: 0.2 }}>\n  <App />\n</LiquidGlassProvider>;',
       },
       {
         en: "Precedence",
@@ -195,7 +204,7 @@ const guides: Guide[] = [
       {
         en: "Contrast and motion",
         zh: "对比度与动态",
-        body: [["Glass floats over arbitrary content, so check contrast where it meets photos or video and enable data-dg-tone to adapt ink. Reduced motion is respected throughout, including GlassVideo's autoPlay, and forced-colors mode keeps visible focus. Keyboard focus underlines text, or the icon of an icon-only control, without an outer halo.", "玻璃会悬浮在任意内容之上，在照片或视频上请检查对比度，并启用 data-dg-tone 调整文字颜色。全程遵循减少动态效果设置（包括 GlassVideo 的 autoPlay），强制颜色模式下保留可见焦点。键盘焦点以下划线标出文字；纯图标控件则在图标下方显示短下划线，不使用外发光。"]],
+        body: [["Glass floats over arbitrary content, so check contrast where it meets photos or video and enable data-dg-tone to adapt ink. Glass follows Reduce Transparency, becoming its most tinted, and Increase Contrast, as tinted with a firmer edge, live; useGlassAccessibility() reads both. Reduced motion is respected throughout, including GlassVideo's autoPlay, and forced-colors mode keeps visible focus. Keyboard focus underlines text, or the icon of an icon-only control, without an outer halo.", "玻璃会悬浮在任意内容之上，在照片或视频上请检查对比度，并启用 data-dg-tone 调整文字颜色。玻璃会实时遵循「降低透明度」（变为最浓郁的状态）与「增强对比度」（同样最浓郁，且边缘更清晰），useGlassAccessibility() 可读取这两项设置。全程遵循减少动态效果设置（包括 GlassVideo 的 autoPlay），强制颜色模式下保留可见焦点。键盘焦点以下划线标出文字；纯图标控件则在图标下方显示短下划线，不使用外发光。"]],
       },
     ],
   },

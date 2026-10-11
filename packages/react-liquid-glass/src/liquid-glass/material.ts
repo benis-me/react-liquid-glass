@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { liquidHostTheme, subscribeLiquidTheme } from "./source.js";
+import { readMotion, type MotionInput } from "../shared/values.js";
 
 /**
  * Regular glass is frosted UI glass that adapts to its host's theme; clear glass is for
@@ -100,6 +101,86 @@ export function glassMaterial(thickness: number, options: GlassMaterialOptions =
   return { ...material, tintColor: options.variant !== "clear" && options.dark ? DARK_GLASS_TINT : WHITE };
 }
 export const GLASS_THICKNESS_KEYS: readonly GlassThicknessKey[] = KEYS;
+
+/**
+ * Glass in Apple's terms. Everything else follows from these and the glass's size: pick a variant,
+ * then move clarity between more tinted (more legible) and more clear, as Apple's Liquid Glass
+ * setting does, and tint glass that marks a prominent action.
+ */
+export interface GlassLook {
+  /** `regular` (default) frosted UI glass, or `clear` glass for media. */
+  variant?: GlassVariant;
+  /** From -1, more tinted and frosted, through 0 (the calibrated default), to 1, more clear. */
+  clarity?: number;
+  /** A CSS color the glass takes on, as Apple's tinted glass does for a prominent action. */
+  tint?: string;
+}
+/** How far the most tinted glass mixes toward its tint: still glass, but legible over anything. */
+const MOST_TINTED = .36;
+/** How strongly tinted glass shows its color. */
+export const TINTED_GLASS = .42;
+/** Frost doubles a little more than once from 0 clarity to -1, and falls as much toward 1. */
+const CLARITY_FROST = 1.2;
+
+export interface GlassPerception {
+  variant?: GlassVariant;
+  clarity?: number;
+  /** The tint color as 0-1 RGB, like tintColor. */
+  tint?: readonly [number, number, number];
+  /** Whether the reader asked for more contrast. */
+  contrast?: boolean;
+}
+/**
+ * The glass's look applied to its resolved material values, in place: the variant, the clarity, a
+ * tint and the reader's contrast preference. The lifted lens keeps its own calibration, and an
+ * opaque fill (a resting thumb's white) is not glass to clear or tint.
+ */
+export function perceiveGlass(values: Record<string, unknown>, { variant = "regular", clarity = 0, tint, contrast = false }: GlassPerception) {
+  if (values.refractionModel === "lens" || (variant === "regular" && !clarity && !tint && !contrast)) return values;
+  const read = (key: string, fallback: number) => { const value = readMotion((values[key] ?? fallback) as MotionInput); return Number.isFinite(value) ? value : fallback; };
+  let blur = read("blurStrength", THIN_GLASS.blurStrength), strength = read("tintStrength", THIN_GLASS.tintStrength);
+  if (strength >= .999) return values;
+  if (variant === "clear") {
+    blur = Math.min(blur, CLEAR_FROST);
+    strength = 0;
+    values.magnification = 1;
+  }
+  const c = Math.max(-1, Math.min(1, clarity - (contrast ? 1 : 0)));
+  if (c) {
+    blur *= 2 ** (-CLARITY_FROST * c);
+    strength = c < 0 ? strength + Math.max(0, MOST_TINTED - strength) * -c : strength * (1 - c);
+  }
+  // Tinted glass keeps its color however clear the rest: it marks a prominent action.
+  if (tint) {
+    values.tintColor = tint;
+    strength = Math.max(strength, TINTED_GLASS);
+  }
+  // More contrast firms up the edge that defines the glass.
+  if (contrast) values.edgeStrength = Math.min(1, read("edgeStrength", THIN_GLASS.edgeStrength) * 1.6);
+  values.blurStrength = blur;
+  values.tintStrength = strength;
+  return values;
+}
+
+const subscribeQuery = (query: string) => (notify: () => void) => {
+  if (typeof matchMedia !== "function") return () => undefined;
+  const list = matchMedia(query);
+  list.addEventListener("change", notify);
+  return () => list.removeEventListener("change", notify);
+};
+const readQuery = (query: string) => () => typeof matchMedia === "function" && matchMedia(query).matches;
+const REDUCED_TRANSPARENCY = "(prefers-reduced-transparency: reduce)", MORE_CONTRAST = "(prefers-contrast: more)";
+const subscribeTransparency = subscribeQuery(REDUCED_TRANSPARENCY), readTransparency = readQuery(REDUCED_TRANSPARENCY);
+const subscribeContrast = subscribeQuery(MORE_CONTRAST), readContrast = readQuery(MORE_CONTRAST);
+/**
+ * The reader's live display preferences, as Apple's glass honors them: reduced transparency makes
+ * glass its most tinted and frosted, and increased contrast does too and firms its edge.
+ */
+export function useGlassAccessibility() {
+  const reduceTransparency = useSyncExternalStore(subscribeTransparency, readTransparency, () => false);
+  const contrast = useSyncExternalStore(subscribeContrast, readContrast, () => false);
+  return { reduceTransparency, contrast };
+}
 
 /** Whether the host page is dark: data-theme="dark", or class="dark" (next-themes, shadcn). */
 export function useHostDark() {

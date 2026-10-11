@@ -1,5 +1,6 @@
 import type { GlassRendererBackend } from "./renderer.js";
 import type { LiquidLightSource } from "./light.js";
+import type { GlassLook } from "./material.js";
 import { createContext, useContext, useMemo, useSyncExternalStore, type ReactNode } from "react";
 import { isMotionValue } from "../shared/values.js";
 
@@ -29,7 +30,7 @@ export type GlassMaterial = Partial<
     | "mergeDistance",
     number
   >
-> & {
+> & GlassLook & {
   debug?: boolean; hdr?: boolean; lightSource?: LiquidLightSource;
   /** Publish `data-dg-tone="light" | "dark"` on surfaces from their backdrop luminance. Off by default. */
   tone?: boolean;

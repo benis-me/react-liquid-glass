@@ -14,4 +14,5 @@ export type { LiquidSourceFactory, LiquidSourcePainter } from "./liquid-glass/so
 
 export { LiquidMenu, type LiquidMenuProps } from "./controls/index.js";
 export { LiquidGlassProvider, useGlassMaterial, type GlassMaterial } from "./liquid-glass/provider.js";
+export type { GlassLook, GlassVariant } from "./liquid-glass/material.js";
 export * from "./controls/index.js";

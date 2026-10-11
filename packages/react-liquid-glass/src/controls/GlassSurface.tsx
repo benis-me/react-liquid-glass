@@ -22,7 +22,7 @@ import { createLiquidBackdrop } from "../liquid-glass/backdrop.js";
 import { useGlassTone } from "../liquid-glass/provider.js";
 import { useLiquidToneTracker } from "../liquid-glass/tone.js";
 import { liquidScreenScale, paintLiquidGrid } from "../liquid-glass/source.js";
-import { glassValue, liquidSurfaceBlur, liquidThickness } from "../liquid-glass/material.js";
+import { glassValue, liquidSurfaceBlur, liquidThickness, type GlassLook } from "../liquid-glass/material.js";
 import { useReducedMotionPreference } from "../shared/reduced-motion.js";
 
 export type GlassBackground = "grid" | "lines" | "plain";
@@ -107,6 +107,8 @@ export interface GlassSurfaceProps {
   pressed?: boolean;
   /** Contact light and elastic pull; use "light" to keep application-owned dragging. */
   interactive?: boolean | "light";
+  /** How the glass reads: its variant, clarity and tint (see GlassLook). */
+  glass?: GlassLook;
 }
 
 export const FusionTriggerContext = createContext<((pressed: boolean) => void) | null>(null);
@@ -126,6 +128,7 @@ function OpticalSurface({
   pressed = false,
   interactive = true,
   blurStrength,
+  glass,
 }: GlassSurfaceProps) {
   const root = useRef<HTMLSpanElement>(null);
   const publishTone = useLiquidToneTracker(root, useGlassTone());
@@ -191,6 +194,9 @@ function OpticalSurface({
       {size.width > 0 && (
         <span className="dg-surface__optics" aria-hidden="true" style={{ inset: -reach }}>
           <LiquidGlassCanvas
+            variant={glass?.variant}
+            clarity={glass?.clarity}
+            tint={glass?.tint}
             blurStrength={blurStrength === undefined ? undefined : liquidSurfaceBlur(size.width, size.height) * blurStrength / 12}
             shared
             pixelRatio={2}

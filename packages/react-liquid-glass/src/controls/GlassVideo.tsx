@@ -2,6 +2,7 @@ import { stepSpring, SIDE_BUTTON_SPRING, PLAY_BUTTON_SPRING, BAR_DRAG_SPRING, BU
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
@@ -14,7 +15,8 @@ import { useGlassMaterial } from "../liquid-glass/provider.js";
 import { useRendererBackend } from "../liquid-glass/use-renderer-backend.js";
 import { createLiquidGlassRenderer, type LiquidGlassBlob } from "../liquid-glass/renderer.js";
 import { usePointerReleaseFallback } from "../apple-motion/react.js";
-import { glassMaterial } from "../liquid-glass/material.js";
+import { glassMaterial, perceiveGlass, useGlassAccessibility, useHostDark } from "../liquid-glass/material.js";
+import { liquidRgb } from "../liquid-glass/source.js";
 import { useReducedMotionPreference } from "../shared/reduced-motion.js";
 
 // Media controls are clear control glass, as Apple's are over video. The canvas spans the whole
@@ -84,6 +86,8 @@ export function GlassVideo({ src, sources, poster, caption, autoPlay = false, lo
   const reduceRef = useRef(reduce); reduceRef.current = reduce;
   const [loadError, setLoadError] = useState(false);
   const materialRef = useRef(material); materialRef.current = material;
+  const accessibility = useGlassAccessibility();
+  const accessibilityRef = useRef(accessibility); accessibilityRef.current = accessibility;
   const playerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -125,7 +129,14 @@ export function GlassVideo({ src, sources, poster, caption, autoPlay = false, lo
   // Preferred encodings, then the fallback; a URL listed twice is tried once.
   const candidates = [...(sources ?? []), { src, type: undefined as string | undefined }].filter((candidate, index, all) => all.findIndex(other => other.src === candidate.src) === index);
   const sourceKey = candidates.map(candidate => candidate.src).join("|");
-  useEffect(() => { ensureDrawRef.current(); }, [material]);
+  useEffect(() => { ensureDrawRef.current(); }, [material, accessibility.reduceTransparency, accessibility.contrast]);
+  // A tint is a CSS color, resolved against the page so variables and color-mix() work.
+  const dark = useHostDark();
+  const tintRgb = useRef<readonly [number, number, number] | undefined>(undefined);
+  useLayoutEffect(() => {
+    tintRgb.current = material.tint && playerRef.current ? liquidRgb(playerRef.current, material.tint) : undefined;
+    ensureDrawRef.current();
+  }, [material.tint, dark]);
   // Localized value text follows label changes at once, even while paused or offscreen.
   useEffect(() => {
     const video = videoRef.current, bar = barRef.current;
@@ -235,9 +246,10 @@ export function GlassVideo({ src, sources, poster, caption, autoPlay = false, lo
         bar.style.transformOrigin = barStretch >= 0 ? "0 50%" : "100% 50%";
         bar.style.transform = `scaleX(${1 + Math.abs(barStretch) / layout.bar[2]})`;
       }
+      const { reduceTransparency, contrast } = accessibilityRef.current;
+      const look = materialRef.current;
       const rendered = renderer.draw({
-        ...VIDEO_GLASS,
-        ...materialRef.current,
+        ...perceiveGlass({ ...VIDEO_GLASS, ...look }, { variant: look.variant ?? "clear", clarity: reduceTransparency ? -1 : look.clarity, tint: look.tint ? tintRgb.current : undefined, contrast }),
         // The player's own: its resolution, its fade, and buttons that never fuse.
         source: video, sourceRevision, width, height, blobs, pixelRatio: ratio,
         opacity: strengthRef.current, mergeDistance: 0,

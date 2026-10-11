@@ -51,6 +51,26 @@ HDR defaults to enabled on supported displays; SDR displays keep each component'
 
 Controls follow the host theme. They switch to dark when `<html>` has `data-theme="dark"`, or the `dark` class without a `data-theme` attribute (as next-themes and shadcn set it). Their colors use CSS `light-dark()`, so also set `color-scheme: light` or `color-scheme: dark` on the root. Some CSS pipelines, including Next.js with lightningcss, compile `light-dark()` into variables that resolve only with it. `controls.css` derives the `--dg-control-*` variables (accent, track, surface, border and text) on `.dg-switch`, `.dg-slider` and `.dg-tabs` from optional host tokens: `--primary`, `--bg-1`, `--bg-4`, `--border-1` and `--fg-1` to `--fg-3`. Built-in values apply when those tokens are missing. If your app gives these names another meaning (shadcn's `--primary` holds bare HSL numbers), set the `--dg-control-*` variables directly on those selectors.
 
+## Glass in Apple's terms
+
+Describe glass as Apple does, with three values, and let everything else follow from its size:
+
+| Value | Meaning |
+| --- | --- |
+| `variant` | `"regular"` (default), frosted UI glass that adapts to the page, or `"clear"`, for media: no frost or tint, and lensing kept to a narrow rim, so what lies beneath stays vivid |
+| `clarity` | From `-1`, more tinted (more frost and a denser tint, legible over anything), through `0`, the calibrated default, to `1`, more clear, as Apple's Liquid Glass setting moves between Tinted and Clear |
+| `tint` | A CSS color for glass that marks a prominent action; tinted glass keeps its color however clear the rest is |
+
+A provider's `material` applies them to everything beneath it; `GlassButton`, `GlassCard` and `GlassSurface` take them as `glass`, and `LiquidGlassCanvas` as props.
+
+```tsx
+<LiquidGlassProvider material={{ clarity: -0.4 }}>
+  <GlassButton glass={{ tint: "var(--accent)" }}>Continue</GlassButton>
+</LiquidGlassProvider>
+```
+
+Every component starts from the glass its role calls for: Buttons and Tabs are thin control glass, Cards and popups thicken with their size, the open Morph Menu is a thick panel, and Spotlight and Video are clear glass over media. A pressed tab's or held thumb's lifted lens keeps its own calibration under every look, and a resting thumb stays opaque. Glass also follows the reader's display settings, live: with Reduce Transparency (`prefers-reduced-transparency: reduce`) it is its most tinted, and with Increase Contrast (`prefers-contrast: more`) it is as tinted, with a firmer edge. `useGlassAccessibility()` reads both, and `perceiveGlass(values, { variant, clarity, tint, contrast })` applies a look to resolved material values for custom renderers, with `tint` as 0–1 RGB like `tintColor`. The renderer's own values (`refractionStrength`, `blurStrength`, `tintStrength` and the rest) remain for fine control; the look applies on top of them.
+
 ## Components
 
 `GlassButton`, `GlassButtonGroup`, `GlassGroup`, `GlassSwitch`, `GlassSlider`, `GlassTabs`, `GlassInput`, `GlassTextarea`, `GlassCheckbox`, `GlassRadioGroup`, `GlassSelect`, `GlassToggle`, `GlassCard`, `GlassBadge`, `GlassAvatar`, `GlassProgress`, `GlassAlert`, `GlassToast`, `GlassDialog`, `GlassSheet`, `GlassPopover`, `GlassDropdownMenu`, `GlassMorphMenu`, `GlassTooltip`, `GlassAccordion`, `GlassSpotlight`, `GlassVideo`.

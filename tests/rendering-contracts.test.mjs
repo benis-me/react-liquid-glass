@@ -1270,6 +1270,29 @@ test("one physics: springs everywhere, one press, one live reduced-motion source
   assert.doesNotMatch(read("apple-motion/react.ts"), /useDerivedMotion\(|setBoost|boostRef/);
 });
 
+test("glass reads in Apple's terms: variant, clarity and tint reach every glass, and so do the reader's preferences", () => {
+  const library = new URL("../packages/react-liquid-glass/src/", import.meta.url);
+  const read = path => readFileSync(new URL(path, library), "utf8");
+  const material = read("liquid-glass/material.ts"), provider = read("liquid-glass/provider.tsx");
+  assert.match(material, /export interface GlassLook \{[\s\S]*variant\?: GlassVariant;[\s\S]*clarity\?: number;[\s\S]*tint\?: string;/);
+  assert.match(provider, /> & GlassLook & \{/, "a provider takes the look like any material value");
+  // Reduced transparency is the most tinted glass; more contrast firms the edge. Both are live.
+  assert.match(material, /"\(prefers-reduced-transparency: reduce\)"/);
+  assert.match(material, /"\(prefers-contrast: more\)"/);
+  // One function applies the look, after everything else the glass resolved. The lifted lens keeps
+  // its calibration, an opaque fill is not glass, and a tint keeps its color however clear the rest.
+  assert.match(material, /if \(values\.refractionModel === "lens" \|\| \(variant === "regular" && !clarity && !tint && !contrast\)\) return values;/);
+  assert.match(material, /if \(strength >= \.999\) return values;/);
+  assert.match(material, /strength = c < 0 \? strength \+ Math\.max\(0, MOST_TINTED - strength\) \* -c : strength \* \(1 - c\);[\s\S]*if \(tint\) \{\s*values\.tintColor = tint;\s*strength = Math\.max\(strength, TINTED_GLASS\);/);
+  assert.match(liquidCanvasSource, /perceiveGlass\(values, \{ variant: p\.variant, clarity: reduceTransparency \? -1 : p\.clarity, tint: p\.tint \? tintRgb\.current : undefined, contrast \}\);/);
+  assert.match(liquidCanvasSource, /tintRgb\.current = props\.tint && canvasRef\.current \? liquidRgb\(canvasRef\.current, props\.tint\) : undefined;/);
+  // The video draws on its own renderer and applies the same look; it is clear glass unless told otherwise.
+  assert.match(videoSource, /perceiveGlass\(\{ \.\.\.VIDEO_GLASS, \.\.\.look \}, \{ variant: look\.variant \?\? "clear", clarity: reduceTransparency \? -1 : look\.clarity, tint: look\.tint \? tintRgb\.current : undefined, contrast \}\)/);
+  // Surfaces, buttons and cards take a look of their own.
+  assert.match(read("controls/GlassSurface.tsx"), /variant=\{glass\?\.variant\}\s*clarity=\{glass\?\.clarity\}\s*tint=\{glass\?\.tint\}/);
+  assert.equal((read("controls/primitives.tsx").match(/glass=\{glass\}/g) ?? []).length, 2);
+});
+
 test("HDR light is soft-capped and identical on both backends", () => {
   const wgsl = readFileSync(new URL("../packages/react-liquid-glass/src/liquid-glass/shaders/glass.wgsl", import.meta.url), "utf8");
   const presenter = readFileSync(new URL("../packages/react-liquid-glass/src/liquid-glass/highlight-hdr.ts", import.meta.url), "utf8");

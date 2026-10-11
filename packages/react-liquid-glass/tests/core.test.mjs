@@ -7,7 +7,7 @@ import { springTo, popoverFrames } from 'rglass/apple-motion/react';
 import { motionValue } from 'motion';
 import { LiquidMenu, GlassSwitch, GlassSlider, GlassSegmented } from 'rglass/controls';
 import { createLiquidGlassRenderer, LIQUID_GLASS_MATERIAL } from 'rglass/liquid-glass/renderer';
-import { glassMaterial, liquidSurfaceBlur, liquidThickness, LIFTED_GLASS } from 'rglass/liquid-glass';
+import { glassMaterial, liquidSurfaceBlur, liquidThickness, perceiveGlass, LIFTED_GLASS, TINTED_GLASS } from 'rglass/liquid-glass';
 
 const near = (actual, expected, epsilon = 1e-9) => assert.ok(Math.abs(actual - expected) <= epsilon, `${actual} != ${expected}`);
 const configurations = [
@@ -167,6 +167,45 @@ test('one glass material: a control at one end, a panel at the other, clear glas
   // The lifted lens is the same glass, lifted: clear, without glow or tint, drawn with the lens model.
   assert.equal(LIFTED_GLASS.refractionModel, 'lens');
   for (const key of ['glowStrength', 'tintStrength', 'brightness']) near(LIFTED_GLASS[key], 0);
+});
+
+test('glass in Apple\'s terms: clarity runs from more tinted to more clear, clear drops frost and tint, contrast firms the edge', () => {
+  const look = (values, options) => perceiveGlass({ ...values }, options);
+  const card = glassMaterial(.6);
+  // The calibrated default leaves every value as it is.
+  assert.deepEqual(look(card, {}), card);
+  // More tinted: more frost, and a tint toward its most legible; more clear: less of both.
+  const tinted = look(card, { clarity: -1 }), clear = look(card, { clarity: 1 });
+  assert.ok(tinted.blurStrength > card.blurStrength * 2 && tinted.tintStrength > .3);
+  assert.ok(clear.blurStrength < card.blurStrength / 2 && clear.tintStrength === 0);
+  let previous = Infinity;
+  for (let clarity = -1; clarity <= 1.0001; clarity += .1) {
+    const { blurStrength } = look(card, { clarity });
+    assert.ok(blurStrength < previous, 'frost falls steadily as clarity rises');
+    previous = blurStrength;
+  }
+  // Clear glass keeps media vivid; an opaque resting thumb is not glass to clear or tint.
+  const media = look(card, { variant: 'clear' });
+  assert.ok(media.blurStrength <= .5 && media.tintStrength === 0 && media.magnification === 1);
+  const white = [1, 1, 1], ink = [0, 0, 0];
+  for (const options of [{ variant: 'clear' }, { clarity: 1 }, { clarity: -1 }, { tint: ink }]) {
+    const fill = look({ ...card, tintStrength: 1, tintColor: white }, options);
+    near(fill.tintStrength, 1); assert.deepEqual(fill.tintColor, white);
+  }
+  // Tinted glass keeps its color however clear the rest, and more tinted never thins a stronger tint.
+  for (const options of [{}, { clarity: 1 }, { clarity: -1 }, { variant: 'clear' }]) {
+    const marked = look(card, { ...options, tint: ink });
+    assert.deepEqual(marked.tintColor, ink); near(marked.tintStrength, TINTED_GLASS);
+  }
+  near(look({ ...card, tintStrength: .5 }, { clarity: -1 }).tintStrength, .5);
+  // More contrast is the most tinted glass with a firmer edge.
+  const firm = look(card, { contrast: true });
+  assert.ok(firm.edgeStrength > card.edgeStrength * 1.5);
+  near(firm.tintStrength, tinted.tintStrength); near(firm.blurStrength, tinted.blurStrength);
+  // The lifted lens keeps its own calibration under every look.
+  const lens = { ...LIFTED_GLASS, blurStrength: .7, magnification: 3 };
+  assert.deepEqual(look(lens, { variant: 'clear', clarity: -1, tint: ink, contrast: true }), lens);
+  assert.ok(TINTED_GLASS > .3 && TINTED_GLASS < .5, 'tinted glass shows its color and stays glass');
 });
 
 test('glass grips resist unbounded pulling, keep the opposite side pinned and return to identity', () => {

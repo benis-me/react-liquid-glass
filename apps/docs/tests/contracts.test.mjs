@@ -78,6 +78,10 @@ test('shared material links accept only finite renderer settings and clamp extre
     assert.deepEqual(sanitizeMaterial({ [field.key]: field.initial }), { [field.key]: field.initial });
     assert.deepEqual(sanitizeMaterial({ [field.key]: Infinity }), {});
   }
+  // The look travels too: a variant and a clarity within its range. A tint marks one prominent
+  // action, never the whole page, so links and saved settings drop it.
+  assert.deepEqual(sanitizeMaterial({ variant: 'clear', clarity: -3, tint: 'black' }), { variant: 'clear', clarity: -1 });
+  assert.deepEqual(sanitizeMaterial({ variant: 'bevel', tint: 'url(javascript:alert(1))', refractionModel: 'bevel' }), {});
 });
 
 test('the docs app consumes only package entry points and the library cannot import the app', () => {

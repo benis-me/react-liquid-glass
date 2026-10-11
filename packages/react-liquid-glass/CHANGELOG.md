@@ -44,6 +44,8 @@ Notable changes to `rglass`. Versions follow semantic versioning; before 1.0, a 
 
 ### Added
 
+- Glass can be described as Apple describes it, in three values, with everything else following from its size: `variant` (`regular` or `clear`), `clarity`, from -1, more tinted and frosted, through 0, the calibrated default, to 1, more clear, as Apple's Liquid Glass setting moves between Tinted and Clear, and `tint`, a CSS color for glass that marks a prominent action, which keeps its color however clear the rest is. A provider's `material` takes them (`GlassLook`), `GlassButton`, `GlassCard` and `GlassSurface` take them as `glass`, `LiquidGlassCanvas` takes `clarity` and `tint`, and `perceiveGlass` applies a look to material values for custom renderers. The lifted lens keeps its own calibration under every look, and a resting thumb stays opaque.
+- Glass follows the reader's display settings, live: under `prefers-reduced-transparency: reduce` it is its most tinted, and under `prefers-contrast: more` it is as tinted, with a firmer edge. `useGlassAccessibility()` reads both.
 - `glassMaterial(thickness, { variant, dark })` returns the one glass material at a thickness, and `GlassVariant` names its `regular` and `clear` variants. `LiquidGlassCanvas` takes `variant` and `thickness` (by default, its first body's live size), `LiquidGlass` takes `variant`, and `GlassSpotlight` takes `material`.
 - `LIFTED_GLASS` with `lensMagnification` draws the lifted lens on any glass, on WebGPU and WebGL2 alike.
 - `springTo` takes an explicit starting velocity. `useVelocityDeformation` takes `smoothing`, which averages the source's speed, and its function `stiffness` and `damping` receive the deformation and its target, so a spring can relax differently than it builds. `THUMB_DEFORMATION`, `LIFT_SPRING` and `SEGMENTED_OVERDRAG` join the motion presets.
@@ -69,6 +71,7 @@ These were redundant or superseded; there is now one glass and one way to tune i
 
 - The README lists what the DOM backdrop draws and skips, explains that fixed glass must follow the content it floats over, and covers theming, browser support and server rendering.
 - The documentation site is redesigned: live specimens on the home page, a material demo with its own sliders, quieter navigation, and the same light and dark themes in English and Chinese.
+- The material panel leads with the glass's look: its variant and a clarity slider from more tinted to more clear. The renderer's values sit under More parameters. Its presets are Default, Clear, Tinted and Prism; the former Clear and Frosted presets of hand-picked values are gone.
 
 ## 0.2.1 — 2026-10-02
 

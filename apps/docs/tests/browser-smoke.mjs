@@ -56,16 +56,16 @@ export async function checkInteractions() {
 export async function checkPlayground() {
   await go('/playground?component=button');
   await until(() => document.querySelector('.material-inspector'), 'Playground missing');
-  const range = document.querySelector('input[aria-label="Dispersion"]'); input(range, '1.1'); await paint();
-  assert(document.querySelector('.playground-code code')?.textContent.includes('1.1'), 'Material code did not update');
-  assert(JSON.parse(localStorage.getItem('glass-material')).chromaAmount === 1.1, 'Material did not persist');
+  const range = document.querySelector('input[aria-label="Clarity"]'); input(range, '-0.4'); await paint();
+  assert(document.querySelector('.playground-code code')?.textContent.includes('-0.4'), 'Material code did not update');
+  assert(JSON.parse(localStorage.getItem('glass-material')).clarity === -.4, 'Material did not persist');
   const fields = document.querySelectorAll('.material-field').length;
-  assert(fields === 11, 'Advanced controls mounted eagerly');
+  assert(fields === 1, 'Advanced controls mounted eagerly');
   assert(!document.querySelector('.material-advanced > .dg-surface, .material-advanced .dg-accordion'),'Advanced disclosure still has glass');
-  click('.material-advanced summary'); await paint(); assert(document.querySelectorAll('.material-field').length === 21, 'Advanced fields incomplete');
+  click('.material-advanced summary'); await paint(); assert(document.querySelectorAll('.material-field').length === 22, 'Advanced fields incomplete');
   click('.material-advanced .debug-field input'); await paint(); assert(document.querySelector('.playground-code code')?.textContent.includes('"debug": true'), 'Optical field is not connected');
   click('button[aria-label="Reset material"]'); await paint(); assert(localStorage.getItem('glass-material') === '{}', 'Reset failed');
-  return { material: 'live, persisted, reset', parameters: 21, debug: true };
+  return { material: 'live, persisted, reset', look: 'clarity first', parameters: 22, debug: true };
 }
 
 export async function checkPlaygroundNavigation() {
@@ -82,7 +82,7 @@ export async function checkPlaygroundNavigation() {
     assert(new URLSearchParams(location.search).get('component')==='slider'&&document.querySelector('.component-preview--slider'),'Selection did not update the URL and preview');
     click('.share-material');await paint();
     assert(new URL(copied).searchParams.get('component')==='slider'&&document.querySelector('.share-material').textContent.includes('Link copied'),'Share used a stale component');
-    input(document.querySelector('input[aria-label="Dispersion"]'),'.51');await paint();
+    input(document.querySelector('input[aria-label="Clarity"]'),'.5');await paint();
     assert(document.querySelector('.share-material').textContent==='Share configuration','Changed material still claims to be copied');
     await go('/playground?component=unknown');
     assert(document.querySelector('.component-preview--tabs'),'Invalid component did not fall back to Tabs');
@@ -173,15 +173,17 @@ export async function checkGlobalMaterial() {
     await go('/playground?component=button&material={}');
     const targets=['.top-nav .dg-tabs__container canvas','.playground-toolbar canvas','.playground-inspector > .dg-surface__optics canvas','.component-preview .dg-button canvas'];
     await until(()=>targets.every(selector=>document.querySelector(selector)?.width>1),'Global material test surfaces missing');
+    const inspector=document.querySelector('.playground-inspector'),scroll=inspector.querySelector('.material-scroll > .dg-scroll-area__viewport');
+    // Renderer values sit under More parameters, the inspector's long content.
+    click('.material-advanced summary',inspector);await paint();
+    // Each glass's own default follows its size (one material, thin to thick).
+    await until(()=>targets.every(selector=>drawn.has(document.querySelector(selector))),'Global material test surfaces did not draw');
+    const defaults=new Map(targets.map(selector=>[selector,drawn.get(document.querySelector(selector))]));
     input(document.querySelector('input[aria-label="Dispersion"]'),'.77');await paint();
     await until(()=>targets.every(selector=>Math.abs(drawn.get(document.querySelector(selector))-.77)<1e-5),'Material did not reach header, toolbar, inspector and demo optics');
     const presets=document.querySelector('[role=tablist][aria-label="Material presets"]');
     assert(presets.querySelectorAll('[role=tab]').length===4,'Presets do not use standard Tabs');
     assert(!presets.querySelector('[aria-selected=true]')&&presets.querySelector('[tabindex="0"]'),'Custom material has a false preset or no keyboard entry');
-    const inspector=document.querySelector('.playground-inspector'),scroll=inspector.querySelector('.material-scroll > .dg-scroll-area__viewport');
-    // Short content should not create a scrollbar. Expand the real long content
-    // before checking internal scrolling, including on tall desktop viewports.
-    click('.material-advanced summary',inspector);await paint();
     const rect=inspector.getBoundingClientRect();
     assert(getComputedStyle(inspector).borderRadius==='32px'&&rect.bottom<=innerHeight,'Inspector exceeds the viewport or has wrong corners');
     assert(scroll.scrollHeight>scroll.clientHeight&&['auto','scroll'].includes(getComputedStyle(scroll).overflowY),'Inspector does not scroll internally');
@@ -194,15 +196,17 @@ export async function checkGlobalMaterial() {
     click('.catalog-material .dg-popover-anchor > button');
     const panel=document.querySelector('.catalog-material .dg-popover__panel');
     await until(()=>+panel.style.opacity===1,'Catalog inspector failed to open');
+    click('.material-advanced summary',panel);await paint();
     assert(Number(panel.querySelector('input[aria-label="Dispersion"]').value)===.77,'Catalog lost the shared material');
     assert(getComputedStyle(panel).borderRadius==='32px'&&Math.abs(panel.offsetHeight-(innerHeight-96))<2,'Catalog inspector does not fit the viewport');
     click('[role=tab][data-value="prism"]',panel);await paint();
     assert(JSON.parse(localStorage.getItem('glass-material')).chromaAmount===1.2,'Preset did not update global material');
     document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
     await go('/playground?component=button');
+    click('.material-advanced summary');await paint();
     assert(Number(document.querySelector('input[aria-label="Dispersion"]').value)===1.2,'Playground lost the catalog preset');
     click('button[aria-label="Reset material"]');await paint();
-    await until(()=>targets.every(selector=>Math.abs(drawn.get(document.querySelector(selector))-.33)<1e-5),'Reset did not restore defaults across site optics');
+    await until(()=>targets.every(selector=>Math.abs(drawn.get(document.querySelector(selector))-defaults.get(selector))<1e-5),'Reset did not restore defaults across site optics');
     return {optics:['header','toolbar','inspector','demo'],sharedAcrossRoutes:true,presets:4,scroll:'internal',radius:32,reset:true};
   } finally {
     stop();probe.dispose();
@@ -385,8 +389,8 @@ export async function checkRefinements() {
   const panel = document.querySelector('.catalog-material');
   click('button[aria-label="Reset material"]', panel); await paint();
   assert(localStorage.getItem('glass-material') === '{}', 'Catalog reset did not restore per-control defaults');
-  input(panel.querySelector('input[aria-label="Tint"]'), '0.2'); await paint();
-  assert(JSON.parse(localStorage.getItem('glass-material')).tintStrength === .2, 'Catalog material not connected');
+  input(panel.querySelector('input[aria-label="Clarity"]'), '-0.5'); await paint();
+  assert(JSON.parse(localStorage.getItem('glass-material')).clarity === -.5, 'Catalog material not connected');
   assert(panel.querySelector('.dg-popover-anchor > button').textContent.includes('Custom'), 'Catalog custom state missing');
   click('button[aria-label="Reset material"]', panel); await paint();
   assert(panel.querySelector('.dg-popover-anchor > button').textContent.includes('Default'), 'Catalog default state missing');
@@ -472,13 +476,13 @@ export async function checkSiteControls() {
   await until(() => !document.querySelector('.playground-toolbar .dg-popover-layer:popover-open'), 'Playground select did not close');
   assert(document.activeElement === select, 'Playground select lost focus');
   const inspector = document.querySelector('.material-inspector');
-  assert(inspector.querySelectorAll('.dg-slider').length === 11, 'Parameter panel must use small glass sliders lazily');
+  assert(inspector.querySelectorAll('.dg-slider').length === 1, 'Parameter panel must lead with clarity and load the rest lazily');
   click('.material-advanced summary');
-  await until(() => inspector.querySelectorAll('.dg-slider').length === 21, 'Advanced glass sliders missing');
+  await until(() => inspector.querySelectorAll('.dg-slider').length === 22, 'Advanced glass sliders missing');
   const close = click('.material-advanced summary');
-  await until(() => inspector.querySelectorAll('.dg-slider').length === 11, 'Advanced sliders did not release resources');
+  await until(() => inspector.querySelectorAll('.dg-slider').length === 1, 'Advanced sliders did not release resources');
   assert(!close.parentElement.open, 'Advanced disclosure state incorrect');
-  return { search: 'removed', navigation: 'shared Tabs, native links, quiet focus', buttonGroup: 'one canvas, actions, disabled, horizontal/vertical/RTL focus', playground: 'liquid select, 21 glass sliders, lazy release' };
+  return { search: 'removed', navigation: 'shared Tabs, native links, quiet focus', buttonGroup: 'one canvas, actions, disabled, horizontal/vertical/RTL focus', playground: 'liquid select, clarity first, 22 glass sliders, lazy release' };
 }
 
 export async function checkPopupPolish() {
@@ -1084,7 +1088,7 @@ export async function checkHDRPreference() {
   const stop=subscribeLiquidFrames(canvas=>{
     const gl=canvas.getContext('webgl2');if(!gl)return;
     const program=gl.getParameter(gl.CURRENT_PROGRAM);
-    parameters.set(canvas, Object.fromEntries(['uSpecular','uChroma','uDomeDepth'].map(name=>[name,gl.getUniform(program,gl.getUniformLocation(program,name))])));
+    parameters.set(canvas, Object.fromEntries(['uSpecular','uChroma'].map(name=>[name,gl.getUniform(program,gl.getUniformLocation(program,name))])));
   });
   try {
     if(wasEnabled){button().click();await paint();}
@@ -1094,6 +1098,7 @@ export async function checkHDRPreference() {
     assert(!document.querySelector('.material-inspector input[aria-label=HDR]'),'Material panel still owns HDR');
     assert(button().getAttribute('aria-pressed')==='false','Old material link overrode global HDR');
     const field=name=>Number(document.querySelector(`input[aria-label="${name}"]`).value);
+    click('.material-advanced summary');await paint();
     assert(field('Dispersion')===.33&&field('Dome depth')===28&&field('Highlight')===.9,'Default sliders do not match their material');
     const stage=document.querySelector('.component-preview');
     await until(()=>stage.querySelector('canvas[data-dg-renderer]')?.width>1,'Button optics missing');
@@ -1113,7 +1118,7 @@ export async function checkHDRPreference() {
     button().click();await paint();
     await go('/showcase/orbit');await until(()=>parameters.has(document.querySelector('.orbit-board canvas[data-dg-renderer]')),'Orbit did not receive global material');
     const actual=parameters.get(document.querySelector('.orbit-board canvas[data-dg-renderer]'));
-    assert(Math.abs(actual.uSpecular-.48)<1e-5&&Math.abs(actual.uChroma-.33)<1e-5&&actual.uDomeDepth===28,'Global defaults did not reach the renderer');
+    assert(Math.abs(actual.uSpecular-.48)<1e-5&&Math.abs(actual.uChroma-.33)<1e-5,'Global defaults did not reach the renderer');
     return {toggle:'global, icon-only',defaults:actual,presets:'preserve HDR and custom highlight',persistence:true};
   } finally {
     stop();

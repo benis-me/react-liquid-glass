@@ -20,10 +20,13 @@ import { GlassSurface } from "./GlassSurface.js";
 import { ScrollArea } from "./ScrollArea.js";
 import { useReducedMotionPreference } from "../shared/reduced-motion.js";
 import { ACCORDION_SPRING, ALERT_SPRING } from "../apple-motion/presets.js";
+import type { GlassLook } from "../liquid-glass/material.js";
 
 export interface GlassButtonProps extends ComponentProps<"button"> {
   variant?: "default" | "solid" | "ghost";
   size?: "small" | "default" | "large";
+  /** How the button's glass reads: `{ tint }` marks a prominent action, as Apple's tinted glass does. */
+  glass?: GlassLook;
 }
 export function GlassButton({
   children,
@@ -38,6 +41,7 @@ export function GlassButton({
   onBlur,
   onKeyDown,
   onKeyUp,
+  glass,
   ...props
 }: GlassButtonProps) {
   const [pressed, setPressed] = useState(false);
@@ -85,7 +89,7 @@ export function GlassButton({
         onKeyUp?.(event);
       }}
     >
-      <GlassSurface pressed={pressed} radius={size === "small" ? 12 : 16}>
+      <GlassSurface pressed={pressed} radius={size === "small" ? 12 : 16} glass={glass}>
         {children}
       </GlassSurface>
     </button>
@@ -94,11 +98,12 @@ export function GlassButton({
 export function GlassCard({
   children,
   className = "",
+  glass,
   ...props
-}: HTMLAttributes<HTMLElement>) {
+}: HTMLAttributes<HTMLElement> & { glass?: GlassLook }) {
   return (
     <article {...props} className={`dg-card ${className}`}>
-      <GlassSurface radius={24}>{children}</GlassSurface>
+      <GlassSurface radius={24} glass={glass}>{children}</GlassSurface>
     </article>
   );
 }
