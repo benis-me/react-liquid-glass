@@ -696,7 +696,7 @@ test("segmented control is solid at rest and directly tracks drag as glass", () 
   assert.match(componentSource, /const interaction = useMotionValue\(0\)/);
   assert.match(componentSource, /const pointerX = useMotionValue\(0\)/);
   assert.match(componentSource, /useVelocityDeformation\(pointerX/);
-  assert.match(componentSource, /pointerX\.set\(lensCenter\)/);
+  assert.match(componentSource, /pointerX\.set\(lensCenter - shift \+ carried\)/);
   assert.match(componentSource, /width \* \(1 \+ amount \* 0\.75\)/);
   assert.match(componentSource, /height \* \(1 - amount \* 0\.52\)/);
   assert.match(componentSource, /const nearestSegment = \(clientX: number\)/);
@@ -718,7 +718,7 @@ test("segmented click expands, travels as glass, then collapses", () => {
   // Released, the tab under the finger is chosen, not the one under a lens still catching up with
   // it, and the lens travels there from where it is with its own measured velocity.
   assert.match(componentSource, /if \(dragMoved\.current\) \{\s*(?:\/\/[^\n]*\n\s*)*const nearest = nearestSegment\(event\.clientX - dragOffsetX\.current\);\s*if \(nearest\) choose\(nearest\.value\);\s*releaseVelocity\.current = lensVelocity\.current\.velocity\(\);\s*\}/);
-  assert.match(componentSource, /lensVelocity\.current\.push\(lensCenter\);\s*pointerX\.set\(lensCenter\);/);
+  assert.match(componentSource, /lensVelocity\.current\.push\(lensCenter - shift\);/);
   assert.match(componentSource, /releaseInteraction\(0, dragMoved\.current\)/);
   assert.match(componentSource, /const releaseInteraction = \(delay = 0, settle = true\)/);
   assert.match(componentSource, /const travel = settle \? updateGeometry\(selectedRef\.current, false\) : travelSettled\.current/);
@@ -758,7 +758,7 @@ test("source-space ink refracts with the backdrop, sharp at the center and frost
 test("segmented edge items stay centered and the selected fill stays flat", () => {
   assert.match(componentSource, /const SEGMENTED_PAD_X = 80/);
   assert.match(componentSource, /const firstCenter = visible\[0\]\.rect\.left \+ visible\[0\]\.rect\.width \/ 2/);
-  assert.match(componentSource, /const reach = clientX - dragOffsetX\.current - dragCatchup\.get\(\);\s*const centerX = Math\.max\(firstCenter, Math\.min\(lastCenter, reach\)\);/);
+  assert.match(componentSource, /const reach = clientX - dragOffsetX\.current - dragCatchup\.get\(\) \+ shift;\s*const centerX = Math\.max\(firstCenter, Math\.min\(lastCenter, reach\)\);/);
   assert.doesNotMatch(componentSource, /rootRect\.left \+ halfWidth/);
   assert.match(componentSource, /springTo\(x, nextX, SEGMENTED_TRAVEL_SPRING, released === null \? x\.getVelocity\(\) : released \/ expanded\.width\)/);
   // The size and height land from rest: they were set from the pointer, so their velocities are not real.
@@ -822,28 +822,37 @@ test("released glass takes the slope of its recent positions, never a burst", ()
   assert.equal(fast.velocity(20), 4000, "a release velocity is capped");
 });
 
-test("a tab lens dragged past the end follows with the Switch thumb's rubber band", () => {
+test("a tab lens dragged past the end follows as far as a Switch thumb and carries the bar along", () => {
   const motion = readFileSync(new URL("../packages/react-liquid-glass/src/apple-motion/react.ts", import.meta.url), "utf8");
   const rubberBand = new Function(`${stripTypeScriptTypes(motion.match(/export function rubberBand[\s\S]*?\n\}/)[0]).replace("export function", "function")}; return rubberBand;`)();
-  // Half a 34px tab, reached ten times that far past it, as a Switch thumb overshoots by half its height.
-  assert.equal(rubberBand(0, 17, 170), 0);
-  assert.ok(Math.abs(rubberBand(0.01, 17, 170) / 0.01 - 0.3) < 1e-3, "it first follows by 0.3 of the finger, as a Switch thumb does");
-  assert.ok(rubberBand(40, 17, 170) < rubberBand(80, 17, 170) && rubberBand(80, 17, 170) < 17, "it keeps following");
-  assert.equal(rubberBand(170, 17, 170), 17);
-  assert.equal(rubberBand(1000, 17, 170), 17, "and never passes its limit");
+  // 11px, reached ten times that far past the tab: a regular Switch thumb's 0.15 of its 74px width.
+  assert.equal(rubberBand(0, 11, 110), 0);
+  assert.ok(Math.abs(rubberBand(0.01, 11, 110) / 0.01 - 0.3) < 1e-3, "it first follows by 0.3 of the finger, as a Switch thumb does");
+  assert.ok(rubberBand(30, 11, 110) < rubberBand(60, 11, 110) && rubberBand(60, 11, 110) < 11, "it keeps following");
+  assert.equal(rubberBand(110, 11, 110), 11);
+  assert.equal(rubberBand(1000, 11, 110), 11, "and never passes its limit");
   const presets = readFileSync(new URL("../packages/react-liquid-glass/src/apple-motion/presets.ts", import.meta.url), "utf8");
-  assert.match(presets, /export const SEGMENTED_OVERDRAG = \{ reach: 0\.5, dampening: 10 \};/);
+  assert.match(presets, /export const SEGMENTED_OVERDRAG = \{ distance: 11, dampening: 10, carry: 0\.3 \};/);
   assert.doesNotMatch(presets, /SEGMENTED_OVERDRAG_SPRING/);
   const switchSource = readFileSync(new URL("../packages/react-liquid-glass/src/controls/GlassSwitch.tsx", import.meta.url), "utf8");
+  assert.match(switchSource, /const width = compact \? 52 : 74;/);
+  assert.match(switchSource, /const overshoot = width \* 0\.15;/);
   assert.match(switchSource, /next = travel \+ rubberBand\(next - travel, overshoot, overshoot \* 10\);/);
   const segmented = readFileSync(new URL("../packages/react-liquid-glass/src/controls/GlassSegmented.tsx", import.meta.url), "utf8");
-  // The lens keeps the end tab's size and only its position follows past the end.
-  assert.match(segmented, /const lensCenter = centerX \+ overdrag\(reach - centerX, visible\[0\]\.rect, last, expanded\.scale\.x\);\s*const nextX = \(lensCenter - expanded\.left\) \/ expanded\.width;/);
-  assert.match(segmented, /const limit = Math\.min\(SEGMENTED_OVERDRAG\.reach \* 2 \* lensH\.get\(\) \* scale, Math\.max\(0, room - 2\)\);/);
+  // The lens keeps the end tab's size and only its position follows past the end, measured from where
+  // the bar sat before it was carried, so carrying it never feeds back into the pull.
+  assert.match(segmented, /const shift = barShift\.get\(\) \* ancestorScale;\s*const reach = clientX - dragOffsetX\.current - dragCatchup\.get\(\) \+ shift;/);
+  assert.match(segmented, /const offset = overdrag\(reach - centerX, visible\[0\]\.rect, last, shift, expanded\.scale\.x\);\s*const lensCenter = centerX \+ offset;\s*const nextX = \(lensCenter - expanded\.left\) \/ expanded\.width;/);
+  assert.match(segmented, /const limit = Math\.min\(SEGMENTED_OVERDRAG\.distance \* scale, Math\.max\(0, room - 2\) \/ \(1 \+ SEGMENTED_OVERDRAG\.carry\)\);/);
   assert.match(segmented, /return Math\.sign\(beyond\) \* rubberBand\(Math\.abs\(beyond\), limit, limit \* SEGMENTED_OVERDRAG\.dampening\);/);
+  // The bar is carried along by a share of the lens's distance and springs back with its press scale.
+  assert.match(segmented, /const barShift = useMotionValue\(0\);/);
+  assert.match(segmented, /style=\{\{ scale: barScale, x: barShift \}\}/);
+  assert.match(segmented, /const carried = SEGMENTED_OVERDRAG\.carry \* offset;\s*shiftStop\.current\?\.stop\(\);\s*barShift\.set\(carried \/ ancestorScale\);/);
+  assert.match(segmented, /if \(!pressed && barShift\.get\(\) !== 0\) \{\s*shiftStop\.current\?\.stop\(\);\s*shiftStop\.current = springTo\(barShift, 0, SEGMENTED_PRESS_SPRING, 0\);/);
   assert.match(segmented, /if \(rootRef\.current\) overdragBounds\.current = clipBounds\(rootRef\.current\);\s*startDragCatchup\(event\.clientX\);/);
   assert.match(segmented, /if \(getComputedStyle\(node\)\.overflowX === "visible"\) continue;/);
-  // No stretch, thinning or spring of its own: the soft body and the travel spring carry it.
+  // No stretch, thinning or spring of its own: the soft body and the travel spring carry the lens.
   assert.doesNotMatch(segmented, /pullThinning|pulledLensW|SEGMENTED_OVERDRAG_SPRING|elasticReach/);
 });
 
@@ -1096,7 +1105,7 @@ test("a pressed tab bar grows about its centre and its glass stays registered", 
   assert.match(segmented, /springTo\(barScale, pressed && width \? 1 \+ Math\.min\(PRESS_SCALE - 1, PRESS_OUTSET \* 2 \/ width\) : 1, SEGMENTED_PRESS_SPRING\)/);
   assert.match(segmented, /interactionStop\.current = springTo\(interaction, 1, SEGMENTED_LIFT_SPRING\);\s*pressBar\(true\);/);
   assert.match(segmented, /const releaseInteraction = \(delay = 0, settle = true\) => \{\s*setDragging\(false\);\s*pressBar\(false\);/);
-  assert.match(segmented, /<motion\.div ref=\{rootRef\} style=\{\{ scale: barScale \}\}/);
+  assert.match(segmented, /<motion\.div ref=\{rootRef\} style=\{\{ scale: barScale, x: barShift \}\}/);
   // The lens is laid out in the bar's own pixels: fractions of its padded frame on screen, and
   // sizes divided by the bar's current scale.
   assert.match(segmented, /const rect = root\.getBoundingClientRect\(\), scale = liquidScreenScale\(root, rect\);/);

@@ -110,6 +110,8 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
   const solidOpacity = useMotionValue(1);
   const glassHeight = useMotionValue(0);
   const barScale = useMotionValue(1);
+  // How far a lens dragged past the end tab carries the whole bar, in the bar's own pixels.
+  const barShift = useMotionValue(0);
   const pointerX = useMotionValue(0);
   const dragCatchup = useMotionValue(0);
   // The dragged lens's own recent positions, for the velocity it lands with.
@@ -183,10 +185,16 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
   const stillStop = useRef<SpringRun | null>(null);
   const heightStop = useRef<SpringRun | null>(null);
   const barStop = useRef<SpringRun | null>(null);
+  const shiftStop = useRef<SpringRun | null>(null);
   const pressBar = (pressed: boolean) => {
     const width = rootRef.current?.offsetWidth ?? 0;
     barStop.current?.stop();
     barStop.current = springTo(barScale, pressed && width ? 1 + Math.min(PRESS_SCALE - 1, PRESS_OUTSET * 2 / width) : 1, SEGMENTED_PRESS_SPRING);
+    // Released, a bar carried along by a lens dragged past its end springs back as it shrinks.
+    if (!pressed && barShift.get() !== 0) {
+      shiftStop.current?.stop();
+      shiftStop.current = springTo(barShift, 0, SEGMENTED_PRESS_SPRING, 0);
+    }
   };
   const glassAnimation = useRef<ReturnType<typeof animate> | null>(null);
   const solidAnimation = useRef<ReturnType<typeof animate> | null>(null);
@@ -289,6 +297,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
     interactionStop.current?.stop();
     heightStop.current?.stop();
     barStop.current?.stop();
+    shiftStop.current?.stop();
     glassAnimation.current?.stop();
     solidAnimation.current?.stop();
     dragCatchupAnimation.current?.stop();
@@ -315,12 +324,13 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
     return nearest;
   };
   // Dragged past the first or last tab, the lens follows with resistance, as a Switch thumb does past
-  // its end, by at most half a tab's height and never into a clip. Returns its offset on screen.
-  const overdrag = (beyond: number, first: DOMRect, last: DOMRect, scale: number) => {
+  // its end, and carries the bar along a little; together they never reach into a clip. Takes the
+  // end tabs where they sit before the bar is carried, and returns the lens's offset on screen.
+  const overdrag = (beyond: number, first: DOMRect, last: DOMRect, shift: number, scale: number) => {
     if (beyond === 0) return 0;
     const outset = liftOutset.get() * scale;
-    const room = beyond > 0 ? overdragBounds.current.right - (last.right + outset) : first.left - outset - overdragBounds.current.left;
-    const limit = Math.min(SEGMENTED_OVERDRAG.reach * 2 * lensH.get() * scale, Math.max(0, room - 2));
+    const room = beyond > 0 ? overdragBounds.current.right - (last.right - shift + outset) : first.left - shift - outset - overdragBounds.current.left;
+    const limit = Math.min(SEGMENTED_OVERDRAG.distance * scale, Math.max(0, room - 2) / (1 + SEGMENTED_OVERDRAG.carry));
     return Math.sign(beyond) * rubberBand(Math.abs(beyond), limit, limit * SEGMENTED_OVERDRAG.dampening);
   };
   const trackLens = (clientX: number) => {
@@ -335,7 +345,10 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
     const firstCenter = visible[0].rect.left + visible[0].rect.width / 2;
     const last = visible[visible.length - 1].rect;
     const lastCenter = last.left + last.width / 2;
-    const reach = clientX - dragOffsetX.current - dragCatchup.get();
+    // Measured from where the bar sits before it was carried along, so carrying it never feeds back.
+    const ancestorScale = expanded.scale.x / Math.max(0.0001, barScale.get());
+    const shift = barShift.get() * ancestorScale;
+    const reach = clientX - dragOffsetX.current - dragCatchup.get() + shift;
     const centerX = Math.max(firstCenter, Math.min(lastCenter, reach));
     // Blend the lens size between the neighbouring items, so it morphs while sliding
     // across tabs of different widths instead of popping at the midpoint.
@@ -346,16 +359,21 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
     const blend = span > 0 ? (centerX - (from.left + from.width / 2)) / span : 1;
     lensW.set((from.width + (to.width - from.width) * blend) / 2 / expanded.scale.x);
     lensH.set((from.height + (to.height - from.height) * blend) / 2 / expanded.scale.y);
-    const lensCenter = centerX + overdrag(reach - centerX, visible[0].rect, last, expanded.scale.x);
+    const offset = overdrag(reach - centerX, visible[0].rect, last, shift, expanded.scale.x);
+    const lensCenter = centerX + offset;
     const nextX = (lensCenter - expanded.left) / expanded.width;
     const nextDirection = Math.sign(nextX - x.get());
     impactTargetX.current = nextX;
     impactLanded.current = false;
     impactWidth.current = expanded.width / expanded.scale.x;
     if (nextDirection !== 0) impactDirection.current = nextDirection;
-    lensVelocity.current.push(lensCenter);
-    pointerX.set(lensCenter);
+    lensVelocity.current.push(lensCenter - shift);
+    const carried = SEGMENTED_OVERDRAG.carry * offset;
+    shiftStop.current?.stop();
+    barShift.set(carried / ancestorScale);
     x.set(nextX);
+    // Where the lens is on screen once the bar is carried, after x's listener measured the bar.
+    pointerX.set(lensCenter - shift + carried);
   };
   const moveDrag = (clientX: number) => {
     dragClientX.current = clientX;
@@ -492,7 +510,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
   });
 
   return (
-    <motion.div ref={rootRef} style={{ scale: barScale }} data-custom={suppliedItems ? "true" : undefined} data-dragging={dragging ? "" : undefined} className={["dg-tabs", className].filter(Boolean).join(" ")}>
+    <motion.div ref={rootRef} style={{ scale: barScale, x: barShift }} data-custom={suppliedItems ? "true" : undefined} data-dragging={dragging ? "" : undefined} className={["dg-tabs", className].filter(Boolean).join(" ")}>
       {container}
       <div
         ref={groupRef}
