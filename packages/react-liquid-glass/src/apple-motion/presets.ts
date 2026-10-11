@@ -24,16 +24,11 @@ export const THUMB_DEFORMATION = { max: 0.22, speed: 380, smoothing: 0.02, stiff
 /** A pressed tab's lens lifts with a slight overshoot, about a tenth, before it settles. */
 export const SEGMENTED_LIFT_SPRING = { mass: 1, stiffness: 340, damping: 22 };
 /**
- * A dragged tab's lens pulled past the first or last tab stays on it and is pulled toward the
- * finger against rising resistance, as a scroll view's edge is: for a finger `d` past the tab its
- * far end reaches `limit·(1 − 1/(1 + resistance·d/limit))`, never more than `reach` of the lens's
- * height. Its near end follows by `trail` of that, so the lens stretches toward the finger, and it
- * thins across by the square root of its stretch. Released, it lands once its far end has sprung
- * back to within `settle` pixels.
+ * A dragged tab's lens past the first or last tab follows with resistance, as a Switch thumb does
+ * past its end: by at most `reach` of a tab's height, about half, as a thumb overshoots by about half
+ * its own, reached once the finger is `dampening` times that far past the tab.
  */
-export const SEGMENTED_OVERDRAG = { reach: 0.6, resistance: 0.55, trail: 0.25, thinning: 0.5, settle: 1.5 };
-/** Released, a pulled lens springs back, overshooting by about a fifth into a brief squash. */
-export const SEGMENTED_OVERDRAG_SPRING = { mass: 1, stiffness: 400, damping: 17 };
+export const SEGMENTED_OVERDRAG = { reach: 0.5, dampening: 10 };
 /**
  * How far a pressed Tabs lens grows past its tab on every side, as a fraction of the tab's height:
  * 9px on a native-sized 53px tab. Scaled with the tab, the lens overflows any bar by the same
