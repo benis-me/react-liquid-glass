@@ -57,8 +57,11 @@ export function GlassGroup({ spacing = 20, children, className = "", ...props }:
   const reduce = useReducedMotionPreference();
   const reduceRef = useRef(reduce); reduceRef.current = reduce;
   const thickness = liquidThickness(smallest.width, smallest.height);
-  // The canvas reaches as far as the shadow of glass this thick, as a surface's does.
+  // The canvas reaches as far as the shadow of glass this thick, as a surface's does. Measuring
+  // reads it live, so a change re-measures rather than rebuilding the group mid-press.
   const pad = glassCanvasReach(thickness);
+  const padRef = useRef(pad); padRef.current = pad;
+  const refreshRef = useRef<() => void>(() => undefined);
 
   useLayoutEffect(() => {
     const element = root.current, list = items.current;
@@ -94,7 +97,7 @@ export function GlassGroup({ spacing = 20, children, className = "", ...props }:
     /** Measures every shape and returns a geometry signature for rest detection. */
     const measure = () => {
       const box = element.getBoundingClientRect();
-      const width = element.offsetWidth, height = element.offsetHeight;
+      const width = element.offsetWidth, height = element.offsetHeight, pad = padRef.current;
       if (!width || !height) return "";
       let geometry = `${width}x${height}`;
       const children = [...list.children].filter(child => child.getClientRects().length).slice(0, MAX_BLOBS);
@@ -113,7 +116,9 @@ export function GlassGroup({ spacing = 20, children, className = "", ...props }:
         // Each shape refracts like a standalone surface of its own size.
         shape.refractionRatio[0] = (rect.width + 28) / (width + pad * 2);
         shape.refractionRatio[1] = (rect.height + 28) / (height + pad * 2);
-        if (Math.min(rect.width, rect.height) < Math.min(smallest.width, smallest.height)) smallest = { width: rect.width, height: rect.height };
+        // Thickness follows a member's layout size, so a press's growth never changes the glass.
+        const layout = { width: (child as HTMLElement).offsetWidth || rect.width, height: (child as HTMLElement).offsetHeight || rect.height };
+        if (Math.min(layout.width, layout.height) < Math.min(smallest.width, smallest.height)) smallest = layout;
       });
       setCount(children.length);
       setSize(old => old.width === width && old.height === height ? old : { width, height });
@@ -139,12 +144,12 @@ export function GlassGroup({ spacing = 20, children, className = "", ...props }:
       if (!following) { following = true; frame.read(follow); }
     };
     const backdrop = createLiquidBackdrop(element, () => {
-      const rect = element.getBoundingClientRect();
+      const rect = element.getBoundingClientRect(), pad = padRef.current;
       return { left: rect.left - pad, top: rect.top - pad, width: element.offsetWidth + pad * 2, height: element.offsetHeight + pad * 2 };
     }, canvas => {
       source.current = canvas;
       revision.set(revision.get() + 1);
-      const width = element.offsetWidth, height = element.offsetHeight;
+      const width = element.offsetWidth, height = element.offsetHeight, pad = padRef.current;
       if (width && height) publishTone(canvas, { left: pad / (width + pad * 2), top: pad / (height + pad * 2), width: width / (width + pad * 2), height: height / (height + pad * 2) });
     });
     signature = measure();
@@ -162,6 +167,8 @@ export function GlassGroup({ spacing = 20, children, className = "", ...props }:
     const children = new MutationObserver(() => { watch(); wake(); });
     children.observe(list, { childList: true });
     watch();
+    for (const child of list.children) if (child.hasAttribute("data-pressed")) press(child as HTMLElement);
+    refreshRef.current = () => { backdrop.refresh(); wake(); };
     const events = ["transitionrun", "transitionstart", "transitionend", "transitioncancel", "animationstart", "animationiteration", "animationend", "animationcancel"] as const;
     for (const type of events) list.addEventListener(type, wake);
     // The touched shape lights where it is pressed, following the pointer, and fades on release.
@@ -207,9 +214,12 @@ export function GlassGroup({ spacing = 20, children, className = "", ...props }:
       for (const type of events) list.removeEventListener(type, wake);
       release(); list.removeEventListener("pointerdown", down);
       for (const shape of [...lights.keys()]) settle(shape);
-      for (const [child, state] of scales) { state.run?.stop(); child.style.scale = ""; }
+      for (const [child, state] of scales) { state.run?.stop(); child.style.scale = state.own; }
+      refreshRef.current = () => undefined;
     };
-  }, [revision, publishTone, pad]);
+  }, [revision, publishTone]);
+  // A new reach re-measures the shapes and recaptures the backdrop over the new bounds.
+  useLayoutEffect(() => { refreshRef.current(); }, [pad]);
 
   const blobs = useMemo(() => shapes.current.slice(0, count), [count]);
   return (

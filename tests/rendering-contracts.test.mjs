@@ -1311,7 +1311,14 @@ test("a group press grows a child from its own scale, and LiquidGlass keeps a ma
   // A group of large members is thick glass; its canvas reaches as far as that glass's shadow, as a surface's does.
   assert.match(group, /const pad = glassCanvasReach\(thickness\);/);
   assert.doesNotMatch(group, /\bPAD\b/);
-  assert.match(group, /\}, \[revision, publishTone, pad\]\);/);
+  // Measuring reads the reach live, so a new reach re-measures instead of rebuilding the group (and
+  // interrupting a press); the glass's thickness follows layout sizes, never a press's growth.
+  assert.match(group, /\}, \[revision, publishTone\]\);\s*(?:\/\/[^\n]*\n\s*)*useLayoutEffect\(\(\) => \{ refreshRef\.current\(\); \}, \[pad\]\);/);
+  assert.equal((group.match(/pad = padRef\.current/g) ?? []).length, 3, "shapes, backdrop bounds and tone read the live reach");
+  assert.match(group, /const layout = \{ width: \(child as HTMLElement\)\.offsetWidth \|\| rect\.width, height: \(child as HTMLElement\)\.offsetHeight \|\| rect\.height \};/);
+  // Teardown gives each child its own scale back, and a child pressed at setup grows from the start.
+  assert.match(group, /for \(const \[child, state\] of scales\) \{ state\.run\?\.stop\(\); child\.style\.scale = state\.own; \}/);
+  assert.match(group, /for \(const child of list\.children\) if \(child\.hasAttribute\("data-pressed"\)\) press\(child as HTMLElement\);/);
   assert.match(readFileSync(new URL("../packages/react-liquid-glass/src/controls/GlassSurface.tsx", import.meta.url), "utf8"), /const pad = \(width: number, height: number\) => glassCanvasReach\(liquidThickness\(width, height\)\);/);
 });
 
