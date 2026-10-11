@@ -34,6 +34,7 @@ Notable changes to `rglass`. Versions follow semantic versioning; before 1.0, a 
 - `LiquidGlassCanvas` honors instance material values over the shared defaults. Provider presets no longer freeze the Morph Menu's animated blur, tint and zoom, and an instance `hdr={false}` also removes the HDR highlight default.
 - Controls follow `class="dark"` hosts (next-themes, shadcn) as well as `data-theme="dark"`.
 - Published declarations resolve under `moduleResolution: NodeNext`; exported types no longer degrade to `any` there.
+- Published declarations type-check on TypeScript 5 with `skipLibCheck: false`. `LiquidGlassRenderer`'s `context` named `GPUCanvasContext`, which TypeScript 5's DOM lib lacks, so the check failed, and with `skipLibCheck` the property degraded to `any`. It is still `GPUCanvasContext` wherever the consumer's DOM lib or `@webgpu/types` declares it; otherwise only the WebGPU context's `canvas` is typed.
 - `GlassInput` and `GlassSelect` add their description or error to the host's `aria-describedby` instead of replacing it.
 - Switch and Slider thumbs move to their new state immediately under `prefers-reduced-motion`.
 - Tabs land in one motion. The lens stays lifted until it reaches its tab, then sinks back and dissolves into the base color once it has nearly settled, instead of resting as glass and then switching, so its magnified label gives way to the resting one without a jump in size. The base color no longer slides ahead of the lens when pressed.

@@ -282,3 +282,14 @@ test('public entries expose the GPU API and reject retired rendering APIs', asyn
   await assert.rejects(import('rglass/legacy'), {code:'ERR_PACKAGE_PATH_NOT_EXPORTED'});
   assert.throws(() => createRequire(import.meta.url)('rglass/legacy'), {code:'ERR_PACKAGE_PATH_NOT_EXPORTED'});
 });
+
+test('declarations reachable from the exports name no WebGPU global, which TypeScript 5\'s DOM lib lacks', () => {
+  const root = new URL('../', import.meta.url);
+  const files = new Set(Object.values(JSON.parse(readFileSync(new URL('package.json', root), 'utf8')).exports).map(entry => new URL(entry.types, root).href));
+  for (const file of files) {
+    const declaration = readFileSync(new URL(file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    // Neither a doc comment nor a property key, as in the renderer's lookup on globalThis, is a reference.
+    assert.doesNotMatch(declaration, /\bGPU[A-Z]\w*\b(?!:)/, file);
+    for (const [, path] of declaration.matchAll(/(?:from |import\()["'](\.[^"']+)\.js["']/g)) files.add(new URL(`${path}.d.ts`, file).href);
+  }
+});
