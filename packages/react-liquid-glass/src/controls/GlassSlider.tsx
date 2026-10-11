@@ -4,7 +4,7 @@ import { animate, motion, useMotionValue, useReducedMotion, useTransform } from 
 import { LiquidGlass } from "../liquid-glass/LiquidGlass.js";
 import { liquidTheme, liquidTrackSource, subscribeLiquidTheme } from "../liquid-glass/source.js";
 import { usePointerReleaseFallback, useGlassContact, rubberBand, type SpringRun } from "../apple-motion/react.js";
-import { LIFTED_MODEL, liftedLens, settleThumb, useLiftedOptics, useLiftedShadow, useThumbMotion } from "./use-thumb-motion.js";
+import { LIFTED_MODEL, LIFT_END_PINCH, LIFT_MAGNIFICATION, liftedLens, settleThumb, useLiftedOptics, useLiftedShadow, useThumbMotion } from "./use-thumb-motion.js";
 
 /** Native input attributes (id, aria-*, required, form, onBlur…) pass through to the slider's range input. */
 type NativeSliderProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "min" | "max" | "step" | "value" | "defaultValue" | "disabled" | "name" | "onChange" | "size" | "children" | "className" | "style">;
@@ -62,7 +62,11 @@ export function GlassSlider({
   const padding = Math.ceil(0.5 * Math.max(halfThumbWidth, halfThumbHeight) + overshoot) + 2;
   const filterWidth = width + padding * 2;
   const filterHeight = thumbHeight + padding * 2;
-  const refractedTrackHeight = Math.round(thumbHeight * 0.75);
+  // The held lens refracts the track as it is, with the ends' squeeze made up: it meets the rim at
+  // its own height and swells toward the middle, as through a magnifier. A track drawn three
+  // quarters of the thumb's height crossed the rim band near the lens's ends, where its edges
+  // dipped and hooked.
+  const refractedTrackHeight = trackHeight * LIFT_END_PINCH;
   const restTintBlur = compact ? 0 : 4;
   const releaseTransition = reduce ? { duration: 0 } : { ease: [0.22, 1, 0.36, 1] as const, duration: 0.52 };
   const toOffset = (next: number) => max > min ? ((next - min) / (max - min)) * travel : 0;
@@ -82,10 +86,10 @@ export function GlassSlider({
 
   const offset = useMotionValue(toOffset(current));
   const x = useTransform(offset, (position) => (padding + thumbWidth / 2 + position) / filterWidth);
-  const { lensW, lensH, radius, tintOpacity, targetScaleX, targetScaleY, tintBlur, still, setDeformationBoost, expand, collapse, drag } = useThumbMotion(offset, halfThumbWidth, halfThumbHeight, restTintBlur, reduce);
-  // Held, the thumb is iOS 27's lifted lens; its refracted track already magnifies.
+  const { lensW, lensH, radius, tintOpacity, targetScaleX, targetScaleY, tintBlur, still, expand, collapse, drag } = useThumbMotion(offset, halfThumbWidth, halfThumbHeight, restTintBlur, reduce);
+  // Held, the thumb is iOS 27's lifted lens, magnifying the track as a pressed tab magnifies the bar.
   const held = useTransform(tintOpacity, opacity => 1 - opacity);
-  const { band, bulge } = useLiftedOptics(lensW, lensH, held);
+  const { band, bulge, magnify } = useLiftedOptics(lensW, lensH, held, LIFT_MAGNIFICATION);
   // Held, the thumb casts the lifted lens's shadow, as a pressed tab does; at rest it keeps its own.
   const liftShadow = useLiftedShadow(lensH, held, dark, { strength: .04, offset: Math.min(18, filterHeight * .12), blur: Math.min(26, filterHeight * .2) });
 
@@ -114,7 +118,6 @@ export function GlassSlider({
     dragging.current = false;
     pointerMoved.current = false;
     clickAnimation.current?.stop();
-    setDeformationBoost(0);
     animate(offset, Math.max(0, Math.min(travel, offset.get())), releaseTransition);
     collapse();
   };
@@ -156,7 +159,7 @@ export function GlassSlider({
         refractionPixels={1}
         zoom={bulge}
         depth={band}
-        material={{ ...LIFTED_MODEL, shadowStrength: liftShadow.strength, shadowOffset: liftShadow.offset, shadowBlur: liftShadow.blur }}
+        material={{ ...LIFTED_MODEL, lensMagnification: magnify, shadowStrength: liftShadow.strength, shadowOffset: liftShadow.offset, shadowBlur: liftShadow.blur }}
         lens={lens}
         x={x}
         y={0.5}
@@ -223,7 +226,6 @@ export function GlassSlider({
               pointerStart.current = event.clientX;
               offsetStart.current = offset.get();
               expand();
-              setDeformationBoost(0.175);
             }}
             onPointerMove={(event) => {
               if (event.pointerId !== pointerId.current) return;
@@ -246,7 +248,6 @@ export function GlassSlider({
               disarmPointerFallback();
               pointerId.current = null;
               dragging.current = false;
-              setDeformationBoost(0);
               if (pointerMoved.current) {
                 animate(offset, Math.max(0, Math.min(travel, offset.get())), releaseTransition);
               }

@@ -659,7 +659,14 @@ test("switch, slider, and toggle retain their source motion contracts", () => {
   assert.match(componentSource, /inputRef\.current\?\.focus/);
   assert.doesNotMatch(componentSource, /dg-slider__value/);
   assert.match(componentSource, /duration: 0\.6/);
-  assert.match(componentSource, /return Math\.min\(0\.18, speed \* SEGMENTED_DEFORMATION\.perSpeed\)/);
+  assert.match(componentSource, /return SEGMENTED_DEFORMATION\.max \* Math\.tanh\(speed \/ SEGMENTED_DEFORMATION\.speed\)/);
+  // Held thumbs are the same soft body: they stretch along their motion and flatten with speed,
+  // never squash narrower and taller while they move, and stay round while held still.
+  assert.match(componentSource, /target: speed => reduce \? 0 : THUMB_DEFORMATION\.max \* Math\.tanh\(speed \/ THUMB_DEFORMATION\.speed\)/);
+  assert.match(componentSource, /const lensW = useTransform\(\(\) => baseLensW\.get\(\) \* \(1 \+ 0\.6 \* deformation\.get\(\)\)\);/);
+  assert.match(componentSource, /const lensH = useTransform\(\(\) => baseLensH\.get\(\) \* \(1 - 0\.45 \* deformation\.get\(\)\)\);/);
+  assert.match(componentSource, /THUMB_DEFORMATION = \{ max: 0\.22, speed: 380, smoothing: 0\.02, stiffness: 576, damping: 18, settleDamping: 12 \}/);
+  assert.doesNotMatch(componentSource, /setDeformationBoost|0\.012 \* speed/);
   assert.doesNotMatch(componentSource, /zoom=\{zoom\}/, "the Tabs lens has no velocity zoom");
   assert.match(componentSource, /depth=\{band\}/);
   assert.match(componentSource, /refracted \? color1 : "#bcbbbb"/);
@@ -708,7 +715,10 @@ test("segmented control is solid at rest and directly tracks drag as glass", () 
 test("segmented click expands, travels as glass, then collapses", () => {
   assert.match(componentSource, /return x\.on\("change", \(position\) => \{[\s\S]*pointerX\.set\(expanded\.left \+ position \* expanded\.width\)/);
   assert.match(componentSource, /choose\(nearest\.value\);\s*travelSettled\.current = updateGeometry\(nearest\.value, hasLinks && !selected\);/);
-  assert.match(componentSource, /if \(dragMoved\.current\) moveDrag\(event\.clientX\)/);
+  // Released, the tab under the finger is chosen, not the one under a lens still catching up with
+  // it, and the lens travels there from where it is with its own measured velocity.
+  assert.match(componentSource, /if \(dragMoved\.current\) \{\s*(?:\/\/[^\n]*\n\s*)*const nearest = nearestSegment\(event\.clientX - dragOffsetX\.current\);\s*if \(nearest\) choose\(nearest\.value\);\s*releaseVelocity\.current = lensVelocity\.current\.velocity\(\);\s*\}/);
+  assert.match(componentSource, /lensVelocity\.current\.push\(centerX\);\s*pointerX\.set\(centerX\);/);
   assert.match(componentSource, /releaseInteraction\(0, dragMoved\.current\)/);
   assert.match(componentSource, /const releaseInteraction = \(delay = 0, settle = true\)/);
   assert.match(componentSource, /const travel = settle \? updateGeometry\(selectedRef\.current, false\) : travelSettled\.current/);
@@ -750,7 +760,11 @@ test("segmented edge items stay centered and the selected fill stays flat", () =
   assert.match(componentSource, /const firstCenter = visible\[0\]\.rect\.left \+ visible\[0\]\.rect\.width \/ 2/);
   assert.match(componentSource, /Math\.max\(firstCenter, Math\.min\(lastCenter, clientX - dragOffsetX\.current - dragCatchup\.get\(\)\)\)/);
   assert.doesNotMatch(componentSource, /rootRect\.left \+ halfWidth/);
-  assert.match(componentSource, /springTo\(x, nextX, SEGMENTED_TRAVEL_SPRING\)/);
+  assert.match(componentSource, /springTo\(x, nextX, SEGMENTED_TRAVEL_SPRING, released === null \? x\.getVelocity\(\) : released \/ expanded\.width\)/);
+  // The size and height land from rest: they were set from the pointer, so their velocities are not real.
+  assert.match(componentSource, /springTo\(lensW, halfW, SEGMENTED_TRAVEL_SPRING, released === null \? lensW\.getVelocity\(\) : 0\)/);
+  // A re-render asking for the same travel keeps the one under way and the velocity it was handed.
+  assert.match(componentSource, /if \(!instant && !reduce && current && stops\.current\.length > 0 && Math\.abs\(current\.x - nextX\) \* expanded\.width < 0\.5/);
   assert.doesNotMatch(libraryStylesSource, /\.dg-tabs__solid-thumb\s*\{[^}]*box-shadow/s);
   assert.doesNotMatch(libraryStylesSource, /html\[data-theme="dark"\] \.dg-tabs__solid-thumb[^}]*box-shadow/s);
 });
@@ -766,9 +780,12 @@ test("segmented motion uses velocity-preserving iOS-style physical springs", () 
   assert.match(componentSource, /const SEGMENTED_TRAVEL_SPRING = \{ mass: 1, stiffness: 260, damping: 28 \}/);
   assert.match(componentSource, /const SEGMENTED_PRESS_SPRING = \{ mass: 0\.9, stiffness: 320, damping: 28 \}/);
   assert.match(componentSource, /const SEGMENTED_RELEASE_SPRING = \{ mass: 1, stiffness: 150, damping: 19 \}/);
-  assert.match(componentSource, /velocity: value\.getVelocity\(\)/);
+  assert.match(componentSource, /export function springTo\(value: MotionValue<number>, target: number, config: PhysicalSpring, velocity = value\.getVelocity\(\)\): SpringRun/);
+  assert.match(componentSource, /\.\.\.config,\s*velocity,/);
   assert.match(componentSource, /const x = useMotionValue\(0\.5\)/);
-  assert.match(componentSource, /springTo\(interaction, 1, SEGMENTED_PRESS_SPRING\)/);
+  // A pressed tab's lens lifts with a slight overshoot before it settles.
+  assert.match(componentSource, /springTo\(interaction, 1, SEGMENTED_LIFT_SPRING\)/);
+  assert.match(componentSource, /SEGMENTED_LIFT_SPRING = \{ mass: 1, stiffness: 340, damping: 22 \}/);
   assert.match(componentSource, /springTo\(interaction, 0, SEGMENTED_RELEASE_SPRING\)/);
   assert.doesNotMatch(componentSource, /let velocity = 0;[\s\S]*velocity \+= \(stiffness/);
 });
@@ -786,6 +803,23 @@ test("segmented glass attenuation overlaps the low-amplitude travel tail", () =>
   assert.match(componentSource, /SEGMENTED_HANDOFF = \{ arrivalPixels: 4, dissolveLift: 0\.4, dissolve: \{ duration: 0\.32/);
   assert.doesNotMatch(componentSource, /setTimeout\(\(\) => \{\s*rootRef\.current\?\.removeAttribute\("data-interacting"\)/);
   assert.doesNotMatch(libraryStylesSource, /\.dg-tabs__solid-thumb\s*\{[^}]*opacity 90ms/s);
+});
+
+test("released glass takes the slope of its recent positions, never a burst", () => {
+  const source = readFileSync(new URL("../packages/react-liquid-glass/src/apple-motion/velocity.ts", import.meta.url), "utf8");
+  const createVelocityTracker = new Function(`${stripTypeScriptTypes(source).replace("export function", "function")}; return createVelocityTracker;`)();
+  const steady = createVelocityTracker();
+  for (let time = 0; time <= 80; time += 16) steady.push(time * 0.5, time);
+  assert.ok(Math.abs(steady.velocity(80) - 500) < 1e-9, "a steady 500 px/s drag releases at 500 px/s");
+  assert.equal(steady.velocity(400), 0, "a pointer held still before release has no velocity");
+  // A move and its release 0.3ms apart, as a flick often ends, read as 180,000 px/s from the last
+  // two events; the tracker hands over nothing rather than fling the glass.
+  const burst = createVelocityTracker();
+  burst.push(0, 100); burst.push(55, 100.3);
+  assert.equal(burst.velocity(100.3), 0);
+  const fast = createVelocityTracker();
+  fast.push(0, 0); fast.push(1000, 10); fast.push(2000, 20);
+  assert.equal(fast.velocity(20), 4000, "a release velocity is capped");
 });
 
 test("the optical exit requires sustained geometric rest, not one zero crossing", async () => {
@@ -820,11 +854,19 @@ test("the retained material supports opaque control rests without covering refra
 
 test("segmented braking squashes both axes and hover stays subtle", () => {
   assert.match(componentSource, /stiffness: \(\) => impactLanded\.current && stationaryPress\(\) \? SEGMENTED_HOLD_IMPACT_SCRIPT\.stiffness : SEGMENTED_DEFORMATION\.stiffness/);
-  assert.match(componentSource, /if \(!impactLanded\.current\) return SEGMENTED_DEFORMATION\.damping/);
-  assert.match(componentSource, /return SEGMENTED_DEFORMATION\.landedDamping/);
-  assert.match(componentSource, /SEGMENTED_DEFORMATION = \{ perSpeed: 0\.00024, stiffness: 760, damping: 50, landedDamping: 30 \}/);
-  assert.match(componentSource, /typeof options\.stiffness === "function" \? options\.stiffness\(\) : options\.stiffness/);
-  assert.match(componentSource, /typeof options\.damping === "function" \? options\.damping\(\) : options\.damping/);
+  // The stretch builds with its damping and relaxes more freely, so a stop or a landing overshoots
+  // into a brief squash and rebounds while a steady drag stays calm.
+  assert.match(componentSource, /return position > target \? SEGMENTED_DEFORMATION\.settleDamping : SEGMENTED_DEFORMATION\.damping;/);
+  assert.match(componentSource, /damping: \(position, target\) => position > target \? THUMB_DEFORMATION\.settleDamping : THUMB_DEFORMATION\.damping,/);
+  assert.match(componentSource, /SEGMENTED_DEFORMATION = \{ max: 0\.2, speed: 480, smoothing: 0\.02, stiffness: 576, damping: 18, settleDamping: 12 \}/);
+  assert.match(componentSource, /typeof options\.stiffness === "function" \? options\.stiffness\(position, target\) : options\.stiffness/);
+  assert.match(componentSource, /typeof options\.damping === "function" \? options\.damping\(position, target\) : options\.damping/);
+  // The speed is averaged over `smoothing` seconds, so input arriving less often than frames does
+  // not halve the stretch on fast displays, and the loop keeps listening a little after a move.
+  assert.match(componentSource, /sourceVelocity \+= \(Math\.max\(-MAX_SOURCE_SPEED, Math\.min\(MAX_SOURCE_SPEED, raw\)\) - sourceVelocity\) \* \(1 - Math\.exp\(-elapsed \/ options\.smoothing\)\);/);
+  assert.match(componentSource, /\} else sourceVelocity = raw;/);
+  assert.match(componentSource, /now - lastChange > SOURCE_GRACE_MS\) \{/);
+  assert.match(componentSource, /const SOURCE_GRACE_MS = 120;/);
   assert.match(componentSource, /width \* \(1 \+ amount \* 0\.75\)/);
   assert.match(componentSource, /height \* \(1 - amount \* 0\.52\)/);
   assert.match(libraryStylesSource, /\.dg-tabs__item:not\(\[data-selected\]\):hover\s*\{\s*background:\s*rgba\(18, 18, 22, \.035\)/s);
@@ -849,7 +891,7 @@ test("segmented arrival pins most velocity stretch behind the leading edge", () 
 test("segmented stationary long press settles without being treated as a drag", () => {
   assert.match(componentSource, /const trackingPointer = dragPointer\.current !== null && dragMoved\.current/);
   assert.match(componentSource, /if \(!trackingPointer && direction !== 0\)/);
-  assert.match(componentSource, /if \(stationaryPress\(\)\) return SEGMENTED_HOLD_IMPACT_SCRIPT\.damping/);
+  assert.match(componentSource, /if \(impactLanded\.current && stationaryPress\(\)\) return SEGMENTED_HOLD_IMPACT_SCRIPT\.damping/);
   assert.doesNotMatch(componentSource, /if \(dragPointer\.current === null && direction !== 0\)/);
 });
 
@@ -947,7 +989,20 @@ test("control optics retain size-independent pixel gain and the approved menu ma
   assert.match(componentSource, /chromaAmount: 1\.5, blurAmount: \.7, edgeWidth: 1\.2, edgeStrength: \.81, specularStrength: 1,\s*glowStrength: 0, brightness: 0, tint: 0, \.\.\.lens,/);
   assert.match(componentSource, /const band = useTransform\(\(\) => 2\.5 \+ \(Math\.min\(lensW\.get\(\), lensH\.get\(\)\) \* \.33 - 2\.5\) \* unit\(lift\.get\(\)\)\)/);
   assert.match(componentSource, /const bulge = useTransform\(\(\) => Math\.min\(lensW\.get\(\), lensH\.get\(\)\) \* \.147 \* unit\(lift\.get\(\)\)\)/);
-  assert.equal((componentSource.match(/refractionPixels=\{1\}\s*zoom=\{bulge\}\s*depth=\{band\}\s*material=\{\{ \.\.\.LIFTED_MODEL, shadowStrength: liftShadow\.strength, shadowOffset: liftShadow\.offset, shadowBlur: liftShadow\.blur \}\}/g) ?? []).length, 2);
+  assert.equal((componentSource.match(/refractionPixels=\{1\}\s*zoom=\{bulge\}\s*depth=\{band\}\s*material=\{\{ \.\.\.LIFTED_MODEL, lensMagnification: magnify, shadowStrength: liftShadow\.strength, shadowOffset: liftShadow\.offset, shadowBlur: liftShadow\.blur \}\}/g) ?? []).length, 2);
+  // Held thumbs refract their track at its own size and magnify it as a pressed tab magnifies the
+  // bar; the Slider's thin track is drawn a fifth taller, so after the lens's ends draw it in it
+  // meets the rim at its own height. A smaller refracted track crossed the rim band near the
+  // lens's ends, where its edges dipped and hooked: the dents review saw.
+  assert.equal((componentSource.match(/const \{ band, bulge, magnify \} = useLiftedOptics\(lensW, lensH, held, LIFT_MAGNIFICATION\);/g) ?? []).length, 2);
+  assert.match(componentSource, /const refractedTrackHeight = height;/);
+  assert.match(componentSource, /const refractedTrackHeight = trackHeight \* LIFT_END_PINCH;/);
+  assert.match(componentSource, /export const LIFT_END_PINCH = 1 \+ 1\.5 \* 0\.147;/);
+  assert.match(componentSource, /to\(targetScaleX, 1, pressTransition\);\s*to\(targetScaleY, 1, pressTransition\);/);
+  assert.doesNotMatch(componentSource, /Math\.round\((?:height|thumbHeight) \* 0\.75\)/);
+  // A released Switch takes the velocity of its last moves, not of its last two pointer events.
+  assert.match(componentSource, /const velocity = thumbVelocity\.current\.velocity\(event\.timeStamp\);/);
+  assert.match(componentSource, /settleThumb\(offset, next \? travel : 0, SWITCH_RELEASE_SPRING, reduce, velocity\)/);
   // Held, a thumb casts the lifted lens's shadow, as a pressed tab does, and keeps its own at rest.
   assert.equal((componentSource.match(/const liftShadow = useLiftedShadow\(lensH, held, dark, \{ strength: \.04, offset: Math\.min\(18, filterHeight \* \.12\), blur: Math\.min\(26, filterHeight \* \.2\) \}\);/g) ?? []).length, 2);
   assert.match(componentSource, /const strength = useTransform\(\(\) => mix\(resting\.current\.strength, LIFT_SHADOW \* light\.get\(\)\)\);/);
@@ -1014,7 +1069,7 @@ test("a pressed tab bar grows about its centre and its glass stays registered", 
   // 399pt bar, which wider bars do not exceed. It grows on press and returns on release.
   assert.match(segmented, /const PRESS_SCALE = 1\.035;\s*const PRESS_OUTSET = 7;/);
   assert.match(segmented, /springTo\(barScale, pressed && width \? 1 \+ Math\.min\(PRESS_SCALE - 1, PRESS_OUTSET \* 2 \/ width\) : 1, SEGMENTED_PRESS_SPRING\)/);
-  assert.match(segmented, /interactionStop\.current = springTo\(interaction, 1, SEGMENTED_PRESS_SPRING\);\s*pressBar\(true\);/);
+  assert.match(segmented, /interactionStop\.current = springTo\(interaction, 1, SEGMENTED_LIFT_SPRING\);\s*pressBar\(true\);/);
   assert.match(segmented, /const releaseInteraction = \(delay = 0, settle = true\) => \{\s*setDragging\(false\);\s*pressBar\(false\);/);
   assert.match(segmented, /<motion\.div ref=\{rootRef\} style=\{\{ scale: barScale \}\}/);
   // The lens is laid out in the bar's own pixels: fractions of its padded frame on screen, and

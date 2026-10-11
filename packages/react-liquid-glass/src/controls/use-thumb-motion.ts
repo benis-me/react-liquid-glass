@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { springTo, useVelocityDeformation, type SpringRun } from "../apple-motion/react.js";
 import type { PhysicalSpring } from "../apple-motion/index.js";
+import { THUMB_DEFORMATION } from "../apple-motion/presets.js";
 import { animate, useMotionValue, useTransform, type MotionValue, type ValueAnimationTransition } from "motion/react";
 import { LIQUID_LENS } from "../liquid-glass/LiquidGlass.js";
 import type { LiquidLens } from "../liquid-glass/lens.js";
@@ -25,6 +26,17 @@ type Readable = { get(): number };
 const unit = (value: number) => Math.min(1, Math.max(0, value));
 /** The lifted lens draws with the lens refraction model. */
 export const LIFTED_MODEL = { refractionModel: "lens" } as const;
+/**
+ * The lifted lens magnifies what lies under it for the whole press, held or dragged, as both
+ * iOS 27 screenshots show, while its rim pulls in what surrounds it. It never shrinks back mid-drag.
+ */
+export const LIFT_MAGNIFICATION = 1.155;
+/**
+ * A lifted lens's ends draw in what passes through them by about a fifth of its height at the rim
+ * (the band's squeeze, 1.5 × 0.147 of the radius). A track drawn this much taller meets the rim at
+ * its own height and swells toward the middle, as through a magnifier, instead of narrowing there.
+ */
+export const LIFT_END_PINCH = 1 + 1.5 * 0.147;
 /**
  * The native light-mode lens's soft shadow: about 5% darker at most, offset and blurred by a fifth
  * and a quarter of its half-height (8pt and 10pt on its 36.5pt half-height). On dark pages it
@@ -62,8 +74,8 @@ export function useLiftedOptics(lensW: Readable, lensH: Readable, lift: Readable
 }
 
 /** Reduced motion settles a thumb at once instead of springing it there. */
-export function settleThumb(value: MotionValue<number>, target: number, spring: PhysicalSpring, reduce: boolean): SpringRun {
-  if (!reduce) return springTo(value, target, spring);
+export function settleThumb(value: MotionValue<number>, target: number, spring: PhysicalSpring, reduce: boolean, velocity?: number): SpringRun {
+  if (!reduce) return springTo(value, target, spring, velocity);
   value.jump(target);
   return { stop() {}, finished: Promise.resolve() };
 }
@@ -85,13 +97,18 @@ export function useThumbMotion(offset: MotionValue<number>, halfThumbWidth: numb
   // 1 while a press stays put; it eases to 0 once the press drags, and the touch light with it,
   // as a dragged tab's lens does: the lifted lens never glows while it moves.
   const still = useMotionValue(1);
-  const { deformation, setBoost: setDeformationBoost } = useVelocityDeformation(offset, {
-    target: speed => reduce ? 0 : Math.min(0.35, 0.012 * speed ** 0.75),
-    stiffness: 180,
-    damping: 14,
+  // The held thumb is a soft body on a spring, as a dragged tab is: it stretches along its motion and
+  // flattens with speed, easing off toward a fifth, then overshoots into a brief squash when it
+  // stops and rebounds once. Squashing narrower and taller while it moved read as unnatural, and
+  // a taller lens drew the track's edges into the pull of its rim band.
+  const { deformation } = useVelocityDeformation(offset, {
+    target: speed => reduce ? 0 : THUMB_DEFORMATION.max * Math.tanh(speed / THUMB_DEFORMATION.speed),
+    smoothing: THUMB_DEFORMATION.smoothing,
+    stiffness: THUMB_DEFORMATION.stiffness,
+    damping: (position, target) => position > target ? THUMB_DEFORMATION.settleDamping : THUMB_DEFORMATION.damping,
   });
-  const lensW = useTransform(() => baseLensW.get() * (1 - 0.2 * deformation.get()));
-  const lensH = useTransform(() => baseLensH.get() * (1 + 0.4 * deformation.get()));
+  const lensW = useTransform(() => baseLensW.get() * (1 + 0.6 * deformation.get()));
+  const lensH = useTransform(() => baseLensH.get() * (1 - 0.45 * deformation.get()));
 
   const to = (value: MotionValue<number>, target: number, transition: ValueAnimationTransition) => {
     if (reduce) value.jump(target); else animate(value, target, transition);
@@ -103,8 +120,9 @@ export function useThumbMotion(offset: MotionValue<number>, halfThumbWidth: numb
     to(radius, halfThumbHeight * 1.5, pressTransition);
     to(tintOpacity, 0, pressTransition);
     to(tintBlur, 0, pressTransition);
-    to(targetScaleX, 0.95, pressTransition);
-    to(targetScaleY, 0.975, pressTransition);
+    // Held, the lens shows the track at its own size, as a pressed tab shows the bar, and magnifies it.
+    to(targetScaleX, 1, pressTransition);
+    to(targetScaleY, 1, pressTransition);
   };
   const collapse = () => {
     to(baseLensW, halfThumbWidth, releaseTransition);
@@ -116,5 +134,5 @@ export function useThumbMotion(offset: MotionValue<number>, halfThumbWidth: numb
     to(targetScaleY, 0.525, releaseTransition);
   };
   const drag = () => to(still, 0, { duration: 0.2, ease: [0.4, 0, 0.2, 1] });
-  return { lensW, lensH, radius, tintOpacity, targetScaleX, targetScaleY, tintBlur, still, setDeformationBoost: reduce ? () => undefined : setDeformationBoost, expand, collapse, drag };
+  return { lensW, lensH, radius, tintOpacity, targetScaleX, targetScaleY, tintBlur, still, expand, collapse, drag };
 }

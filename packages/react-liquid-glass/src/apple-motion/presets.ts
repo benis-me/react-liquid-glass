@@ -11,8 +11,18 @@ export const SEGMENTED_RELEASE_SPRING = { mass: 1, stiffness: 150, damping: 19 }
 export const SEGMENTED_HEIGHT_RELEASE_SPRING = { mass: 0.8, stiffness: 260, damping: 23.6 };
 export const SEGMENTED_IMPACT_RETENTION = 0.18;
 export const SEGMENTED_TRAIL_BIAS = 0.35;
-/** Velocity stretch of the Tabs lens: tight tracking while moving, a lighter recoil once it lands. */
-export const SEGMENTED_DEFORMATION = { perSpeed: 0.00024, stiffness: 760, damping: 50, landedDamping: 30 };
+/**
+ * Velocity stretch of the Tabs lens, a soft body on a spring. Moving at v px/s, averaged over
+ * `smoothing` seconds, it stretches along its motion by `max · tanh(v / speed)`: a slow drag barely
+ * deforms it, a moderate one by about a tenth, a quick one by up to a fifth. The spring builds the stretch
+ * with `damping` and relaxes it with the lighter `settleDamping`, so when a drag stops or the lens
+ * lands it overshoots into a brief squash and rebounds, while a steady drag stays calm.
+ */
+export const SEGMENTED_DEFORMATION = { max: 0.2, speed: 480, smoothing: 0.02, stiffness: 576, damping: 18, settleDamping: 12 };
+/** The same soft body for held Switch and Slider thumbs, which travel shorter and slower. */
+export const THUMB_DEFORMATION = { max: 0.22, speed: 380, smoothing: 0.02, stiffness: 576, damping: 18, settleDamping: 12 };
+/** A pressed tab's lens lifts with a slight overshoot, about a tenth, before it settles. */
+export const SEGMENTED_LIFT_SPRING = { mass: 1, stiffness: 340, damping: 22 };
 /**
  * How far a pressed Tabs lens grows past its tab on every side, as a fraction of the tab's height:
  * 9px on a native-sized 53px tab. Scaled with the tab, the lens overflows any bar by the same

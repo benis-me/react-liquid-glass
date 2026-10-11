@@ -99,7 +99,7 @@ const guides: Guide[] = [
       {
         en: "Touching glass",
         zh: "触摸玻璃",
-        body: [["Buttons and surfaces light the actual press point, resist pulling while the opposite side stays anchored, and return elastically on release. Switch, Slider and Tabs keep their own gestures and add the same contact light. On GlassSurface, interactive=\"light\" keeps the light but leaves dragging to your application.", "按钮与表面会照亮真实的按压位置，拉伸时对侧保持锚定并产生阻力，松手后弹性回位。Switch、Slider 与 Tabs 保留各自的手势，并加入相同的接触光。GlassSurface 上的 interactive=\"light\" 保留光效，把拖动交给你的应用。"]],
+        body: [["Buttons and surfaces light the actual press point, resist pulling while the opposite side stays anchored, and return elastically on release. Switch, Slider and Tabs keep their own gestures and add the same contact light; dragged, their glass stretches along its motion and, when it stops or lands, overshoots into a brief squash and rebounds. On GlassSurface, interactive=\"light\" keeps the light but leaves dragging to your application.", "按钮与表面会照亮真实的按压位置，拉伸时对侧保持锚定并产生阻力，松手后弹性回位。Switch、Slider 与 Tabs 保留各自的手势，并加入相同的接触光；拖动时，玻璃会顺着运动方向拉伸，停下或落位时先略微压扁、再回弹一次。GlassSurface 上的 interactive=\"light\" 保留光效，把拖动交给你的应用。"]],
       },
       {
         en: "Fusion",

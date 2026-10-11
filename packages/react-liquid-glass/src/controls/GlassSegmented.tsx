@@ -1,11 +1,12 @@
 import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentType, type ReactNode } from "react";
 import { animate, motion, useMotionValue, useReducedMotion, useTransform } from "motion/react";
 import { LiquidGlass } from "../liquid-glass/LiquidGlass.js";
-import { LIFT_SHADOW, LIFT_SHADOW_BLUR, LIFT_SHADOW_OFFSET, liftedLens, useLiftedOptics } from "./use-thumb-motion.js";
+import { LIFT_MAGNIFICATION, LIFT_SHADOW, LIFT_SHADOW_BLUR, LIFT_SHADOW_OFFSET, liftedLens, useLiftedOptics } from "./use-thumb-motion.js";
 import { GlassSurface } from "./GlassSurface.js";
 import { liquidScreenScale, liquidTheme, subscribeLiquidTheme } from "../liquid-glass/source.js";
 import { springTo, useGlassContact, usePointerReleaseFallback, waitForRest, useDerivedMotion2, useVelocityDeformation, type SpringRun } from "../apple-motion/react.js";
-import { SEGMENTED_TRAVEL_SPRING, SEGMENTED_PRESS_SPRING, SEGMENTED_DRAG_CATCHUP_SPRING, SEGMENTED_RELEASE_SPRING, SEGMENTED_HEIGHT_RELEASE_SPRING, SEGMENTED_IMPACT_RETENTION, SEGMENTED_TRAIL_BIAS, SEGMENTED_HOLD_IMPACT_SCRIPT, SEGMENTED_HANDOFF, SEGMENTED_DEFORMATION, SEGMENTED_LIFT_OUTSET } from "../apple-motion/presets.js";
+import { SEGMENTED_TRAVEL_SPRING, SEGMENTED_PRESS_SPRING, SEGMENTED_DRAG_CATCHUP_SPRING, SEGMENTED_RELEASE_SPRING, SEGMENTED_HEIGHT_RELEASE_SPRING, SEGMENTED_IMPACT_RETENTION, SEGMENTED_TRAIL_BIAS, SEGMENTED_HOLD_IMPACT_SCRIPT, SEGMENTED_HANDOFF, SEGMENTED_DEFORMATION, SEGMENTED_LIFT_OUTSET, SEGMENTED_LIFT_SPRING } from "../apple-motion/presets.js";
+import { createVelocityTracker } from "../apple-motion/velocity.js";
 
 
 type IconProps = { className?: string };
@@ -32,9 +33,6 @@ const DEFAULT_SEGMENTS = [
 
 const SEGMENTED_PAD_X = 80;
 const SEGMENTED_PAD_Y = 80;
-// The lifted lens magnifies what lies under it for the whole press, held or dragged, as both
-// iOS 27 screenshots show, while its rim pulls in the bar. It never shrinks back mid-drag.
-const LIFT_MAGNIFICATION = 1.155;
 // While a finger is down, iOS 27 grows the whole bar about its centre, tabs and all: 3.5% on
 // the native 399pt bar, so 7pt a side, which wider bars do not exceed.
 const PRESS_SCALE = 1.035;
@@ -101,6 +99,10 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
   const barScale = useMotionValue(1);
   const pointerX = useMotionValue(0);
   const dragCatchup = useMotionValue(0);
+  // The dragged lens's own recent positions, for the velocity it lands with.
+  const lensVelocity = useRef(createVelocityTracker());
+  const releaseVelocity = useRef<number | null>(null);
+  const travel = useRef<{ x: number; y: number; w: number; h: number; finished: Promise<void> } | null>(null);
   const stationaryPress = () => dragPointer.current !== null && !dragMoved.current;
   const { deformation, kick: kickDeformation } = useVelocityDeformation(pointerX, {
     target: (speed) => {
@@ -113,16 +115,16 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
         }
         if (impactLanded.current) return 0;
       }
-      // Stretch in proportion to speed.
-      return Math.min(0.18, speed * SEGMENTED_DEFORMATION.perSpeed);
+      // Stretch with speed, easing off toward a fifth: a slow drag barely deforms the lens.
+      return SEGMENTED_DEFORMATION.max * Math.tanh(speed / SEGMENTED_DEFORMATION.speed);
     },
-    // Track speed closely, so the lens is longest mid-travel and rounds out as it slows,
-    // then let one light recoil play out after it lands.
+    smoothing: SEGMENTED_DEFORMATION.smoothing,
+    // A soft spring that relaxes more freely than it builds: the lens is longest mid-travel, and
+    // when it stops or lands it overshoots into a brief squash and rebounds.
     stiffness: () => impactLanded.current && stationaryPress() ? SEGMENTED_HOLD_IMPACT_SCRIPT.stiffness : SEGMENTED_DEFORMATION.stiffness,
-    damping: () => {
-      if (!impactLanded.current) return SEGMENTED_DEFORMATION.damping;
-      if (stationaryPress()) return SEGMENTED_HOLD_IMPACT_SCRIPT.damping;
-      return SEGMENTED_DEFORMATION.landedDamping;
+    damping: (position, target) => {
+      if (impactLanded.current && stationaryPress()) return SEGMENTED_HOLD_IMPACT_SCRIPT.damping;
+      return position > target ? SEGMENTED_DEFORMATION.settleDamping : SEGMENTED_DEFORMATION.damping;
     },
   });
   impactKickRef.current = kickDeformation;
@@ -190,6 +192,10 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
     thumb.style.transform = `translate3d(${item.offsetLeft}px, ${item.offsetTop}px, 0)`;
   };
   const updateGeometry = (targetValue = selectedRef.current, instant = false) => {
+    // A released drag lands with the lens's own measured velocity; its size and height start at
+    // rest, as they were set from the pointer and their motion values' velocities are not real.
+    const released = releaseVelocity.current;
+    releaseVelocity.current = null;
     const root = rootRef.current;
     let item = itemRefs.current.get(targetValue);
     if (!root || !targetValue) return Promise.resolve();
@@ -208,6 +214,13 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
     const nextX = (itemRect.left + itemRect.width / 2 - expanded.left) / expanded.width;
     const nextY = (itemRect.top + itemRect.height / 2 - expanded.top) / expanded.height;
     const halfW = itemRect.width / 2 / expanded.scale.x, halfH = itemRect.height / 2 / expanded.scale.y;
+    // Choosing a tab re-renders and asks for the same travel again: keep the one under way, so a
+    // released lens keeps the velocity it was handed.
+    const current = travel.current;
+    if (!instant && !reduce && current && stops.current.length > 0 && Math.abs(current.x - nextX) * expanded.width < 0.5
+      && Math.abs(current.y - nextY) * expanded.height < 0.5 && Math.abs(current.w - halfW) < 0.5 && Math.abs(current.h - halfH) < 0.5) {
+      return current.finished;
+    }
     const nextDirection = Math.sign(nextX - x.get());
     impactTargetX.current = nextX;
     impactLanded.current = false;
@@ -221,13 +234,15 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
       return Promise.resolve();
     } else {
       const runs = [
-        springTo(x, nextX, SEGMENTED_TRAVEL_SPRING),
-        springTo(y, nextY, SEGMENTED_TRAVEL_SPRING),
-        springTo(lensW, halfW, SEGMENTED_TRAVEL_SPRING),
-        springTo(lensH, halfH, SEGMENTED_TRAVEL_SPRING),
+        springTo(x, nextX, SEGMENTED_TRAVEL_SPRING, released === null ? x.getVelocity() : released / expanded.width),
+        springTo(y, nextY, SEGMENTED_TRAVEL_SPRING, released === null ? y.getVelocity() : 0),
+        springTo(lensW, halfW, SEGMENTED_TRAVEL_SPRING, released === null ? lensW.getVelocity() : 0),
+        springTo(lensH, halfH, SEGMENTED_TRAVEL_SPRING, released === null ? lensH.getVelocity() : 0),
       ];
       stops.current = runs;
-      return Promise.all(runs.map((run) => run.finished)).then(() => undefined);
+      const finished = Promise.all(runs.map((run) => run.finished)).then(() => undefined);
+      travel.current = { x: nextX, y: nextY, w: halfW, h: halfH, finished };
+      return finished;
     }
   };
   const updateGeometryRef = useRef(updateGeometry);
@@ -313,6 +328,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
     impactLanded.current = false;
     impactWidth.current = expanded.width / expanded.scale.x;
     if (nextDirection !== 0) impactDirection.current = nextDirection;
+    lensVelocity.current.push(centerX);
     pointerX.set(centerX);
     x.set(nextX);
   };
@@ -478,8 +494,10 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
           solidAnimation.current?.stop();
           solidAnimation.current = animate(solidOpacity, 0, { duration: 0.1, ease: [0.22, 1, 0.36, 1] });
           interactionStop.current?.stop();
-          interactionStop.current = springTo(interaction, 1, SEGMENTED_PRESS_SPRING);
+          interactionStop.current = springTo(interaction, 1, SEGMENTED_LIFT_SPRING);
           pressBar(true);
+          lensVelocity.current.reset();
+          releaseVelocity.current = null;
           stillStop.current?.stop();
           still.set(1);
           choose(nearest.value);
@@ -505,7 +523,13 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
         }}
         onPointerUp={(event) => {
           if (event.pointerId !== dragPointer.current) return;
-          if (dragMoved.current) moveDrag(event.clientX);
+          if (dragMoved.current) {
+            // The tab under the finger is chosen, not the one under a lens still catching up with
+            // it, and the lens travels there from where it is, with the velocity it had.
+            const nearest = nearestSegment(event.clientX - dragOffsetX.current);
+            if (nearest) choose(nearest.value);
+            releaseVelocity.current = lensVelocity.current.velocity();
+          }
           const destination = hasLinks ? segments.find(item => item.value === selectedRef.current)?.href : undefined;
           finishDrag(event.pointerId, event.currentTarget);
           if (destination) {
