@@ -186,9 +186,13 @@ export function GlassGroup({ spacing = 20, children, className = "", ...props }:
       grip = null;
       window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", release);
       window.removeEventListener("pointercancel", release); window.removeEventListener("blur", release);
+      document.removeEventListener("visibilitychange", hidden);
       settle(shape);
       lights.set(shape, [animate(shape.contactStrength, 0, { duration: reduceRef.current ? .1 : .22, ease: "easeOut" })]);
     };
+    // A page hidden mid-press releases it, as the shared pointer-release fallback does, even when
+    // neither blur nor pointercancel arrives; a press left held would ignore every later one.
+    const hidden = () => { if (document.hidden) release(); };
     const down = (event: PointerEvent) => {
       if (grip || event.button !== 0 || !event.isPrimary) return;
       const target = event.target as Element;
@@ -206,6 +210,7 @@ export function GlassGroup({ spacing = 20, children, className = "", ...props }:
       grip = { id: event.pointerId, shape, x, y, clientX: event.clientX, clientY: event.clientY, width: rect.width, height: rect.height };
       window.addEventListener("pointermove", move); window.addEventListener("pointerup", release);
       window.addEventListener("pointercancel", release); window.addEventListener("blur", release);
+      document.addEventListener("visibilitychange", hidden);
     };
     list.addEventListener("pointerdown", down);
     return () => {

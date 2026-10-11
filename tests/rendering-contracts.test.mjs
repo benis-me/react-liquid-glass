@@ -1319,6 +1319,10 @@ test("a group press grows a child from its own scale, and LiquidGlass keeps a ma
   // Teardown gives each child its own scale back, and a child pressed at setup grows from the start.
   assert.match(group, /for \(const \[child, state\] of scales\) \{ state\.run\?\.stop\(\); child\.style\.scale = state\.own; \}/);
   assert.match(group, /for \(const child of list\.children\) if \(child\.hasAttribute\("data-pressed"\)\) press\(child as HTMLElement\);/);
+  // A page hidden mid-press releases the group's press, as the shared pointer-release fallback does.
+  assert.match(group, /const hidden = \(\) => \{ if \(document\.hidden\) release\(\); \};/);
+  assert.match(group, /document\.addEventListener\("visibilitychange", hidden\);/);
+  assert.match(group, /document\.removeEventListener\("visibilitychange", hidden\);/);
   assert.match(readFileSync(new URL("../packages/react-liquid-glass/src/controls/GlassSurface.tsx", import.meta.url), "utf8"), /const pad = \(width: number, height: number\) => glassCanvasReach\(liquidThickness\(width, height\)\);/);
 });
 
