@@ -718,13 +718,13 @@ test("segmented click expands, travels as glass, then collapses", () => {
   // Released, the tab under the finger is chosen, not the one under a lens still catching up with
   // it, and the lens travels there from where it is with its own measured velocity.
   assert.match(componentSource, /if \(dragMoved\.current\) \{\s*(?:\/\/[^\n]*\n\s*)*const nearest = nearestSegment\(event\.clientX - dragOffsetX\.current\);\s*if \(nearest\) choose\(nearest\.value\);\s*releaseVelocity\.current = lensVelocity\.current\.velocity\(\);\s*\}/);
-  assert.match(componentSource, /lensVelocity\.current\.push\(centerX\);\s*pointerX\.set\(centerX\);/);
+  assert.match(componentSource, /lensVelocity\.current\.push\(centerX\);\s*pullPast\(reach - centerX, visible\[0\]\.rect, last, expanded\.scale\.x\);\s*pointerX\.set\(centerX\);/);
   assert.match(componentSource, /releaseInteraction\(0, dragMoved\.current\)/);
   assert.match(componentSource, /const releaseInteraction = \(delay = 0, settle = true\)/);
   assert.match(componentSource, /const travel = settle \? updateGeometry\(selectedRef\.current, false\) : travelSettled\.current/);
   assert.match(componentSource, /const liftOutset = useTransform\(\(\) => interaction\.get\(\) \* SEGMENTED_LIFT_OUTSET \* 2 \* lensH\.get\(\)\);/);
-  assert.match(componentSource, /useDerivedMotion2\(stretchedLensW, liftOutset, \(width, outset\) => width \+ outset\)/);
-  assert.match(componentSource, /useDerivedMotion2\(stretchedLensH, liftOutset, \(height, outset\) => height \+ outset\)/);
+  assert.match(componentSource, /useDerivedMotion2\(pulledLensW, liftOutset, \(width, outset\) => width \+ outset\)/);
+  assert.match(componentSource, /useDerivedMotion2\(pulledLensH, liftOutset, \(height, outset\) => height \+ outset\)/);
 });
 
 test("segmented lens overflows the bar, refracts its edge and keeps tab text sharp", () => {
@@ -758,7 +758,7 @@ test("source-space ink refracts with the backdrop, sharp at the center and frost
 test("segmented edge items stay centered and the selected fill stays flat", () => {
   assert.match(componentSource, /const SEGMENTED_PAD_X = 80/);
   assert.match(componentSource, /const firstCenter = visible\[0\]\.rect\.left \+ visible\[0\]\.rect\.width \/ 2/);
-  assert.match(componentSource, /Math\.max\(firstCenter, Math\.min\(lastCenter, clientX - dragOffsetX\.current - dragCatchup\.get\(\)\)\)/);
+  assert.match(componentSource, /const reach = clientX - dragOffsetX\.current - dragCatchup\.get\(\);\s*const centerX = Math\.max\(firstCenter, Math\.min\(lastCenter, reach\)\);/);
   assert.doesNotMatch(componentSource, /rootRect\.left \+ halfWidth/);
   assert.match(componentSource, /springTo\(x, nextX, SEGMENTED_TRAVEL_SPRING, released === null \? x\.getVelocity\(\) : released \/ expanded\.width\)/);
   // The size and height land from rest: they were set from the pointer, so their velocities are not real.
@@ -793,7 +793,7 @@ test("segmented motion uses velocity-preserving iOS-style physical springs", () 
 test("segmented glass attenuation overlaps the low-amplitude travel tail", () => {
   assert.match(componentSource, /const glassOpacity = useMotionValue\(0\)/);
   assert.doesNotMatch(componentSource, /Promise\.all\(\[shape\.finished, height\.finished\]\)/);
-  assert.match(componentSource, /waitForRest\(\[impactX, x\], \(\) => Math\.abs\(impactX\.get\(\) - impactTargetX\.current\) \* impactWidth\.current, SEGMENTED_HANDOFF\.arrivalPixels\)/);
+  assert.match(componentSource, /waitForRest\(\[lensX, x, pull\], \(\) => Math\.abs\(pull\.get\(\)\) > SEGMENTED_OVERDRAG\.settle \? Infinity : Math\.abs\(lensX\.get\(\) - impactTargetX\.current\) \* impactWidth\.current, SEGMENTED_HANDOFF\.arrivalPixels\)/);
   assert.match(componentSource, /\.then\(\(\) => \{\s*if \(token !== transitionToken\.current\) return;\s*interactionStop\.current\?\.stop\(\);\s*interactionStop\.current = springTo\(interaction, 0, SEGMENTED_RELEASE_SPRING\)/, "the lens stays lifted until it lands");
   assert.match(componentSource, /epsilon = 1, timeoutMs = 900, holdMs = 32/);
   assert.match(componentSource, /restTimer = window\.setTimeout\(finish, holdMs\)/);
@@ -820,6 +820,36 @@ test("released glass takes the slope of its recent positions, never a burst", ()
   const fast = createVelocityTracker();
   fast.push(0, 0); fast.push(1000, 10); fast.push(2000, 20);
   assert.equal(fast.velocity(20), 4000, "a release velocity is capped");
+});
+
+test("a tab lens pulled past the end follows elastically, stretches toward the finger and springs back", () => {
+  const elastic = readFileSync(new URL("../packages/react-liquid-glass/src/apple-motion/elastic.ts", import.meta.url), "utf8");
+  const elasticReach = new Function(`${stripTypeScriptTypes(elastic).replace("export function", "function")}; return elasticReach;`)();
+  assert.equal(elasticReach(0, 27, 0.55), 0);
+  assert.ok(Math.abs(elasticReach(0.01, 27, 0.55) / 0.01 - 0.55) < 1e-3, "it first follows by the resistance's share of the pull");
+  assert.ok(elasticReach(40, 27, 0.55) < elasticReach(80, 27, 0.55) && elasticReach(80, 27, 0.55) < elasticReach(160, 27, 0.55), "it keeps following");
+  assert.ok(elasticReach(1e6, 27, 0.55) > 26.9 && elasticReach(1e6, 27, 0.55) < 27, "it never reaches its limit");
+  assert.equal(elasticReach(-40, 27, 0.55), -elasticReach(40, 27, 0.55));
+  assert.equal(elasticReach(40, 0, 0.55), 0, "no room, no pull");
+  const presets = readFileSync(new URL("../packages/react-liquid-glass/src/apple-motion/presets.ts", import.meta.url), "utf8");
+  assert.match(presets, /export const SEGMENTED_OVERDRAG = \{ reach: 0\.6, resistance: 0\.55, trail: 0\.25, thinning: 0\.5, settle: 1\.5 \};/);
+  assert.match(presets, /export const SEGMENTED_OVERDRAG_SPRING = \{ mass: 1, stiffness: 400, damping: 17 \};/);
+  const segmented = readFileSync(new URL("../packages/react-liquid-glass/src/controls/GlassSegmented.tsx", import.meta.url), "utf8");
+  // Its far end leads by the pull and its near end trails by `trail` of it: the lens moves by their
+  // mean, grows by half their difference and thins across.
+  assert.match(segmented, /const lensX = useDerivedMotion2\(impactX, pull, \(position, reach\) => position \+ pullSide\.current \* reach \* \(1 \+ SEGMENTED_OVERDRAG\.trail\) \/ 2 \/ Math\.max\(1, impactWidth\.current\)\);/);
+  assert.match(segmented, /const pulledLensW = useDerivedMotion2\(stretchedLensW, pull, \(width, reach\) => width \+ reach \* \(1 - SEGMENTED_OVERDRAG\.trail\) \/ 2\);/);
+  assert.match(segmented, /const pullThinning = useDerivedMotion2\(stretchedLensW, pulledLensW, \(width, pulled\) => \(width \/ Math\.max\(1, pulled\)\) \*\* SEGMENTED_OVERDRAG\.thinning\);/);
+  assert.match(segmented, /const expandedLensH = useDerivedMotion2\(pulledLensH, liftOutset,/);
+  assert.match(segmented, /const contactX = useDerivedMotion2\(contact\.contactX, lensX,/);
+  // It reaches a share of its height, never into a clip, and follows elastically.
+  assert.match(segmented, /const limit = Math\.min\(SEGMENTED_OVERDRAG\.reach \* 2 \* \(lensH\.get\(\) \+ liftOutset\.get\(\)\), Math\.max\(0, room - 2\) \/ scale\);/);
+  assert.match(segmented, /pull\.set\(elasticReach\(Math\.abs\(beyond\) \/ scale, limit, SEGMENTED_OVERDRAG\.resistance\)\);/);
+  assert.match(segmented, /if \(rootRef\.current\) pullBounds\.current = clipBounds\(rootRef\.current\);\s*startDragCatchup\(event\.clientX\);/);
+  assert.match(segmented, /if \(getComputedStyle\(node\)\.overflowX === "visible"\) continue;/);
+  // Released, it springs back from rest, and lands once it has.
+  assert.match(segmented, /if \(pull\.get\(\) !== 0 && !pullStop\.current\) pullStop\.current = springTo\(pull, 0, SEGMENTED_OVERDRAG_SPRING, 0\);/);
+  assert.match(segmented, /pullStop\.current\?\.stop\(\);\s*interactionStop\.current\?\.stop\(\);/);
 });
 
 test("the optical exit requires sustained geometric rest, not one zero crossing", async () => {
@@ -885,7 +915,8 @@ test("segmented arrival pins most velocity stretch behind the leading edge", () 
   assert.match(componentSource, /const retainedOvershoot = impactLanded\.current \|\| overshoot > 0 \? overshoot \* SEGMENTED_IMPACT_RETENTION : overshoot/);
   assert.match(componentSource, /const softened = target \+ direction \* retainedOvershoot/);
   assert.match(componentSource, /velocityStretch \* SEGMENTED_TRAIL_BIAS/);
-  assert.match(componentSource, /x=\{impactX\}/);
+  assert.match(componentSource, /const lensX = useDerivedMotion2\(impactX, pull,/);
+  assert.match(componentSource, /x=\{lensX\}/);
 });
 
 test("segmented stationary long press settles without being treated as a drag", () => {
@@ -1020,8 +1051,8 @@ test("control optics retain size-independent pixel gain and the approved menu ma
   assert.match(componentSource, /export const LIFT_SHADOW = \.06;\s*export const LIFT_SHADOW_OFFSET = 8 \/ 36\.5;\s*export const LIFT_SHADOW_BLUR = 10 \/ 36\.5;/);
   assert.match(componentSource, /const liftShadow = useTransform\(\(\) => LIFT_SHADOW \* Math\.min\(1, Math\.max\(0, interaction\.get\(\)\)\) \* lightTheme\.get\(\)\);/);
   assert.match(componentSource, /const liftShadowOffset = useTransform\(\(\) => renderedLensH\.get\(\) \* LIFT_SHADOW_OFFSET\);/);
-  assert.match(componentSource, /const renderedLensW = useDerivedMotion2\(stretchedLensW, liftOutset,/);
-  assert.match(componentSource, /const expandedLensH = useDerivedMotion2\(stretchedLensH, liftOutset,/);
+  assert.match(componentSource, /const renderedLensW = useDerivedMotion2\(pulledLensW, liftOutset,/);
+  assert.match(componentSource, /const expandedLensH = useDerivedMotion2\(pulledLensH, liftOutset,/);
   assert.match(componentSource, /useLiftedOptics\(renderedLensW, renderedLensH, interaction\)/);
   assert.doesNotMatch(componentSource, /PILL_COLOR|PILL_TINT|pillTint|rimStrength|const flat = /);
   // A held tab or thumb lights barely; once the press drags the glass does not light up, and the
@@ -1036,7 +1067,7 @@ test("control optics retain size-independent pixel gain and the approved menu ma
   assert.match(componentSource, /const fillTransition = \{ ease: \[0\.22, 1, 0\.36, 1\] as const, duration: 0\.24 \};/);
   assert.match(componentSource, /to\(tintOpacity, 1, fillTransition\);\s*to\(tintBlur, restTintBlur, fillTransition\);/);
   assert.match(componentSource, /stillStop\.current = springTo\(still, 0, SEGMENTED_PRESS_SPRING\);\s*setDragging\(true\);/);
-  assert.match(componentSource, /const releaseInteraction = \(delay = 0, settle = true\) => \{\s*setDragging\(false\);/);
+  assert.match(componentSource, /const releaseInteraction = \(delay = 0, settle = true\) => \{[^}]*?setDragging\(false\);/);
   assert.match(componentSource, /data-dragging=\{dragging \? "" : undefined\}/);
   assert.doesNotMatch(componentSource, /dg-tabs__group--quiet/);
   const controlsCss = readFileSync(new URL("../packages/react-liquid-glass/src/controls.css", import.meta.url), "utf8");
@@ -1070,7 +1101,7 @@ test("a pressed tab bar grows about its centre and its glass stays registered", 
   assert.match(segmented, /const PRESS_SCALE = 1\.035;\s*const PRESS_OUTSET = 7;/);
   assert.match(segmented, /springTo\(barScale, pressed && width \? 1 \+ Math\.min\(PRESS_SCALE - 1, PRESS_OUTSET \* 2 \/ width\) : 1, SEGMENTED_PRESS_SPRING\)/);
   assert.match(segmented, /interactionStop\.current = springTo\(interaction, 1, SEGMENTED_LIFT_SPRING\);\s*pressBar\(true\);/);
-  assert.match(segmented, /const releaseInteraction = \(delay = 0, settle = true\) => \{\s*setDragging\(false\);\s*pressBar\(false\);/);
+  assert.match(segmented, /const releaseInteraction = \(delay = 0, settle = true\) => \{[^}]*?setDragging\(false\);\s*pressBar\(false\);/);
   assert.match(segmented, /<motion\.div ref=\{rootRef\} style=\{\{ scale: barScale \}\}/);
   // The lens is laid out in the bar's own pixels: fractions of its padded frame on screen, and
   // sizes divided by the bar's current scale.

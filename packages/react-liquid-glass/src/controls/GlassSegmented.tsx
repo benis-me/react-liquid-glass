@@ -5,8 +5,9 @@ import { LIFT_MAGNIFICATION, LIFT_SHADOW, LIFT_SHADOW_BLUR, LIFT_SHADOW_OFFSET, 
 import { GlassSurface } from "./GlassSurface.js";
 import { liquidScreenScale, liquidTheme, subscribeLiquidTheme } from "../liquid-glass/source.js";
 import { springTo, useGlassContact, usePointerReleaseFallback, waitForRest, useDerivedMotion2, useVelocityDeformation, type SpringRun } from "../apple-motion/react.js";
-import { SEGMENTED_TRAVEL_SPRING, SEGMENTED_PRESS_SPRING, SEGMENTED_DRAG_CATCHUP_SPRING, SEGMENTED_RELEASE_SPRING, SEGMENTED_HEIGHT_RELEASE_SPRING, SEGMENTED_IMPACT_RETENTION, SEGMENTED_TRAIL_BIAS, SEGMENTED_HOLD_IMPACT_SCRIPT, SEGMENTED_HANDOFF, SEGMENTED_DEFORMATION, SEGMENTED_LIFT_OUTSET, SEGMENTED_LIFT_SPRING } from "../apple-motion/presets.js";
+import { SEGMENTED_TRAVEL_SPRING, SEGMENTED_PRESS_SPRING, SEGMENTED_DRAG_CATCHUP_SPRING, SEGMENTED_RELEASE_SPRING, SEGMENTED_HEIGHT_RELEASE_SPRING, SEGMENTED_IMPACT_RETENTION, SEGMENTED_TRAIL_BIAS, SEGMENTED_HOLD_IMPACT_SCRIPT, SEGMENTED_HANDOFF, SEGMENTED_DEFORMATION, SEGMENTED_LIFT_OUTSET, SEGMENTED_LIFT_SPRING, SEGMENTED_OVERDRAG, SEGMENTED_OVERDRAG_SPRING } from "../apple-motion/presets.js";
 import { createVelocityTracker } from "../apple-motion/velocity.js";
+import { elasticReach } from "../apple-motion/elastic.js";
 
 
 type IconProps = { className?: string };
@@ -43,6 +44,19 @@ const paddedFrame = (root: HTMLElement | null) => {
   if (!root) return null;
   const rect = root.getBoundingClientRect(), scale = liquidScreenScale(root, rect);
   return { left: rect.left - SEGMENTED_PAD_X * scale.x, top: rect.top - SEGMENTED_PAD_Y * scale.y, width: rect.width + SEGMENTED_PAD_X * 2 * scale.x, height: rect.height + SEGMENTED_PAD_Y * 2 * scale.y, scale };
+};
+// The span the window and the bar's clipping ancestors leave it on screen, so a lens pulled past
+// the bar's ends is never cut off, as in a scroller with little room at its sides.
+const clipBounds = (root: HTMLElement) => {
+  let left = 0, right = document.documentElement.clientWidth || window.innerWidth;
+  for (let node = root.parentElement; node; node = node.parentElement) {
+    if (getComputedStyle(node).overflowX === "visible") continue;
+    const box = node.getBoundingClientRect();
+    const scale = node.offsetWidth ? box.width / node.offsetWidth : 1;
+    left = Math.max(left, box.left + node.clientLeft * scale);
+    right = Math.min(right, box.left + (node.clientLeft + node.clientWidth) * scale);
+  }
+  return { left, right };
 };
 export interface GlassSegmentItem { value: string; label: string; href?: string; Icon?: ComponentType<{ className?: string }>; color1?: string; color2?: string; }
 export interface GlassSegmentedProps {
@@ -103,6 +117,12 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
   const lensVelocity = useRef(createVelocityTracker());
   const releaseVelocity = useRef<number | null>(null);
   const travel = useRef<{ x: number; y: number; w: number; h: number; finished: Promise<void> } | null>(null);
+  // How far a lens pulled past the first or last tab reaches beyond it, in the bar's pixels, and on
+  // which side (-1 first, 1 last); below 0 while it springs back into a squash.
+  const pull = useMotionValue(0);
+  const pullSide = useRef(0);
+  const pullStop = useRef<SpringRun | null>(null);
+  const pullBounds = useRef({ left: -Infinity, right: Infinity });
   const stationaryPress = () => dragPointer.current !== null && !dragMoved.current;
   const { deformation, kick: kickDeformation } = useVelocityDeformation(pointerX, {
     target: (speed) => {
@@ -144,9 +164,15 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
   // native lens's share at any size: a fixed 9px outset made a small bar's lens too tall for it,
   // its edge fell deep in the rim band and was pulled in with a dip at each end.
   const liftOutset = useTransform(() => interaction.get() * SEGMENTED_LIFT_OUTSET * 2 * lensH.get());
-  const renderedLensW = useDerivedMotion2(stretchedLensW, liftOutset, (width, outset) => width + outset);
-  const contactX = useDerivedMotion2(contact.contactX, impactX, (fraction, position) => ((fraction + 1) * (impactWidth.current - SEGMENTED_PAD_X * 2) / 2 + SEGMENTED_PAD_X - position * impactWidth.current) / renderedLensW.get());
-  const expandedLensH = useDerivedMotion2(stretchedLensH, liftOutset, (height, outset) => height + outset);
+  // Pulled past the first or last tab, the lens's far end leads and its near end trails: it moves
+  // toward the finger by the mean of the two, stretches by half their difference and thins across.
+  const lensX = useDerivedMotion2(impactX, pull, (position, reach) => position + pullSide.current * reach * (1 + SEGMENTED_OVERDRAG.trail) / 2 / Math.max(1, impactWidth.current));
+  const pulledLensW = useDerivedMotion2(stretchedLensW, pull, (width, reach) => width + reach * (1 - SEGMENTED_OVERDRAG.trail) / 2);
+  const pullThinning = useDerivedMotion2(stretchedLensW, pulledLensW, (width, pulled) => (width / Math.max(1, pulled)) ** SEGMENTED_OVERDRAG.thinning);
+  const pulledLensH = useDerivedMotion2(stretchedLensH, pullThinning, (height, thinning) => height * thinning);
+  const renderedLensW = useDerivedMotion2(pulledLensW, liftOutset, (width, outset) => width + outset);
+  const contactX = useDerivedMotion2(contact.contactX, lensX, (fraction, position) => ((fraction + 1) * (impactWidth.current - SEGMENTED_PAD_X * 2) / 2 + SEGMENTED_PAD_X - position * impactWidth.current) / renderedLensW.get());
+  const expandedLensH = useDerivedMotion2(pulledLensH, liftOutset, (height, outset) => height + outset);
   const heightBoost = useDerivedMotion2(glassHeight, deformation, (active, amount) =>
     active * (0.18 - Math.min(0.10, Math.max(0, amount) * 0.55)));
   const minimumGlassH = useDerivedMotion2(lensH, heightBoost, (height, boost) => height * (1 + boost));
@@ -272,6 +298,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
   useEffect(() => () => {
     transitionToken.current++;
     stops.current.forEach((run) => run.stop());
+    pullStop.current?.stop();
     interactionStop.current?.stop();
     heightStop.current?.stop();
     barStop.current?.stop();
@@ -300,6 +327,22 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
     }
     return nearest;
   };
+  // Past the first or last tab the lens stays on it and is pulled toward the finger against rising
+  // resistance, never into a clip.
+  const pullPast = (beyond: number, first: DOMRect, last: DOMRect, scale: number) => {
+    if (beyond === 0) {
+      if (!pullStop.current) pull.set(0);
+      return;
+    }
+    pullStop.current?.stop();
+    pullStop.current = null;
+    const side = Math.sign(beyond);
+    const outset = liftOutset.get() * scale;
+    const room = side > 0 ? pullBounds.current.right - (last.right + outset) : first.left - outset - pullBounds.current.left;
+    const limit = Math.min(SEGMENTED_OVERDRAG.reach * 2 * (lensH.get() + liftOutset.get()), Math.max(0, room - 2) / scale);
+    pullSide.current = side;
+    pull.set(elasticReach(Math.abs(beyond) / scale, limit, SEGMENTED_OVERDRAG.resistance));
+  };
   const trackLens = (clientX: number) => {
     const expanded = paddedFrame(rootRef.current);
     if (!expanded) return;
@@ -312,7 +355,8 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
     const firstCenter = visible[0].rect.left + visible[0].rect.width / 2;
     const last = visible[visible.length - 1].rect;
     const lastCenter = last.left + last.width / 2;
-    const centerX = Math.max(firstCenter, Math.min(lastCenter, clientX - dragOffsetX.current - dragCatchup.get()));
+    const reach = clientX - dragOffsetX.current - dragCatchup.get();
+    const centerX = Math.max(firstCenter, Math.min(lastCenter, reach));
     // Blend the lens size between the neighbouring items, so it morphs while sliding
     // across tabs of different widths instead of popping at the midpoint.
     const after = Math.max(0, visible.findIndex(({ rect }) => rect.left + rect.width / 2 >= centerX));
@@ -329,6 +373,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
     impactWidth.current = expanded.width / expanded.scale.x;
     if (nextDirection !== 0) impactDirection.current = nextDirection;
     lensVelocity.current.push(centerX);
+    pullPast(reach - centerX, visible[0].rect, last, expanded.scale.x);
     pointerX.set(centerX);
     x.set(nextX);
   };
@@ -362,6 +407,8 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
     });
   };
   const releaseInteraction = (delay = 0, settle = true) => {
+    // A lens pulled past the first or last tab springs back onto it.
+    if (pull.get() !== 0 && !pullStop.current) pullStop.current = springTo(pull, 0, SEGMENTED_OVERDRAG_SPRING, 0);
     setDragging(false);
     pressBar(false);
     if (releaseTimer.current !== null) window.clearTimeout(releaseTimer.current);
@@ -380,7 +427,8 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
     // it has sunk most of the way, so the label it magnifies is close to its own size by the time
     // the solid thumb's label shows through; dissolving from the start of the landing faded a
     // large label out over a small one.
-    void waitForRest([impactX, x], () => Math.abs(impactX.get() - impactTargetX.current) * impactWidth.current, SEGMENTED_HANDOFF.arrivalPixels)
+    // A lens pulled past the end tab lands once it has sprung back, so its squash plays out lifted.
+    void waitForRest([lensX, x, pull], () => Math.abs(pull.get()) > SEGMENTED_OVERDRAG.settle ? Infinity : Math.abs(lensX.get() - impactTargetX.current) * impactWidth.current, SEGMENTED_HANDOFF.arrivalPixels)
       .then(() => {
         if (token !== transitionToken.current) return;
         interactionStop.current?.stop();
@@ -515,6 +563,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
             setDragging(true);
             stops.current.forEach((run) => run.stop());
             stops.current = [];
+            if (rootRef.current) pullBounds.current = clipBounds(rootRef.current);
             startDragCatchup(event.clientX);
           }
           if (!dragMoved.current) return;
@@ -572,7 +621,7 @@ export function GlassSegmented({ value, defaultValue = "hubs", onValueChange, on
           zoom={bulge}
           material={{ refractionModel: "lens", lensMagnification: magnify, shadowStrength: liftShadow, shadowOffset: liftShadowOffset, shadowBlur: liftShadowBlur }}
           lens={lens}
-          x={impactX}
+          x={lensX}
           y={y}
           lensW={renderedLensW}
           lensH={renderedLensH}
