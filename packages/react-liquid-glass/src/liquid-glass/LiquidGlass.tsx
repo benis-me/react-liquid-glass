@@ -8,7 +8,7 @@ import { resolveGlassMaterial, useGlassMaterial } from "./provider.js";
 import { createLiquidBackdrop } from "./backdrop.js";
 import { useLiquidToneTracker } from "./tone.js";
 import type { LiquidLens } from "./lens.js";
-import { glassValue, liquidThickness, useHostDark, type GlassVariant } from "./material.js";
+import { glassValue, liquidThickness, useHostDark, type GlassLook, type GlassVariant } from "./material.js";
 
 export interface LiquidGlassProps {
   children?: ReactNode;
@@ -46,7 +46,7 @@ export interface LiquidGlassProps {
    * The glass's own material values, in the renderer's terms. A provider constant replaces a
    * constant here but never a MotionValue; what neither sets follows the lens's thickness.
    */
-  material?: Partial<LiquidGlassFrame> & { hdr?: boolean; tone?: boolean };
+  material?: Partial<LiquidGlassFrame> & GlassLook & { hdr?: boolean; tone?: boolean };
   /** `regular` (default) is frosted UI glass; `clear` keeps media beneath it vivid. */
   variant?: GlassVariant;
   contact?: Pick<LiquidGlassBlob, "contactX" | "contactY" | "anchorX" | "anchorY" | "contactStrength" | "contactSpread" | "pullX" | "pullY">;
@@ -283,7 +283,7 @@ export function LiquidGlass(props: LiquidGlassProps) {
       mergeDistance={0}
       refractionRatio={pixels === undefined ? [size.width / canvasWidth, size.height / canvasHeight] : [1 / canvasWidth, 1 / canvasHeight]}
       refractionStrength={pixels === undefined ? material.refractionStrength : material.refractionStrength === undefined ? pixels : pixels * readMotion(material.refractionStrength) / .11}
-      tintColor={tint} tintStrength={tintStrength} blurStrength={blur}
+      tintColor={tint ?? material.tintColor} tintStrength={tintStrength} blurStrength={blur}
       hdr={props.hdr ?? material.hdr}
       pixelRatio={props.tintOpacity !== undefined ? 2 : material.pixelRatio ?? props.pixelRatio ?? 2}
       style={bleed ? { position: "absolute", left: -bleed, top: -bleed, width: canvasWidth, height: canvasHeight, pointerEvents: "none" }

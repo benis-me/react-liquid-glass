@@ -89,7 +89,8 @@ export function GlassSwitch({
   const holdTimer = useRef<number | null>(null);
   const restoreTimer = useRef<number | null>(null);
   const travelAnimation = useRef<{ stop: () => void } | null>(null);
-  // A tapped thumb travels on the same spring as a flicked one, without its velocity.
+  // A tapped thumb travels on the same spring as a flicked one, without a release velocity. A tap
+  // that interrupts a moving thumb keeps its momentum, so the thumb turns smoothly rather than stopping dead.
   const travelTo = (target: number, onSettled?: () => void) => {
     travelAnimation.current?.stop();
     const run = settleThumb(offset, target, SWITCH_RELEASE_SPRING, reduce);

@@ -24,6 +24,7 @@ Notable changes to `rglass`. Versions follow semantic versioning; before 1.0, a 
 
 ### Fixed
 
+- `GlassSlider` reports values at the precision of its step and minimum: a step of 0.05 from -1 reports -0.4, not -0.3999999999999999.
 - Reduced motion is read live everywhere, from one source shared by both cores; Motion's `useReducedMotion` read it once. The Morph Menu trigger's press now honors it, and `GlassSpotlight` no longer writes a non-finite lens size for a frame when it resizes under it.
 - A provider constant no longer freezes values glass animates: the lifted lens's magnification and shadow in Tabs, Switch and Slider, and the Morph Menu's edge depth and fusion neck.
 - A provider's `refractionModel` can no longer turn every Tabs, Switch and Slider lens into resting glass.
@@ -44,7 +45,7 @@ Notable changes to `rglass`. Versions follow semantic versioning; before 1.0, a 
 
 ### Added
 
-- Glass can be described as Apple describes it, in three values, with everything else following from its size: `variant` (`regular` or `clear`), `clarity`, from -1, more tinted and frosted, through 0, the calibrated default, to 1, more clear, as Apple's Liquid Glass setting moves between Tinted and Clear, and `tint`, a CSS color for glass that marks a prominent action, which keeps its color however clear the rest is. A provider's `material` takes them (`GlassLook`), `GlassButton`, `GlassCard` and `GlassSurface` take them as `glass`, `LiquidGlassCanvas` takes `clarity` and `tint`, and `perceiveGlass` applies a look to material values for custom renderers. The lifted lens keeps its own calibration under every look, and a resting thumb stays opaque.
+- Glass can be described as Apple describes it, in three values, with everything else following from its size: `variant` (`regular` or `clear`), `clarity`, from -1, more tinted and frosted, through 0, the calibrated default, to 1, more clear, as Apple's Liquid Glass setting moves between Tinted and Clear, and `tint`, a CSS color for glass that marks a prominent action, which keeps its color however clear the rest is. A provider's `material` takes them (`GlassLook`), `GlassButton`, `GlassCard` and `GlassSurface` take them as `glass`, `LiquidGlass` in its `material`, `LiquidGlassCanvas` takes `clarity` and `tint`, and `perceiveGlass` applies a look to material values for custom renderers. The lifted lens keeps its own calibration under every look, and a resting thumb stays opaque.
 - Glass follows the reader's display settings, live: under `prefers-reduced-transparency: reduce` it is its most tinted, and under `prefers-contrast: more` it is as tinted, with a firmer edge. `useGlassAccessibility()` reads both.
 - `glassMaterial(thickness, { variant, dark })` returns the one glass material at a thickness, and `GlassVariant` names its `regular` and `clear` variants. `LiquidGlassCanvas` takes `variant` and `thickness` (by default, its first body's live size), `LiquidGlass` takes `variant`, and `GlassSpotlight` takes `material`.
 - `LIFTED_GLASS` with `lensMagnification` draws the lifted lens on any glass, on WebGPU and WebGL2 alike.

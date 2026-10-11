@@ -64,17 +64,30 @@ export function GlassGroup({ spacing = 20, children, className = "", ...props }:
     let following = false, quiet = 0, signature = "";
     // Each visible child owns one shape; a press grows the child, and with it its shape, as a Button grows.
     const owners = new Map<Element, Shape>();
-    const scales = new Map<HTMLElement, { scale: MotionValue<number>; run?: SpringRun }>();
+    const scales = new Map<HTMLElement, { scale: MotionValue<number>; own: string; base: number[]; run?: SpringRun }>();
     const press = (child: HTMLElement) => {
       let state = scales.get(child);
       if (!state) {
-        const scale = liveValue(1);
-        scale.on("change", value => { child.style.scale = Math.abs(value - 1) < 1e-4 ? "" : String(value); });
-        state = { scale }; scales.set(child, state);
+        const entry = { scale: liveValue(1), own: "", base: [1] };
+        entry.scale.on("change", value => {
+          child.style.scale = Math.abs(value - 1) < 1e-4 ? entry.own : entry.base.map(part => part * value).join(" ");
+        });
+        state = entry; scales.set(child, state);
+      }
+      // At rest the child shows its own scale, inline or styled; a press grows it from there.
+      if (!state.run && Math.abs(state.scale.get() - 1) < 1e-4) {
+        state.own = child.style.scale;
+        const computed = getComputedStyle(child).scale;
+        state.base = !computed || computed === "none" ? [1] : computed.trim().split(/\s+/).map(part => parseFloat(part) / (part.endsWith("%") ? 100 : 1));
       }
       const target = child.hasAttribute("data-pressed") ? GLASS_PRESS_SCALE : 1;
       state.run?.stop();
-      if (reduceRef.current) state.scale.jump(target); else state.run = springTo(state.scale, target, SURFACE_PRESS_SPRING);
+      if (reduceRef.current) { state.run = undefined; state.scale.jump(target); }
+      else {
+        const run = springTo(state.scale, target, SURFACE_PRESS_SPRING), owner = state;
+        owner.run = run;
+        void run.finished.then(() => { if (owner.run === run) owner.run = undefined; });
+      }
     };
     /** Measures every shape and returns a geometry signature for rest detection. */
     const measure = () => {

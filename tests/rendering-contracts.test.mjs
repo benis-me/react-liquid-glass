@@ -1238,7 +1238,7 @@ test("a press lights the glass as a surface that spreads from the finger, identi
   assert.ok(Math.abs(damping / (2 * Math.sqrt(stiffness * mass)) - 1) < .01, "the glow spreads without overshoot");
   // Glass Group shapes press like a Button and light up, so the glow reaches their neighbours.
   assert.match(group, /const target = child\.hasAttribute\("data-pressed"\) \? GLASS_PRESS_SCALE : 1;/);
-  assert.match(group, /state\.run = springTo\(state\.scale, target, SURFACE_PRESS_SPRING\)/);
+  assert.match(group, /const run = springTo\(state\.scale, target, SURFACE_PRESS_SPRING\)/);
   assert.match(group, /shape\.contactSpread\.jump\(0\); light\.push\(springTo\(shape\.contactSpread, 1, PRESS_GLOW_SPRING, 0\)\);/);
   assert.doesNotMatch(libraryStylesSource, /\.dg-glass-group__items > \.dg-button\[data-pressed\]/);
 });
@@ -1291,6 +1291,26 @@ test("glass reads in Apple's terms: variant, clarity and tint reach every glass,
   // Surfaces, buttons and cards take a look of their own.
   assert.match(read("controls/GlassSurface.tsx"), /variant=\{glass\?\.variant\}\s*clarity=\{glass\?\.clarity\}\s*tint=\{glass\?\.tint\}/);
   assert.equal((read("controls/primitives.tsx").match(/glass=\{glass\}/g) ?? []).length, 2);
+});
+
+test("a group press grows a child from its own scale, and LiquidGlass keeps a material tint color", () => {
+  const group = readFileSync(new URL("../packages/react-liquid-glass/src/controls/GlassGroup.tsx", import.meta.url), "utf8");
+  // The press multiplies the child's own scale, inline or styled, and gives the inline value back at rest.
+  assert.match(group, /child\.style\.scale = Math\.abs\(value - 1\) < 1e-4 \? entry\.own : entry\.base\.map\(part => part \* value\)\.join\(" "\);/);
+  assert.match(group, /if \(!state\.run && Math\.abs\(state\.scale\.get\(\) - 1\) < 1e-4\) \{\s*state\.own = child\.style\.scale;\s*const computed = getComputedStyle\(child\)\.scale;/);
+  assert.match(group, /void run\.finished\.then\(\(\) => \{ if \(owner\.run === run\) owner\.run = undefined; \}\);/);
+  assert.match(liquidAdapterSource, /tintColor=\{tint \?\? material\.tintColor\}/);
+});
+
+test("GlassSlider reports values at its step's precision", () => {
+  const slider = readFileSync(new URL("../packages/react-liquid-glass/src/controls/GlassSlider.tsx", import.meta.url), "utf8");
+  assert.match(slider, /const snap = \(value: number\) => step > 0 \? Number\(\(Math\.round\(\(value - min\) \/ step\) \* step \+ min\)\.toFixed\(Math\.max\(decimals\(step\), decimals\(min\)\)\)\) : value;/);
+  assert.equal((slider.match(/Math\.round\(\(/g) ?? []).length, 1, "one snap for dragging and reporting");
+  // The arithmetic it guards against, and its result.
+  const decimals = value => { const text = String(value), dot = text.indexOf("."); return text.includes("e") ? 10 : dot < 0 ? 0 : text.length - dot - 1; };
+  const snap = (value, min, step) => Number((Math.round((value - min) / step) * step + min).toFixed(Math.max(decimals(step), decimals(min))));
+  assert.notEqual(-1 + 12 * .05, -.4);
+  assert.equal(snap(-.4, -1, .05), -.4); assert.equal(snap(.3, 0, .1), .3); assert.equal(snap(.774, 0, .01), .77); assert.equal(snap(37, 0, 1), 37);
 });
 
 test("HDR light is soft-capped and identical on both backends", () => {

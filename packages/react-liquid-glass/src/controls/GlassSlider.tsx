@@ -27,6 +27,12 @@ export interface GlassSliderProps extends NativeSliderProps {
   size?: "default" | "small";
 }
 
+/** Digits after the decimal point; exponent notation keeps ten. */
+const decimals = (value: number) => {
+  const text = String(value), dot = text.indexOf(".");
+  return text.includes("e") ? 10 : dot < 0 ? 0 : text.length - dot - 1;
+};
+
 export function GlassSlider({
   value,
   defaultValue = 50,
@@ -72,13 +78,15 @@ export function GlassSlider({
   const refractedTrackHeight = trackHeight * LIFT_END_PINCH;
   const restTintBlur = compact ? 0 : 4;
   const toOffset = (next: number) => max > min ? ((next - min) / (max - min)) * travel : 0;
+  // Snapping in binary leaves float noise (-1 + 12 × 0.05 is -0.3999999999999999), so values
+  // keep the precision of the step and the minimum they are counted in.
+  const snap = (value: number) => step > 0 ? Number((Math.round((value - min) / step) * step + min).toFixed(Math.max(decimals(step), decimals(min)))) : value;
   const fromOffset = (position: number) => {
     const clamped = Math.max(0, Math.min(travel, position));
-    const raw = travel > 0 ? min + (clamped / travel) * (max - min) : min;
-    return step > 0 ? Math.round((raw - min) / step) * step + min : raw;
+    return snap(travel > 0 ? min + (clamped / travel) * (max - min) : min);
   };
   const emit = (next: number) => {
-    const snapped = step > 0 ? Math.round((next - min) / step) * step + min : next;
+    const snapped = snap(next);
     const clamped = Math.max(min, Math.min(max, snapped));
     if (clamped === reported.current) return;
     reported.current = clamped;

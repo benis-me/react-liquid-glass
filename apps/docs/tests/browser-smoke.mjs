@@ -687,8 +687,10 @@ export async function checkFieldAndGroupPolish() {
 
 export async function checkSelectOcclusion() {
   await go('/playground');
-  const inspector=document.querySelector('.playground-inspector'),inspectorBox=inspector.getBoundingClientRect(),opticsBox=inspector.querySelector('.dg-surface__optics').getBoundingClientRect();
-  assert(Math.abs(opticsBox.left-inspectorBox.left+40)<1 && Math.abs(opticsBox.top-inspectorBox.top+40)<1,'Mobile inspector glass escaped its containing block');
+  const inspector=document.querySelector('.playground-inspector'),inspectorBox=inspector.getBoundingClientRect(),optics=inspector.querySelector('.dg-surface__optics'),opticsBox=optics.getBoundingClientRect();
+  // The optics reach past the glass by its shadow's reach, at least 40px, from the inspector's own box.
+  const reach=-parseFloat(getComputedStyle(optics).top);
+  assert(reach>=40 && Math.abs(opticsBox.left-inspectorBox.left+reach)<1 && Math.abs(opticsBox.top-inspectorBox.top+reach)<1,'Mobile inspector glass escaped its containing block');
   const trigger=document.querySelector('.playground-controls [role="combobox"]') ?? document.querySelector('main [role="combobox"]');
   trigger.click();const layer=trigger.closest('.dg-popover-anchor').nextElementSibling;
   await until(()=>layer.matches(':popover-open'),'Component Select did not open');

@@ -61,7 +61,7 @@ Describe glass as Apple does, with three values, and let everything else follow 
 | `clarity` | From `-1`, more tinted (more frost and a denser tint, legible over anything), through `0`, the calibrated default, to `1`, more clear, as Apple's Liquid Glass setting moves between Tinted and Clear |
 | `tint` | A CSS color for glass that marks a prominent action; tinted glass keeps its color however clear the rest is |
 
-A provider's `material` applies them to everything beneath it; `GlassButton`, `GlassCard` and `GlassSurface` take them as `glass`, and `LiquidGlassCanvas` as props.
+A provider's `material` applies them to everything beneath it; `GlassButton`, `GlassCard` and `GlassSurface` take them as `glass`, `LiquidGlass` in its `material`, and `LiquidGlassCanvas` as props.
 
 ```tsx
 <LiquidGlassProvider material={{ clarity: -0.4 }}>
