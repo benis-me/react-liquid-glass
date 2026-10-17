@@ -1,0 +1,84 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write # npm trusted publishing (OIDC)
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check the tag, library version, docs dependency and changelog agree
+        run: |
+          version="$(jq -r .version packages/react-liquid-glass/package.json)"
+          docs="$(jq -r .dependencies.rglass apps/docs/package.json)"
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match rglass $version"; exit 1
+          fi
+          if [ "$docs" != "$version" ]; then
+            echo "::error::apps/docs depends on rglass $docs, not $version"; exit 1
+          fi
+          if ! grep -q "^## $version " packages/react-liquid-glass/CHANGELOG.md; then
+            echo "::error::packages/react-liquid-glass/CHANGELOG.md has no $version entry"; exit 1
+          fi
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          package-manager-cache: false # no caches in a release build
+      - name: Use npm 11.5.1 or newer, which trusted publishing needs
+        run: |
+          if [ "$(printf '%s\n' 11.5.1 "$(npm --version)" | sort --version-sort | head -n 1)" != 11.5.1 ]; then
+            npm install --global npm@^11.5.1
+          fi
+          npm --version
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm publish --workspace rglass
+
+  verify:
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+      - name: Install the published version into an empty project
+        working-directory: ${{ runner.temp }}
+        run: |
+          mkdir clean-install && cd clean-install
+          npm init --yes > /dev/null
+          # A new version can take a moment to appear in the registry.
+          for attempt in 1 2 3 4 5 6; do
+            npm install --prefer-online "rglass@${GITHUB_REF_NAME#v}" && exit 0
+            sleep 15
+          done
+          exit 1
+      - name: Import every exports entry
+        working-directory: ${{ runner.temp }}/clean-install
+        run: |
+          node --input-type=module <<'JS'
+          import { readFileSync } from "node:fs";
+          import { createRequire } from "node:module";
+
+          const require = createRequire(`${process.cwd()}/`);
+          const root = `${process.cwd()}/node_modules/rglass/`;
+          const { exports } = JSON.parse(readFileSync(`${root}package.json`, "utf8"));
+          for (const [subpath, targets] of Object.entries(exports)) {
+            const specifier = `rglass${subpath.slice(1)}`;
+            for (const target of Object.values(targets)) readFileSync(root + target);
+            if (targets.import) await import(specifier);
+            if (targets.require) require(specifier);
+            if (!targets.import && !targets.require) require.resolve(specifier); // CSS: Node cannot evaluate it
+            console.log(`ok ${specifier}`);
+          }
+          JS
